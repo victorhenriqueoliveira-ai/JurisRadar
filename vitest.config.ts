@@ -9,8 +9,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['src/db/**/*.ts'],
-      exclude: ['src/db/index.ts', 'src/db/__tests__/**'],
+      include: ['src/db/**/*.ts', 'src/lib/datajud/**/*.ts'],
+      exclude: [
+        'src/db/index.ts',
+        'src/db/__tests__/**',
+        'src/lib/datajud/__tests__/**',
+        'src/lib/datajud/tribunals.ts',
+      ],
       thresholds: {
         lines: 80,
         functions: 60,
