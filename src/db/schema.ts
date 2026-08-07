@@ -7,6 +7,7 @@ import {
   jsonb,
   date,
   index,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 // ── Tipos auxiliares ──────────────────────────────────────────────────────────
@@ -114,3 +115,72 @@ export const searchCache = pgTable('search_cache', {
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// ── Tabelas DJE/TJSP ─────────────────────────────────────────────────────────
+
+/** Edições do DJE/TJSP — controla o status de indexação por data e caderno */
+export const djeEditions = pgTable(
+  'dje_editions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    editionDate: date('edition_date').notNull(),
+    caderno: integer('caderno').notNull(), // 2 ou 3
+    status: text('status')
+      .$type<'pending' | 'downloading' | 'parsing' | 'completed' | 'failed'>()
+      .notNull()
+      .default('pending'),
+    publicationCount: integer('publication_count'),
+    errorMessage: text('error_message'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqueEditionCaderno: unique().on(t.editionDate, t.caderno),
+  }),
+);
+
+/** Publicações do DJE/TJSP indexadas para busca full-text */
+export const djePublications = pgTable(
+  'dje_publications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    editionId: uuid('edition_id')
+      .notNull()
+      .references(() => djeEditions.id),
+    processNumber: text('process_number').notNull(),
+    instance: text('instance').$type<'1' | '2'>().notNull(),
+    court: text('court'),
+    publicationDate: date('publication_date').notNull(),
+    caderno: integer('caderno').notNull(),
+    content: text('content').notNull(),
+    // search_vector: adicionado via migration SQL raw (Drizzle não suporta GENERATED nativamente)
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    publicationDateIdx: index('dje_pub_date_idx').on(t.publicationDate),
+    processNumberIdx: index('dje_pub_process_number_idx').on(t.processNumber),
+    editionIdIdx: index('dje_pub_edition_id_idx').on(t.editionId),
+  }),
+);
+
+/** Histórico de buscas DJE realizadas por usuários */
+export const djeSearches = pgTable(
+  'dje_searches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    name: text('name'),
+    term: text('term').notNull(),
+    dateFrom: date('date_from').notNull(),
+    dateTo: date('date_to').notNull(),
+    totalResults: integer('total_results').notNull().default(0),
+    executedAt: timestamp('executed_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    userIdIdx: index('dje_searches_user_id_idx').on(t.userId, t.createdAt),
+  }),
+);
