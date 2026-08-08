@@ -66,6 +66,7 @@ import type { DjePublication } from '@/lib/dje/types';
  * Executa a lógica real do djeIndexer simulando o objeto `step` do Inngest.
  * Cada `step.run(name, fn)` executa o callback imediatamente.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function runDjeIndexer(_today: string) {
   // Importação dinâmica para garantir que os mocks estejam aplicados
   const { djeIndexer } = await import('../dje-indexer');
