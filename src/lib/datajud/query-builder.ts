@@ -109,11 +109,9 @@ export function buildDataJudQuery(
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
   }
 
-  // número do processo CNJ: match exato em numeroProcesso
+  // número do processo CNJ: term (correspondência exata, sem tokenização)
   if (filters.numeroProcesso) {
-    // normaliza removendo espaços extras mas preserva pontuação CNJ
-    const num = filters.numeroProcesso.trim();
-    must.push({ match: { numeroProcesso: num } });
+    must.push({ term: { numeroProcesso: filters.numeroProcesso.trim() } });
   }
 
   // busca livre: multi_match em campos textuais relevantes
