@@ -134,7 +134,7 @@ function DataJudSearchContent() {
     setValue('grau', grau);
     if (dateFrom) setValue('dateFrom', dateFrom);
     if (dateTo) setValue('dateTo', dateTo);
-    void executeSearch({ keyword, numeroProcesso, grau, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }, 1);
+    void executeSearch({ keyword: keyword ?? undefined, numeroProcesso: numeroProcesso ?? undefined, grau, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }, 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
