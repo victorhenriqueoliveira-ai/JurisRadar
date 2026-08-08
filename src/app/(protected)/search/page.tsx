@@ -19,6 +19,7 @@ const formSchema = z
   .object({
     numeroProcesso: z.string().optional(),
     keyword: z.string().optional(),
+    comarca: z.string().optional(),
     grau: z.string().optional(),
     dateFrom: z.string().optional(),
     dateTo: z.string().optional(),
@@ -147,6 +148,7 @@ function DataJudSearchContent() {
         body: JSON.stringify({
           ...(values.keyword ? { keyword: values.keyword } : {}),
           ...(values.numeroProcesso ? { numeroProcesso: values.numeroProcesso } : {}),
+          ...(values.comarca ? { comarca: values.comarca } : {}),
           ...(values.grau ? { grau: values.grau } : {}),
           ...(values.dateFrom ? { dateFrom: values.dateFrom } : {}),
           ...(values.dateTo ? { dateTo: values.dateTo } : {}),
@@ -321,6 +323,23 @@ function DataJudSearchContent() {
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="comarca" className="block text-sm font-medium text-gray-700 mb-1">
+            Comarca / Cidade <span className="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input
+            id="comarca"
+            type="text"
+            placeholder="Ex: Campinas, Santos, Ribeirão Preto"
+            {...register('comarca')}
+            disabled={isLoading}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Filtra pelo nome da vara/comarca — deixe em branco para buscar em todo o TJSP.
+          </p>
         </div>
 
         <div>

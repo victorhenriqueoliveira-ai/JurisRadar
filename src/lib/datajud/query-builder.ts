@@ -104,6 +104,11 @@ export function buildDataJudQuery(
     });
   }
 
+  // comarca/cidade: match em orgaoJulgador.nome (ex: "Campinas" filtra varas de Campinas)
+  if (filters.comarca) {
+    must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
+  }
+
   // número do processo CNJ: match exato em numeroProcesso
   if (filters.numeroProcesso) {
     // normaliza removendo espaços extras mas preserva pontuação CNJ

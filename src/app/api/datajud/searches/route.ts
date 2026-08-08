@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 422 });
   }
 
-  const { keyword, numeroProcesso, grau, dateFrom, dateTo, page, limit } = parsed;
+  const { keyword, numeroProcesso, comarca, grau, dateFrom, dateTo, page, limit } = parsed;
   const from = (page - 1) * limit;
 
   try {
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       {
         ...(keyword ? { buscaLivre: keyword } : {}),
         ...(numeroProcesso ? { numeroProcesso } : {}),
+        ...(comarca ? { comarca } : {}),
         ...(grau ? { grau: [grau] } : {}),
         ...(dateFrom ? { dataDistribuicaoInicio: dateFrom } : {}),
         ...(dateTo ? { dataDistribuicaoFim: dateTo } : {}),

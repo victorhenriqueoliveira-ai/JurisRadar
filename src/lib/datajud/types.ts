@@ -35,6 +35,7 @@ export interface SearchFilters {
   dataDistribuicaoFim?: string;
   buscaLivre?: string;
   numeroProcesso?: string;                        // número CNJ ex: "0001234-56.2023.8.26.0001"
+  comarca?: string;                               // cidade/comarca ex: "Campinas"
 }
 
 // ── Resultado de processo ─────────────────────────────────────────────────────

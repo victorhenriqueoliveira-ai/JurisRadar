@@ -4,6 +4,7 @@ export const DataJudSearchSchema = z
   .object({
     keyword: z.string().min(2, 'Mínimo 2 caracteres').max(200).optional(),
     numeroProcesso: z.string().min(5).max(50).optional(),
+    comarca: z.string().min(2).max(100).optional(),
     grau: z.enum(['G1', 'G2', 'JE']).optional(),
     dateFrom: z
       .string()
