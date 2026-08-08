@@ -227,8 +227,8 @@ function DataJudSearchContent() {
                 <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${cat.corCategoria}`}>
                   {cat.categoria}
                 </p>
-                <div className={`rounded-md border ${cat.cor} overflow-hidden`}>
-                  <table className="w-full text-sm">
+                <div className={`rounded-md border ${cat.cor} overflow-x-auto`}>
+                  <table className="w-full text-sm min-w-[400px]">
                     <thead>
                       <tr className="border-b border-gray-200">
                         <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-1/3">Termo de busca</th>
@@ -331,7 +331,7 @@ function DataJudSearchContent() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700 mb-1">
               Distribuído a partir de
