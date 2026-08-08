@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  plugins: [react() as any, tsconfigPaths()],
   test: {
     environment: 'node',
     globals: true,
@@ -22,6 +24,8 @@ export default defineConfig({
         'src/hooks/**/*.ts',
         'src/components/search/**/*.tsx',
         'src/components/history/**/*.tsx',
+        'src/components/dje/**/*.tsx',
+        'src/app/(protected)/dje/**/*.tsx',
       ],
       exclude: [
         'src/db/index.ts',
@@ -33,6 +37,7 @@ export default defineConfig({
         'src/lib/export/__tests__/**',
         'src/auth/__tests__/**',
         'src/auth.ts',
+        'src/app/(protected)/dje/__tests__/**',
       ],
       thresholds: {
         lines: 80,
