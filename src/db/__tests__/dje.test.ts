@@ -309,7 +309,7 @@ describe('searchPublications', () => {
   });
 
   it('deve calcular offset correto para page 2 com limit 10', async () => {
-    let executedSqls: string[] = [];
+    const executedSqls: string[] = [];
     mockDb.execute.mockImplementation((sqlQuery: { queryChunks?: unknown[] }) => {
       // Captura as queries executadas para verificar offset
       const sqlStr = JSON.stringify(sqlQuery);
@@ -328,7 +328,7 @@ describe('searchPublications', () => {
   });
 
   it('deve filtrar por dateFrom e dateTo na query', async () => {
-    let queryStrings: string[] = [];
+    const queryStrings: string[] = [];
     mockDb.execute.mockImplementation((sqlQuery: unknown) => {
       queryStrings.push(JSON.stringify(sqlQuery));
       if (queryStrings.length === 1) {
