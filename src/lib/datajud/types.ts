@@ -40,6 +40,11 @@ export interface SearchFilters {
 
 // ── Resultado de processo ─────────────────────────────────────────────────────
 
+export interface Movimentacao {
+  data: string;
+  descricao: string;
+}
+
 /** Resultado normalizado de um processo judicial retornado pelo DataJud */
 export interface ProcessoResult {
   numero: string;                                // formato CNJ — obrigatório
@@ -47,8 +52,10 @@ export interface ProcessoResult {
   grau: string;
   classe?: string;
   assunto?: string;
+  assuntos?: string[];                           // todos os assuntos
   dataDistribuicao?: string;
   orgaoJulgador?: string;
   partes?: { polo: 'ativo' | 'passivo'; nome: string }[];
-  ultimaMovimentacao?: { data: string; descricao: string };
+  ultimaMovimentacao?: Movimentacao;
+  movimentos?: Movimentacao[];                   // histórico completo
 }

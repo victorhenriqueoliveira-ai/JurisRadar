@@ -2,6 +2,7 @@ import { buildDataJudQuery } from './query-builder';
 import {
   DataJudRateLimitError,
   DataJudUnavailableError,
+  type Movimentacao,
   type ProcessoResult,
   type SearchFilters,
 } from './types';
@@ -58,32 +59,39 @@ interface DataJudResponse {
  * Mapeia um hit da resposta DataJud para ProcessoResult.
  * Descarta CPF/CNPJ das partes (LGPD — minimização de dados).
  */
+function mapMovimento(mov: DataJudMovimento): Movimentacao | null {
+  const descricao =
+    mov.nome ??
+    mov.complementosTabelados?.[0]?.nome ??
+    mov.complementosTabelados?.[0]?.descricao ??
+    '';
+  if (!mov.dataHora || !descricao) return null;
+  return { data: mov.dataHora, descricao };
+}
+
 function mapHitToProcesso(hit: DataJudHit): ProcessoResult | null {
   const src = hit._source;
   if (!src?.numeroProcesso) return null;
 
-  let ultimaMovimentacao: ProcessoResult['ultimaMovimentacao'];
-  if (src.movimentos && src.movimentos.length > 0) {
-    const mov = src.movimentos[0];
-    const descricao =
-      mov.nome ??
-      mov.complementosTabelados?.[0]?.nome ??
-      mov.complementosTabelados?.[0]?.descricao ??
-      '';
-    if (mov.dataHora && descricao) {
-      ultimaMovimentacao = { data: mov.dataHora, descricao };
-    }
-  }
+  const movimentos: Movimentacao[] = (src.movimentos ?? [])
+    .map(mapMovimento)
+    .filter((m): m is Movimentacao => m !== null);
+
+  const allAssuntos = (src.assuntos ?? [])
+    .map((a) => a.nome)
+    .filter((n): n is string => Boolean(n));
 
   return {
     numero: src.numeroProcesso,
     tribunal: src.tribunal ?? '',
     grau: src.grau ?? '',
     classe: src.classe?.nome,
-    assunto: src.assuntos?.[0]?.nome,
+    assunto: allAssuntos[0],
+    assuntos: allAssuntos,
     dataDistribuicao: src.dataAjuizamento,
     orgaoJulgador: src.orgaoJulgador?.nome,
-    ultimaMovimentacao,
+    ultimaMovimentacao: movimentos[0],
+    movimentos,
   };
 }
 
