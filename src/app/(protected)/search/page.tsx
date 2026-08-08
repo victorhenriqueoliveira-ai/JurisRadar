@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchParams } from 'next/navigation';
@@ -93,7 +93,7 @@ const TERMOS_REFERENCIA = [
   },
 ];
 
-export default function DataJudSearchPage() {
+function DataJudSearchContent() {
   const searchParams = useSearchParams();
   const [showGuia, setShowGuia] = useState(false);
 
@@ -404,5 +404,13 @@ export default function DataJudSearchPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DataJudSearchPage() {
+  return (
+    <Suspense>
+      <DataJudSearchContent />
+    </Suspense>
   );
 }

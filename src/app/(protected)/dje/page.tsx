@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchParams } from 'next/navigation';
@@ -31,7 +31,7 @@ interface SearchResult {
 
 const LIMIT = 50;
 
-export default function DjePage() {
+function DjePageContent() {
   const searchParams = useSearchParams();
   const searchId = searchParams.get('searchId');
 
@@ -261,5 +261,13 @@ export default function DjePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DjePage() {
+  return (
+    <Suspense>
+      <DjePageContent />
+    </Suspense>
   );
 }
