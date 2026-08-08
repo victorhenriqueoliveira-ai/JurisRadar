@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 422 });
   }
 
-  const { keyword, dateFrom, dateTo, page, limit } = parsed;
+  const { keyword, grau, dateFrom, dateTo, page, limit } = parsed;
   const from = (page - 1) * limit;
 
   try {
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       TJSP_TRIBUNAL,
       {
         buscaLivre: keyword,
-        grau: ['G1'],
+        ...(grau ? { grau: [grau] } : {}),
         ...(dateFrom ? { dataDistribuicaoInicio: dateFrom } : {}),
         ...(dateTo ? { dataDistribuicaoFim: dateTo } : {}),
       },

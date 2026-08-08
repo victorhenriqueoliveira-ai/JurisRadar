@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const DataJudSearchSchema = z.object({
   keyword: z.string().min(2, 'Mínimo 2 caracteres').max(200),
+  grau: z.enum(['G1', 'G2', 'JE']).optional(),
   dateFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inicial inválida')

@@ -7,8 +7,16 @@ import { z } from 'zod';
 import ProcessoCard from '@/components/datajud/ProcessoCard';
 import type { ProcessoResult } from '@/lib/datajud/types';
 
+const GRAU_OPTIONS = [
+  { value: 'G1', label: '1ª Instância' },
+  { value: 'G2', label: '2ª Instância' },
+  { value: 'JE', label: 'Juizados Especiais' },
+  { value: '', label: 'Todas as instâncias' },
+] as const;
+
 const formSchema = z.object({
   keyword: z.string().min(2, 'Mínimo 2 caracteres'),
+  grau: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
 });
@@ -42,6 +50,7 @@ export default function DataJudSearchPage() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    defaultValues: { grau: 'G1' },
   });
 
   async function executeSearch(values: FormValues, page: number) {
@@ -52,6 +61,7 @@ export default function DataJudSearchPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keyword: values.keyword,
+          ...(values.grau ? { grau: values.grau } : {}),
           ...(values.dateFrom ? { dateFrom: values.dateFrom } : {}),
           ...(values.dateTo ? { dateTo: values.dateTo } : {}),
           page,
@@ -134,6 +144,24 @@ export default function DataJudSearchPage() {
               {errors.keyword.message}
             </p>
           )}
+        </div>
+
+        <div>
+          <label htmlFor="grau" className="block text-sm font-medium text-gray-700 mb-1">
+            Instância
+          </label>
+          <select
+            id="grau"
+            {...register('grau')}
+            disabled={isLoading}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 bg-white"
+          >
+            {GRAU_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
