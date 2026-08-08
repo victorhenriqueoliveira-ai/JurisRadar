@@ -18,6 +18,7 @@ export default defineConfig({
         'src/auth/**/*.ts',
         'src/inngest/**/*.ts',
         'src/app/api/searches/**/*.ts',
+        'src/app/api/dje/**/*.ts',
         'src/hooks/**/*.ts',
         'src/components/search/**/*.tsx',
         'src/components/history/**/*.tsx',
