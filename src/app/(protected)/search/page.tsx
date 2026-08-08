@@ -191,11 +191,15 @@ function DataJudSearchContent() {
     handleSubmit,
     setValue,
     getValues,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { grau: 'G1' },
   });
+
+  const numeroProcessoValue = watch('numeroProcesso');
+  const byNumero = Boolean(numeroProcessoValue?.trim());
 
   // Preenche formulário e executa se vier do histórico
   useEffect(() => {
@@ -356,94 +360,100 @@ function DataJudSearchContent() {
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        <div>
-          <label htmlFor="keyword" className="block text-sm font-medium text-gray-700 mb-1">
-            Palavra-chave
-          </label>
-          <input
-            id="keyword"
-            type="text"
-            placeholder="Ex: Alimentos, Divórcio, Indenização"
-            {...register('keyword')}
-            disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-          />
-          {errors.keyword && (
-            <p role="alert" className="mt-1 text-xs text-red-600">
-              {errors.keyword.message}
+        {/* Campos de assunto ficam desabilitados quando número está preenchido */}
+        <fieldset disabled={byNumero || isLoading} className={byNumero ? 'opacity-40 pointer-events-none' : ''}>
+          {byNumero && (
+            <p className="text-xs text-blue-600 mb-3">
+              Buscando por número — os filtros abaixo são ignorados.
             </p>
           )}
-        </div>
 
-        <div>
-          <label htmlFor="grau" className="block text-sm font-medium text-gray-700 mb-1">
-            Instância
-          </label>
-          <select
-            id="grau"
-            {...register('grau')}
-            disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 bg-white"
-          >
-            {GRAU_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="keyword" className="block text-sm font-medium text-gray-700 mb-1">
+                Palavra-chave
+              </label>
+              <input
+                id="keyword"
+                type="text"
+                placeholder="Ex: Alimentos, Divórcio, Indenização"
+                {...register('keyword')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              />
+              {errors.keyword && !byNumero && (
+                <p role="alert" className="mt-1 text-xs text-red-600">
+                  {errors.keyword.message}
+                </p>
+              )}
+            </div>
 
-        <div>
-          <label htmlFor="comarca" className="block text-sm font-medium text-gray-700 mb-1">
-            Comarca / Cidade <span className="text-gray-400 font-normal">(opcional)</span>
-          </label>
-          <input
-            id="comarca"
-            type="text"
-            placeholder="Ex: Campinas, Santos, Ribeirão Preto"
-            {...register('comarca')}
-            disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Filtra pelo nome da vara/comarca — deixe em branco para buscar em todo o TJSP.
-          </p>
-        </div>
+            <div>
+              <label htmlFor="grau" className="block text-sm font-medium text-gray-700 mb-1">
+                Instância
+              </label>
+              <select
+                id="grau"
+                {...register('grau')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 bg-white"
+              >
+                {GRAU_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div>
-          <p className="text-xs text-gray-500">
-            <span className="font-medium">Datas de distribuição</span> — o DataJud indexa processos com atraso de dias a semanas.
-            Dados de 2024 e início de 2025 têm melhor cobertura; datas muito recentes podem não aparecer ainda.
-            Deixe em branco para buscar em todo o histórico disponível.
-          </p>
-        </div>
+            <div>
+              <label htmlFor="comarca" className="block text-sm font-medium text-gray-700 mb-1">
+                Comarca / Cidade <span className="text-gray-400 font-normal">(opcional)</span>
+              </label>
+              <input
+                id="comarca"
+                type="text"
+                placeholder="Ex: Campinas, Santos, Ribeirão Preto"
+                {...register('comarca')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Filtra pelo nome da vara/comarca — deixe em branco para buscar em todo o TJSP.
+              </p>
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700 mb-1">
-              Distribuído a partir de
-            </label>
-            <input
-              id="dateFrom"
-              type="date"
-              {...register('dateFrom')}
-              disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-            />
+            <div>
+              <p className="text-xs text-gray-500">
+                <span className="font-medium">Datas de distribuição</span> — o DataJud indexa processos com atraso de dias a semanas.
+                Dados de 2024 e início de 2025 têm melhor cobertura; datas muito recentes podem não aparecer ainda.
+                Deixe em branco para buscar em todo o histórico disponível.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700 mb-1">
+                  Distribuído a partir de
+                </label>
+                <input
+                  id="dateFrom"
+                  type="date"
+                  {...register('dateFrom')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label htmlFor="dateTo" className="block text-sm font-medium text-gray-700 mb-1">
+                  Distribuído até
+                </label>
+                <input
+                  id="dateTo"
+                  type="date"
+                  {...register('dateTo')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label htmlFor="dateTo" className="block text-sm font-medium text-gray-700 mb-1">
-              Distribuído até
-            </label>
-            <input
-              id="dateTo"
-              type="date"
-              {...register('dateTo')}
-              disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-            />
-          </div>
-        </div>
+        </fieldset>
 
         <button
           type="submit"

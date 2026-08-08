@@ -64,6 +64,19 @@ export function buildDataJudQuery(
   from: number = 0,
   size: number = 100,
 ): DataJudQuery {
+  // Número de processo: busca exata, ignora todos os outros filtros
+  if (filters.numeroProcesso) {
+    return {
+      size,
+      from,
+      query: {
+        bool: {
+          must: [{ match_phrase: { numeroProcesso: filters.numeroProcesso.trim() } }],
+        },
+      },
+    };
+  }
+
   const must: MustClause[] = [];
 
   // assunto: busca textual em assuntos.nome
