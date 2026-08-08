@@ -35,8 +35,67 @@ const LIMIT = 20;
 
 const EXEMPLOS = ['Alimentos', 'Divórcio', 'Guarda', 'Indenização', 'Usucapião'];
 
+const TERMOS_REFERENCIA = [
+  {
+    categoria: 'Criminal',
+    cor: 'bg-red-50 border-red-200',
+    corCategoria: 'text-red-700',
+    termos: [
+      { termo: 'Homicídio Doloso', descricao: 'Homicídio intencional' },
+      { termo: 'Homicídio Culposo', descricao: 'Homicídio por negligência/imprudência' },
+      { termo: 'Roubo', descricao: 'Subtração com violência ou ameaça' },
+      { termo: 'Furto', descricao: 'Subtração sem violência' },
+      { termo: 'Tráfico', descricao: 'Tráfico de drogas' },
+      { termo: 'Lesão Corporal', descricao: 'Agressão física' },
+      { termo: 'Estupro', descricao: 'Crimes sexuais' },
+      { termo: 'Violência Doméstica', descricao: 'Lei Maria da Penha' },
+      { termo: 'Ameaça', descricao: 'Crime de ameaça' },
+      { termo: 'Desacato', descricao: 'Desacato a funcionário público' },
+    ],
+  },
+  {
+    categoria: 'Família',
+    cor: 'bg-purple-50 border-purple-200',
+    corCategoria: 'text-purple-700',
+    termos: [
+      { termo: 'Alimentos', descricao: 'Pensão alimentícia' },
+      { termo: 'Divórcio', descricao: 'Dissolução do casamento' },
+      { termo: 'Guarda', descricao: 'Guarda de filhos' },
+      { termo: 'Adoção', descricao: 'Adoção de menores' },
+      { termo: 'Pensão', descricao: 'Pensão por morte / alimentos' },
+      { termo: 'Partilha', descricao: 'Divisão de bens' },
+    ],
+  },
+  {
+    categoria: 'Cível',
+    cor: 'bg-blue-50 border-blue-200',
+    corCategoria: 'text-blue-700',
+    termos: [
+      { termo: 'Indenização', descricao: 'Dano moral ou material' },
+      { termo: 'Rescisão', descricao: 'Rescisão de contrato' },
+      { termo: 'Cobrança', descricao: 'Cobrança de dívida' },
+      { termo: 'Locação', descricao: 'Aluguel / despejo' },
+      { termo: 'Empréstimo', descricao: 'Dívidas bancárias / empréstimo' },
+      { termo: 'Acidente de Trânsito', descricao: 'Colisão / danos em acidente' },
+      { termo: 'Usucapião', descricao: 'Aquisição de propriedade por posse' },
+      { termo: 'Inventário', descricao: 'Herança e espólio' },
+      { termo: 'Multa de Trânsito', descricao: 'Contestação de multas' },
+    ],
+  },
+  {
+    categoria: 'Previdenciário',
+    cor: 'bg-green-50 border-green-200',
+    corCategoria: 'text-green-700',
+    termos: [
+      { termo: 'Aposentadoria', descricao: 'Benefícios previdenciários' },
+      { termo: 'Execução Fiscal', descricao: 'Cobranças do fisco / dívida ativa' },
+    ],
+  },
+];
+
 export default function DataJudSearchPage() {
   const searchParams = useSearchParams();
+  const [showGuia, setShowGuia] = useState(false);
 
   const [searchState, setSearchState] = useState<
     | { status: 'idle' }
@@ -138,6 +197,58 @@ export default function DataJudSearchPage() {
           </span>
         ))}
         . Para pensão alimentícia, use <strong>Alimentos</strong>.
+      </div>
+
+      {/* Guia de termos */}
+      <div className="rounded-md border border-gray-200 bg-white shadow-sm">
+        <button
+          type="button"
+          onClick={() => setShowGuia((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <span>Guia de termos — como pesquisar por tipo de caso</span>
+          <span className="text-gray-400">{showGuia ? '▲' : '▼'}</span>
+        </button>
+
+        {showGuia && (
+          <div className="border-t border-gray-200 p-4 space-y-5">
+            {TERMOS_REFERENCIA.map((cat) => (
+              <div key={cat.categoria}>
+                <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${cat.corCategoria}`}>
+                  {cat.categoria}
+                </p>
+                <div className={`rounded-md border ${cat.cor} overflow-hidden`}>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-1/3">Termo de busca</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Quando usar</th>
+                        <th className="px-3 py-2 w-20"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cat.termos.map((t, i) => (
+                        <tr key={t.termo} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-3 py-2 font-mono text-xs font-semibold text-gray-900">{t.termo}</td>
+                          <td className="px-3 py-2 text-gray-600">{t.descricao}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => { setValue('keyword', t.termo); setShowGuia(false); }}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              Usar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <form
