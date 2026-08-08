@@ -65,13 +65,15 @@ export function buildDataJudQuery(
   size: number = 100,
 ): DataJudQuery {
   // Número de processo: busca exata, ignora todos os outros filtros
+  // Remove pontos e traços — o DataJud indexa o número sem formatação
   if (filters.numeroProcesso) {
+    const numeroLimpo = filters.numeroProcesso.trim().replace(/[.\-]/g, '');
     return {
       size,
       from,
       query: {
         bool: {
-          must: [{ match_phrase: { numeroProcesso: filters.numeroProcesso.trim() } }],
+          must: [{ match_phrase: { numeroProcesso: numeroLimpo } }],
         },
       },
     };
@@ -124,11 +126,6 @@ export function buildDataJudQuery(
   // comarca/cidade: match em orgaoJulgador.nome (ex: "Campinas" filtra varas de Campinas)
   if (filters.comarca) {
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
-  }
-
-  // número do processo CNJ: match_phrase exige todos os tokens na ordem exata
-  if (filters.numeroProcesso) {
-    must.push({ match_phrase: { numeroProcesso: filters.numeroProcesso.trim() } });
   }
 
   // busca livre: multi_match em campos textuais relevantes

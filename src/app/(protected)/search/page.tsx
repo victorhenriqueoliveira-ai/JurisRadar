@@ -344,14 +344,26 @@ function DataJudSearchContent() {
           <label htmlFor="numeroProcesso" className="block text-sm font-medium text-gray-700 mb-1">
             Número do processo <span className="text-gray-400 font-normal">(CNJ)</span>
           </label>
-          <input
-            id="numeroProcesso"
-            type="text"
-            placeholder="Ex: 0001234-56.2023.8.26.0001"
-            {...register('numeroProcesso')}
-            disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 font-mono"
-          />
+          <div className="relative">
+            <input
+              id="numeroProcesso"
+              type="text"
+              placeholder="Ex: 0001234-56.2023.8.26.0001"
+              {...register('numeroProcesso')}
+              disabled={isLoading}
+              className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 font-mono"
+            />
+            {byNumero && !isLoading && (
+              <button
+                type="button"
+                onClick={() => setValue('numeroProcesso', '')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Limpar número do processo"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
