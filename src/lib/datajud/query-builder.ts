@@ -48,12 +48,12 @@ export interface DataJudQuery {
 /**
  * Constrói a query Elasticsearch DSL a partir dos SearchFilters fornecidos.
  *
- * Mapeamento:
- *   assunto[]            → match dadosBasicos.assunto.descricao (OR entre valores)
- *   classe[]             → terms dadosBasicos.classe.codigo
- *   grau[]               → terms dadosBasicos.grau
- *   dataDistribuicaoInicio / Fim → range dadosBasicos.dataAjuizamento
- *   buscaLivre           → multi_match em campos relevantes
+ * Mapeamento (campos reais da API DataJud v2):
+ *   assunto[]            → match assuntos.nome
+ *   classe[]             → match classe.nome
+ *   grau[]               → match grau  (campo text, não keyword)
+ *   dataDistribuicaoInicio / Fim → range dataAjuizamento (formato yyyyMMddHHmmss)
+ *   buscaLivre           → multi_match em assuntos.nome, classe.nome, orgaoJulgador.nome
  */
 export function buildDataJudQuery(
   filters: SearchFilters,
@@ -62,53 +62,45 @@ export function buildDataJudQuery(
 ): DataJudQuery {
   const must: MustClause[] = [];
 
-  // assunto: busca textual (match)
+  // assunto: busca textual em assuntos.nome
   if (filters.assunto && filters.assunto.length > 0) {
-    if (filters.assunto.length === 1) {
+    for (const assunto of filters.assunto) {
       must.push({
-        match: { 'dadosBasicos.assunto.descricao': filters.assunto[0] },
+        match: { 'assuntos.nome': assunto },
       });
-    } else {
-      // Múltiplos assuntos → terms no código ou match via bool should (simplificado: primeiro valor)
-      for (const assunto of filters.assunto) {
-        must.push({
-          match: { 'dadosBasicos.assunto.descricao': assunto },
-        });
-      }
     }
   }
 
-  // classe: código da classe processual CNJ
+  // classe: nome da classe processual CNJ
   if (filters.classe && filters.classe.length > 0) {
-    must.push({
-      terms: { 'dadosBasicos.classe.codigo': filters.classe },
-    });
-  }
-
-  // grau: G1, G2, JE, SUP
-  if (filters.grau && filters.grau.length > 0) {
-    if (filters.grau.length === 1) {
+    for (const classe of filters.classe) {
       must.push({
-        term: { 'dadosBasicos.grau': filters.grau[0] },
-      });
-    } else {
-      must.push({
-        terms: { 'dadosBasicos.grau': filters.grau },
+        match: { 'classe.nome': classe },
       });
     }
   }
 
-  // data de distribuição: range
+  // grau: G1, G2, JE, SUP — campo text, usa match (não term/terms)
+  if (filters.grau && filters.grau.length > 0) {
+    for (const grau of filters.grau) {
+      must.push({
+        match: { grau },
+      });
+    }
+  }
+
+  // data de distribuição: range em dataAjuizamento (formato yyyyMMddHHmmss)
   if (filters.dataDistribuicaoInicio || filters.dataDistribuicaoFim) {
     const rangeFilter: { gte?: string; lte?: string } = {};
     if (filters.dataDistribuicaoInicio) {
-      rangeFilter.gte = filters.dataDistribuicaoInicio;
+      // converte "2026-01-01" → "20260101000000"
+      rangeFilter.gte = filters.dataDistribuicaoInicio.replace(/-/g, '') + '000000';
     }
     if (filters.dataDistribuicaoFim) {
-      rangeFilter.lte = filters.dataDistribuicaoFim;
+      rangeFilter.lte = filters.dataDistribuicaoFim.replace(/-/g, '') + '235959';
     }
     must.push({
-      range: { 'dadosBasicos.dataAjuizamento': rangeFilter },
+      range: { dataAjuizamento: rangeFilter },
     });
   }
 
@@ -118,9 +110,9 @@ export function buildDataJudQuery(
       multi_match: {
         query: filters.buscaLivre,
         fields: [
-          'dadosBasicos.assunto.descricao',
-          'dadosBasicos.classe.descricao',
-          'dadosBasicos.orgaoJulgador.nomeOrgao',
+          'assuntos.nome',
+          'classe.nome',
+          'orgaoJulgador.nome',
         ],
       },
     });

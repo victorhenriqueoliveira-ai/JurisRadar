@@ -25,37 +25,22 @@ function getApiKey(): string {
 
 // ── Tipos internos de resposta DataJud ───────────────────────────────────────
 
-interface DataJudParte {
-  polo?: string;
-  nome?: string;
-  documento?: string;
-  cpf?: string;
-  cnpj?: string;
-  [key: string]: unknown;
-}
-
 interface DataJudMovimento {
   dataHora?: string;
-  movimentoNacional?: { descricao?: string };
-  complementosTabelados?: Array<{ descricao?: string }>;
-  [key: string]: unknown;
-}
-
-interface DataJudDadosBasicos {
-  numero?: string;
-  siglaTribunal?: string;
-  grau?: string;
-  classe?: { descricao?: string; codigo?: string };
-  assunto?: Array<{ descricao?: string; codigo?: string }>;
-  dataAjuizamento?: string;
-  orgaoJulgador?: { nomeOrgao?: string };
-  polo?: DataJudParte[];
+  nome?: string;
+  complementosTabelados?: Array<{ nome?: string; descricao?: string }>;
   [key: string]: unknown;
 }
 
 interface DataJudHit {
   _source?: {
-    dadosBasicos?: DataJudDadosBasicos;
+    numeroProcesso?: string;
+    tribunal?: string;
+    grau?: string;
+    classe?: { nome?: string; codigo?: number };
+    assuntos?: Array<{ nome?: string; codigo?: number }>;
+    dataAjuizamento?: string;
+    orgaoJulgador?: { nome?: string };
     movimentos?: DataJudMovimento[];
   };
 }
@@ -74,44 +59,30 @@ interface DataJudResponse {
  * Descarta CPF/CNPJ das partes (LGPD — minimização de dados).
  */
 function mapHitToProcesso(hit: DataJudHit): ProcessoResult | null {
-  const dados = hit._source?.dadosBasicos;
-  if (!dados?.numero) return null;
+  const src = hit._source;
+  if (!src?.numeroProcesso) return null;
 
-  const partes: ProcessoResult['partes'] = dados.polo
-    ?.filter((p) => p.polo && p.nome)
-    .map((p) => ({
-      polo: (p.polo === 'AT' || p.polo === 'ativo' ? 'ativo' : 'passivo') as
-        | 'ativo'
-        | 'passivo',
-      nome: p.nome as string,
-      // CPF, CNPJ e demais campos de documento são explicitamente descartados
-    }));
-
-  const movimentos = hit._source?.movimentos;
   let ultimaMovimentacao: ProcessoResult['ultimaMovimentacao'];
-  if (movimentos && movimentos.length > 0) {
-    const mov = movimentos[0];
+  if (src.movimentos && src.movimentos.length > 0) {
+    const mov = src.movimentos[0];
     const descricao =
-      mov.movimentoNacional?.descricao ??
+      mov.nome ??
+      mov.complementosTabelados?.[0]?.nome ??
       mov.complementosTabelados?.[0]?.descricao ??
       '';
     if (mov.dataHora && descricao) {
-      ultimaMovimentacao = {
-        data: mov.dataHora,
-        descricao,
-      };
+      ultimaMovimentacao = { data: mov.dataHora, descricao };
     }
   }
 
   return {
-    numero: dados.numero,
-    tribunal: dados.siglaTribunal ?? '',
-    grau: dados.grau ?? '',
-    classe: dados.classe?.descricao,
-    assunto: dados.assunto?.[0]?.descricao,
-    dataDistribuicao: dados.dataAjuizamento,
-    orgaoJulgador: dados.orgaoJulgador?.nomeOrgao,
-    partes: partes && partes.length > 0 ? partes : undefined,
+    numero: src.numeroProcesso,
+    tribunal: src.tribunal ?? '',
+    grau: src.grau ?? '',
+    classe: src.classe?.nome,
+    assunto: src.assuntos?.[0]?.nome,
+    dataDistribuicao: src.dataAjuizamento,
+    orgaoJulgador: src.orgaoJulgador?.nome,
     ultimaMovimentacao,
   };
 }
