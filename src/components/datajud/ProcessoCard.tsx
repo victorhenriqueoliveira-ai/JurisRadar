@@ -49,7 +49,9 @@ export default function ProcessoCard({ processo }: ProcessoCardProps) {
   const tjspUrl = `https://esaj.tjsp.jus.br/cpopg/search.do?cbPesquisa=NUMPROC&numeroDigitoAnoUnificado=${stripped}&foroNumeroUnificado=0000&dadosConsulta.valorConsultaNuUnificado=${numero}&dadosConsulta.valorConsulta=&dadosConsulta.tipoNuUnificado=UNIFICADO`;
 
   const extraAssuntos = (assuntos ?? []).slice(1);
-  const hasMore = (movimentos?.length ?? 0) > 1 || extraAssuntos.length > 0;
+  const partesAtivas = processo.partes?.filter((p) => p.polo === 'ativo') ?? [];
+  const partesPassivas = processo.partes?.filter((p) => p.polo === 'passivo') ?? [];
+  const hasMore = (movimentos?.length ?? 0) > 1 || extraAssuntos.length > 0 || (processo.partes?.length ?? 0) > 0;
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -125,6 +127,50 @@ export default function ProcessoCard({ processo }: ProcessoCardProps) {
               <p className="text-gray-800">{formatDate(dataDistribuicao)}</p>
             </div>
           </div>
+
+          {/* Partes */}
+          {(partesAtivas.length > 0 || partesPassivas.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {partesAtivas.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
+                    Polo Ativo
+                  </p>
+                  <ul className="space-y-2">
+                    {partesAtivas.map((p, i) => (
+                      <li key={i}>
+                        <p className="text-xs font-medium text-gray-800">{p.nome}</p>
+                        {p.advogados?.map((adv, j) => (
+                          <p key={j} className="text-xs text-gray-500 mt-0.5">
+                            ⚖ {adv.nome}{adv.oab ? ` (OAB ${adv.oab})` : ''}
+                          </p>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {partesPassivas.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
+                    Polo Passivo
+                  </p>
+                  <ul className="space-y-2">
+                    {partesPassivas.map((p, i) => (
+                      <li key={i}>
+                        <p className="text-xs font-medium text-gray-800">{p.nome}</p>
+                        {p.advogados?.map((adv, j) => (
+                          <p key={j} className="text-xs text-gray-500 mt-0.5">
+                            ⚖ {adv.nome}{adv.oab ? ` (OAB ${adv.oab})` : ''}
+                          </p>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Assuntos extras */}
           {extraAssuntos.length > 0 && (

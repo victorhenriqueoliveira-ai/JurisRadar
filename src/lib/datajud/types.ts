@@ -45,6 +45,17 @@ export interface Movimentacao {
   descricao: string;
 }
 
+export interface Advogado {
+  nome: string;
+  oab?: string;
+}
+
+export interface Parte {
+  polo: 'ativo' | 'passivo';
+  nome: string;
+  advogados?: Advogado[];
+}
+
 /** Resultado normalizado de um processo judicial retornado pelo DataJud */
 export interface ProcessoResult {
   numero: string;                                // formato CNJ — obrigatório
@@ -55,7 +66,7 @@ export interface ProcessoResult {
   assuntos?: string[];                           // todos os assuntos
   dataDistribuicao?: string;
   orgaoJulgador?: string;
-  partes?: { polo: 'ativo' | 'passivo'; nome: string }[];
+  partes?: Parte[];
   ultimaMovimentacao?: Movimentacao;
   movimentos?: Movimentacao[];                   // histórico completo
 }

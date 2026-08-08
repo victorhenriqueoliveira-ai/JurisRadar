@@ -2,7 +2,9 @@ import { buildDataJudQuery } from './query-builder';
 import {
   DataJudRateLimitError,
   DataJudUnavailableError,
+  type Advogado,
   type Movimentacao,
+  type Parte,
   type ProcessoResult,
   type SearchFilters,
 } from './types';
@@ -33,6 +35,18 @@ interface DataJudMovimento {
   [key: string]: unknown;
 }
 
+interface DataJudAdvogado {
+  nome?: string;
+  numeroOAB?: string;
+  tipoRepresentante?: string;
+}
+
+interface DataJudParte {
+  polo?: string;
+  nome?: string;
+  advogados?: DataJudAdvogado[];
+}
+
 interface DataJudHit {
   _source?: {
     numeroProcesso?: string;
@@ -43,6 +57,7 @@ interface DataJudHit {
     dataAjuizamento?: string;
     orgaoJulgador?: { nome?: string };
     movimentos?: DataJudMovimento[];
+    partes?: DataJudParte[];
   };
 }
 
@@ -81,6 +96,16 @@ function mapHitToProcesso(hit: DataJudHit): ProcessoResult | null {
     .map((a) => a.nome)
     .filter((n): n is string => Boolean(n));
 
+  const partes: Parte[] = (src.partes ?? [])
+    .filter((p) => p.nome)
+    .map((p) => {
+      const polo = p.polo?.toLowerCase().includes('ativo') ? 'ativo' : 'passivo';
+      const advogados: Advogado[] = (p.advogados ?? [])
+        .filter((a) => a.nome)
+        .map((a) => ({ nome: a.nome!, oab: a.numeroOAB }));
+      return { polo, nome: p.nome!, advogados: advogados.length ? advogados : undefined };
+    });
+
   return {
     numero: src.numeroProcesso,
     tribunal: src.tribunal ?? '',
@@ -90,6 +115,7 @@ function mapHitToProcesso(hit: DataJudHit): ProcessoResult | null {
     assuntos: allAssuntos,
     dataDistribuicao: src.dataAjuizamento,
     orgaoJulgador: src.orgaoJulgador?.nome,
+    partes: partes.length ? partes : undefined,
     ultimaMovimentacao: movimentos[0],
     movimentos,
   };
