@@ -1,31 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getSystemUserId } from '@/lib/system-user';
 import { getDjeSearch, searchPublications } from '@/db/dje';
 
-/**
- * GET /api/dje/searches/[id]
- *
- * Re-executa ao vivo a query DJE com os parâmetros da busca salva,
- * suportando paginação via query params ?page e ?limit.
- *
- * Retorna 404 se a busca não pertencer ao usuário autenticado
- * (enforcement de ownership via getDjeSearch).
- *
- * Status HTTP:
- * - 200 — resultados retornados
- * - 401 — não autenticado
- * - 404 — busca não encontrada ou pertence a outro usuário
- */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  }
-
-  const userId = session.user.id;
+  const userId = await getSystemUserId();
   const { id } = await params;
 
   const search = await getDjeSearch(id, userId);

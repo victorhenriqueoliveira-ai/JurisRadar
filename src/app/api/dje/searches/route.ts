@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { auth } from '@/auth';
+import { getSystemUserId } from '@/lib/system-user';
 import {
   searchPublications,
   createDjeSearch,
@@ -8,25 +8,8 @@ import {
 } from '@/db/dje';
 import { DjeSearchSchema } from './schema';
 
-/**
- * POST /api/dje/searches
- *
- * Cria uma nova busca DJE de forma síncrona: valida os parâmetros,
- * executa a busca full-text, persiste o histórico e retorna a página 1
- * dos resultados junto com o searchId.
- *
- * Status HTTP:
- * - 201 — busca criada com sucesso
- * - 401 — não autenticado
- * - 422 — parâmetros inválidos (Zod)
- */
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  }
-
-  const userId = session.user.id;
+  const userId = await getSystemUserId();
 
   let body: unknown;
   try {
@@ -51,10 +34,7 @@ export async function POST(request: NextRequest) {
   const { term, dateFrom, dateTo, name, page, limit } = parsed;
   const params = { term, dateFrom, dateTo };
 
-  // Executa a busca full-text (síncrona)
   const { results, total } = await searchPublications(params, page, limit, userId);
-
-  // Persiste o histórico com o total real de resultados
   const searchId = await createDjeSearch(userId, params, name, total);
 
   const totalPages = Math.ceil(total / limit);
@@ -65,28 +45,10 @@ export async function POST(request: NextRequest) {
   );
 }
 
-/**
- * GET /api/dje/searches
- *
- * Retorna o histórico de buscas DJE do usuário autenticado, paginado.
- *
- * Query params:
- * - page (default 1)
- * - limit (default 20)
- *
- * Status HTTP:
- * - 200 — lista retornada
- * - 401 — não autenticado
- */
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  }
+  const userId = await getSystemUserId();
 
-  const userId = session.user.id;
   const { searchParams } = new URL(request.url);
-
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const limit = Math.min(
     100,

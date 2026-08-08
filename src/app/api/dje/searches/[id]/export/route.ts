@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { auth } from '@/auth';
+import { getSystemUserId } from '@/lib/system-user';
 import { getDjeSearch, searchPublications } from '@/db/dje';
 import type { DjeSearchResult } from '@/lib/dje/types';
 
@@ -79,15 +79,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return new Response(JSON.stringify({ error: 'Não autenticado' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const userId = session.user.id;
+  const userId = await getSystemUserId();
   const { id } = await params;
 
   // Verifica ownership — retorna null se não pertencer ao usuário
