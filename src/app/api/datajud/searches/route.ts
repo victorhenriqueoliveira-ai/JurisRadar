@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (page === 1) {
-      const label = numeroProcesso ?? keyword;
+      const label = (numeroProcesso ?? keyword) ?? '';
       await createDataJudSearch(userId, label, grau, dateFrom, dateTo, total).catch(() => {});
     }
 
