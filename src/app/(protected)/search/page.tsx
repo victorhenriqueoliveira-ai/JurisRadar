@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 import ProcessoCard from '@/components/datajud/ProcessoCard';
 import type { ProcessoResult } from '@/lib/datajud/types';
@@ -35,6 +36,8 @@ const LIMIT = 20;
 const EXEMPLOS = ['Alimentos', 'Divórcio', 'Guarda', 'Indenização', 'Usucapião'];
 
 export default function DataJudSearchPage() {
+  const searchParams = useSearchParams();
+
   const [searchState, setSearchState] = useState<
     | { status: 'idle' }
     | { status: 'loading' }
@@ -52,6 +55,21 @@ export default function DataJudSearchPage() {
     resolver: zodResolver(formSchema),
     defaultValues: { grau: 'G1' },
   });
+
+  // Preenche formulário e executa se vier do histórico (/search?keyword=...&grau=...)
+  useEffect(() => {
+    const keyword = searchParams.get('keyword');
+    if (!keyword) return;
+    const grau = searchParams.get('grau') ?? 'G1';
+    const dateFrom = searchParams.get('dateFrom') ?? '';
+    const dateTo = searchParams.get('dateTo') ?? '';
+    setValue('keyword', keyword);
+    setValue('grau', grau);
+    if (dateFrom) setValue('dateFrom', dateFrom);
+    if (dateTo) setValue('dateTo', dateTo);
+    void executeSearch({ keyword, grau, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }, 1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function executeSearch(values: FormValues, page: number) {
     setSearchState({ status: 'loading' });
@@ -137,7 +155,7 @@ export default function DataJudSearchPage() {
             placeholder="Ex: Alimentos, Divórcio, Indenização"
             {...register('keyword')}
             disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
           />
           {errors.keyword && (
             <p role="alert" className="mt-1 text-xs text-red-600">
@@ -154,7 +172,7 @@ export default function DataJudSearchPage() {
             id="grau"
             {...register('grau')}
             disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 bg-white"
           >
             {GRAU_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -162,6 +180,14 @@ export default function DataJudSearchPage() {
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <p className="text-xs text-gray-500">
+            <span className="font-medium">Datas de distribuição</span> — o DataJud indexa processos com atraso de dias a semanas.
+            Dados de 2024 e início de 2025 têm melhor cobertura; datas muito recentes podem não aparecer ainda.
+            Deixe em branco para buscar em todo o histórico disponível.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -174,7 +200,7 @@ export default function DataJudSearchPage() {
               type="date"
               {...register('dateFrom')}
               disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
             />
           </div>
           <div>
@@ -186,7 +212,7 @@ export default function DataJudSearchPage() {
               type="date"
               {...register('dateTo')}
               disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
             />
           </div>
         </div>
