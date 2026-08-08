@@ -9,7 +9,7 @@ import type { SearchFilters } from './types';
  * o mesmo hash, independente da ordem de entrada.
  */
 export function normalizeFilters(filters: SearchFilters): string {
-  const normalized = sortObjectKeys(filters);
+  const normalized = sortObjectKeys(filters as unknown as Record<string, unknown>);
   const json = JSON.stringify(normalized);
   return createHash('sha256').update(json).digest('hex');
 }
