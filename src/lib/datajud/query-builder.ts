@@ -25,7 +25,11 @@ interface MultiMatchClause {
   };
 }
 
-type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause;
+interface MatchPhraseClause {
+  match_phrase: Record<string, string>;
+}
+
+type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause | MatchPhraseClause;
 
 interface BoolQuery {
   bool: {
@@ -109,9 +113,9 @@ export function buildDataJudQuery(
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
   }
 
-  // número do processo CNJ: term (correspondência exata, sem tokenização)
+  // número do processo CNJ: match_phrase exige todos os tokens na ordem exata
   if (filters.numeroProcesso) {
-    must.push({ term: { numeroProcesso: filters.numeroProcesso.trim() } });
+    must.push({ match_phrase: { numeroProcesso: filters.numeroProcesso.trim() } });
   }
 
   // busca livre: multi_match em campos textuais relevantes
