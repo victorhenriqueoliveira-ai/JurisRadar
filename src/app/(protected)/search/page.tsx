@@ -1,12 +1,86 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 import ProcessoCard from '@/components/datajud/ProcessoCard';
 import type { ProcessoResult } from '@/lib/datajud/types';
+
+// ── Paginação ─────────────────────────────────────────────────────────────────
+
+function pageRange(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '…')[] = [1];
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push('…');
+  pages.push(total);
+  return pages;
+}
+
+interface PaginationProps {
+  page: number;
+  totalPages: number;
+  disabled: boolean;
+  onPage: (p: number) => void;
+}
+
+function Pagination({ page, totalPages, disabled, onPage }: PaginationProps) {
+  if (totalPages <= 1) return null;
+  const pages = pageRange(page, totalPages);
+
+  return (
+    <div className="flex items-center justify-center gap-1 pt-4" data-testid="pagination">
+      <button
+        type="button"
+        onClick={() => onPage(page - 1)}
+        disabled={page <= 1 || disabled}
+        className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        data-testid="prev-page"
+      >
+        ← Anterior
+      </button>
+
+      <div className="flex items-center gap-1">
+        {pages.map((p, i) =>
+          p === '…' ? (
+            <span key={`ellipsis-${i}`} className="px-2 text-gray-400 text-sm select-none">…</span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onPage(p)}
+              disabled={disabled}
+              className={`min-w-[2rem] px-2 py-1.5 text-sm rounded-md border transition-colors disabled:cursor-not-allowed ${
+                p === page
+                  ? 'bg-blue-600 text-white border-blue-600 font-medium'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onPage(page + 1)}
+        disabled={page >= totalPages || disabled}
+        className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        data-testid="next-page"
+      >
+        Próxima →
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const GRAU_OPTIONS = [
   { value: 'G1', label: '1ª Instância' },
@@ -103,6 +177,7 @@ const TERMOS_REFERENCIA = [
 function DataJudSearchContent() {
   const searchParams = useSearchParams();
   const [showGuia, setShowGuia] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   const [searchState, setSearchState] = useState<
     | { status: 'idle' }
@@ -163,21 +238,14 @@ function DataJudSearchContent() {
       const data = await response.json() as SearchResult;
       const label = values.numeroProcesso ?? values.keyword ?? '';
       setSearchState({ status: 'success', data, label });
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     } catch (e) {
       setSearchState({ status: 'error', message: e instanceof Error ? e.message : 'Erro desconhecido' });
     }
   }
 
-  function handleNextPage() {
-    if (searchState.status !== 'success') return;
-    if (searchState.data.page >= searchState.data.totalPages) return;
-    void executeSearch(getValues(), searchState.data.page + 1);
-  }
-
-  function handlePrevPage() {
-    if (searchState.status !== 'success') return;
-    if (searchState.data.page <= 1) return;
-    void executeSearch(getValues(), searchState.data.page - 1);
+  function handlePage(p: number) {
+    void executeSearch(getValues(), p);
   }
 
   const isLoading = searchState.status === 'loading';
@@ -394,7 +462,7 @@ function DataJudSearchContent() {
       )}
 
       {searchState.status === 'success' && (
-        <div className="space-y-4">
+        <div ref={resultsRef} className="space-y-4 scroll-mt-4">
           <p className="text-sm text-gray-600">
             {searchState.data.total === 0
               ? `Nenhum processo encontrado para "${searchState.label}".`
@@ -425,31 +493,12 @@ function DataJudSearchContent() {
             </div>
           )}
 
-          {searchState.data.totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2" data-testid="pagination">
-              <button
-                type="button"
-                onClick={handlePrevPage}
-                disabled={searchState.data.page <= 1 || isLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                data-testid="prev-page"
-              >
-                Anterior
-              </button>
-              <span className="text-sm text-gray-500">
-                {searchState.data.page} / {searchState.data.totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={handleNextPage}
-                disabled={searchState.data.page >= searchState.data.totalPages || isLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                data-testid="next-page"
-              >
-                Próxima
-              </button>
-            </div>
-          )}
+          <Pagination
+            page={searchState.data.page}
+            totalPages={searchState.data.totalPages}
+            disabled={isLoading}
+            onPage={handlePage}
+          />
         </div>
       )}
     </div>
