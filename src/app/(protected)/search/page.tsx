@@ -15,12 +15,18 @@ const GRAU_OPTIONS = [
   { value: '', label: 'Todas as instâncias' },
 ] as const;
 
-const formSchema = z.object({
-  keyword: z.string().min(2, 'Mínimo 2 caracteres'),
-  grau: z.string().optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
-});
+const formSchema = z
+  .object({
+    numeroProcesso: z.string().optional(),
+    keyword: z.string().optional(),
+    grau: z.string().optional(),
+    dateFrom: z.string().optional(),
+    dateTo: z.string().optional(),
+  })
+  .refine((d) => (d.keyword && d.keyword.length >= 2) || (d.numeroProcesso && d.numeroProcesso.length >= 5), {
+    message: 'Informe uma palavra-chave (mín. 2 caracteres) ou número do processo',
+    path: ['keyword'],
+  });
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -100,7 +106,7 @@ function DataJudSearchContent() {
   const [searchState, setSearchState] = useState<
     | { status: 'idle' }
     | { status: 'loading' }
-    | { status: 'success'; data: SearchResult; keyword: string }
+    | { status: 'success'; data: SearchResult; label: string }
     | { status: 'error'; message: string }
   >({ status: 'idle' });
 
@@ -115,18 +121,20 @@ function DataJudSearchContent() {
     defaultValues: { grau: 'G1' },
   });
 
-  // Preenche formulário e executa se vier do histórico (/search?keyword=...&grau=...)
+  // Preenche formulário e executa se vier do histórico
   useEffect(() => {
     const keyword = searchParams.get('keyword');
-    if (!keyword) return;
+    const numeroProcesso = searchParams.get('numeroProcesso');
+    if (!keyword && !numeroProcesso) return;
     const grau = searchParams.get('grau') ?? 'G1';
     const dateFrom = searchParams.get('dateFrom') ?? '';
     const dateTo = searchParams.get('dateTo') ?? '';
-    setValue('keyword', keyword);
+    if (keyword) setValue('keyword', keyword);
+    if (numeroProcesso) setValue('numeroProcesso', numeroProcesso);
     setValue('grau', grau);
     if (dateFrom) setValue('dateFrom', dateFrom);
     if (dateTo) setValue('dateTo', dateTo);
-    void executeSearch({ keyword, grau, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }, 1);
+    void executeSearch({ keyword, numeroProcesso, grau, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }, 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -137,7 +145,8 @@ function DataJudSearchContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          keyword: values.keyword,
+          ...(values.keyword ? { keyword: values.keyword } : {}),
+          ...(values.numeroProcesso ? { numeroProcesso: values.numeroProcesso } : {}),
           ...(values.grau ? { grau: values.grau } : {}),
           ...(values.dateFrom ? { dateFrom: values.dateFrom } : {}),
           ...(values.dateTo ? { dateTo: values.dateTo } : {}),
@@ -150,7 +159,8 @@ function DataJudSearchContent() {
         throw new Error(err?.error ?? `Erro ${response.status}`);
       }
       const data = await response.json() as SearchResult;
-      setSearchState({ status: 'success', data, keyword: values.keyword });
+      const label = values.numeroProcesso ?? values.keyword ?? '';
+      setSearchState({ status: 'success', data, label });
     } catch (e) {
       setSearchState({ status: 'error', message: e instanceof Error ? e.message : 'Erro desconhecido' });
     }
@@ -257,6 +267,26 @@ function DataJudSearchContent() {
         noValidate
       >
         <div>
+          <label htmlFor="numeroProcesso" className="block text-sm font-medium text-gray-700 mb-1">
+            Número do processo <span className="text-gray-400 font-normal">(CNJ)</span>
+          </label>
+          <input
+            id="numeroProcesso"
+            type="text"
+            placeholder="Ex: 0001234-56.2023.8.26.0001"
+            {...register('numeroProcesso')}
+            disabled={isLoading}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 font-mono"
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400 font-medium">ou busque por assunto</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        <div>
           <label htmlFor="keyword" className="block text-sm font-medium text-gray-700 mb-1">
             Palavra-chave
           </label>
@@ -348,7 +378,7 @@ function DataJudSearchContent() {
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
             {searchState.data.total === 0
-              ? `Nenhum processo encontrado para "${searchState.keyword}".`
+              ? `Nenhum processo encontrado para "${searchState.label}".`
               : `${searchState.data.total.toLocaleString('pt-BR')} processo${searchState.data.total !== 1 ? 's' : ''} encontrado${searchState.data.total !== 1 ? 's' : ''}`}
             {searchState.data.totalPages > 1 &&
               ` — página ${searchState.data.page} de ${searchState.data.totalPages}`}

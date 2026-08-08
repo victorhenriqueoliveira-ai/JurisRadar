@@ -34,6 +34,7 @@ export interface SearchFilters {
   dataDistribuicaoInicio?: string;                // ISO 8601: "2025-01-01"
   dataDistribuicaoFim?: string;
   buscaLivre?: string;
+  numeroProcesso?: string;                        // número CNJ ex: "0001234-56.2023.8.26.0001"
 }
 
 // ── Resultado de processo ─────────────────────────────────────────────────────

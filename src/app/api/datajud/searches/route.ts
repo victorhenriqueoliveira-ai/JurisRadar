@@ -30,14 +30,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 422 });
   }
 
-  const { keyword, grau, dateFrom, dateTo, page, limit } = parsed;
+  const { keyword, numeroProcesso, grau, dateFrom, dateTo, page, limit } = parsed;
   const from = (page - 1) * limit;
 
   try {
     const { hits, total } = await queryTribunal(
       TJSP_TRIBUNAL,
       {
-        buscaLivre: keyword,
+        ...(keyword ? { buscaLivre: keyword } : {}),
+        ...(numeroProcesso ? { numeroProcesso } : {}),
         ...(grau ? { grau: [grau] } : {}),
         ...(dateFrom ? { dataDistribuicaoInicio: dateFrom } : {}),
         ...(dateTo ? { dataDistribuicaoFim: dateTo } : {}),
@@ -47,7 +48,8 @@ export async function POST(request: NextRequest) {
     );
 
     if (page === 1) {
-      await createDataJudSearch(userId, keyword, grau, dateFrom, dateTo, total).catch(() => {});
+      const label = numeroProcesso ?? keyword;
+      await createDataJudSearch(userId, label, grau, dateFrom, dateTo, total).catch(() => {});
     }
 
     const totalPages = Math.ceil(total / limit);

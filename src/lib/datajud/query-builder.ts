@@ -104,6 +104,13 @@ export function buildDataJudQuery(
     });
   }
 
+  // número do processo CNJ: match exato em numeroProcesso
+  if (filters.numeroProcesso) {
+    // normaliza removendo espaços extras mas preserva pontuação CNJ
+    const num = filters.numeroProcesso.trim();
+    must.push({ match: { numeroProcesso: num } });
+  }
+
   // busca livre: multi_match em campos textuais relevantes
   if (filters.buscaLivre) {
     must.push({
