@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 import PublicationCard, { Publication } from '@/components/dje/PublicationCard';
+import SetupModal from '@/components/dje/SetupModal';
 
 const formSchema = z
   .object({
@@ -118,6 +119,7 @@ export default function DjePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <SetupModal />
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Publicações DJE</h1>
         <p className="mt-1 text-sm text-gray-500">Pesquise publicações do Diário da Justiça Eletrônico do TJSP.</p>

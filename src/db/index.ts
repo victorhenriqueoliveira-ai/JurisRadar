@@ -16,7 +16,9 @@ if (!databaseUrl) {
   );
 }
 
-const sql = neon(databaseUrl);
+const sql = neon(databaseUrl, {
+  fetchOptions: { cache: 'no-store' },
+});
 
 /**
  * Instância do cliente Drizzle ORM conectado ao Neon via HTTP pooling.

@@ -101,12 +101,15 @@ export async function insertPublications(
     // search_vector NÃO incluído — gerado automaticamente pelo Postgres
   }));
 
-  const result = await db
-    .insert(djePublications)
-    .values(rows)
-    .returning({ id: djePublications.id });
-
-  return result.length;
+  // Neon HTTP tem limite de parâmetros por query — inserir em lotes de 100
+  const BATCH_SIZE = 100;
+  let total = 0;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    const result = await db.insert(djePublications).values(batch).returning({ id: djePublications.id });
+    total += result.length;
+  }
+  return total;
 }
 
 // ── Busca Full-Text com tsvector ──────────────────────────────────────────────
@@ -123,6 +126,25 @@ export async function insertPublications(
  * @param userId - ID do usuário (reservado para futuro controle de acesso)
  * @returns Resultados paginados e total de ocorrências
  */
+/**
+ * Constrói uma tsquery ORando cada palavra individualmente.
+ *
+ * O dicionário português stems de forma inconsistente adjetivos como
+ * "alimentícia" → "alimentíc" (não bate com "aliment"). OR por palavra
+ * garante que qualquer forma seja encontrada.
+ */
+function buildTsquery(term: string) {
+  const words = term.trim().split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) {
+    return sql`plainto_tsquery('portuguese', ${term})`;
+  }
+  let query = sql`plainto_tsquery('portuguese', ${words[0]})`;
+  for (let i = 1; i < words.length; i++) {
+    query = sql`(${query} || plainto_tsquery('portuguese', ${words[i]}))`;
+  }
+  return query;
+}
+
 export async function searchPublications(
   params: DjeSearchParams,
   page: number,
@@ -131,15 +153,15 @@ export async function searchPublications(
   _userId: string,
 ): Promise<{ results: DjeSearchResult[]; total: number }> {
   const offset = (page - 1) * limit;
+  const tsquery = buildTsquery(params.term);
 
   // Contagem total — sem ts_headline para performance
   const countResult = await db.execute(sql`
     SELECT COUNT(*) as total
     FROM dje_publications
-    WHERE search_vector @@ plainto_tsquery('portuguese', ${params.term})
+    WHERE search_vector @@ ${tsquery}
       AND publication_date BETWEEN ${params.dateFrom} AND ${params.dateTo}
   `);
-
   const total = Number((countResult.rows[0] as { total: string }).total);
 
   if (total === 0) {
@@ -155,10 +177,10 @@ export async function searchPublications(
       court,
       publication_date,
       caderno,
-      ts_headline('portuguese', content, plainto_tsquery('portuguese', ${params.term}),
+      ts_headline('portuguese', content, ${tsquery},
         'StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=15') AS snippet
     FROM dje_publications
-    WHERE search_vector @@ plainto_tsquery('portuguese', ${params.term})
+    WHERE search_vector @@ ${tsquery}
       AND publication_date BETWEEN ${params.dateFrom} AND ${params.dateTo}
     ORDER BY publication_date DESC
     LIMIT ${limit} OFFSET ${offset}

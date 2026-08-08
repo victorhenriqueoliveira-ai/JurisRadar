@@ -14,8 +14,12 @@
  *     ex.: "8ª Câmara de Direito Privado"
  */
 
-import pdfParse from 'pdf-parse';
+import { createRequire } from 'module';
 import type { DjePublication } from './types';
+
+const require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>;
 
 // ── Regex CNJ ─────────────────────────────────────────────────────────────────
 

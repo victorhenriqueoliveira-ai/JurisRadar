@@ -1,8 +1,4 @@
 import Link from 'next/link';
-
- * Layout protegido para usuários autenticados.
- * Exibe sidebar com navegação para as seções do sistema.
- */
 export default function ProtectedLayout({
   children,
 }: {
