@@ -22,6 +22,8 @@ interface MultiMatchClause {
   multi_match: {
     query: string;
     fields: string[];
+    type?: string;
+    operator?: string;
   };
 }
 
@@ -45,6 +47,37 @@ export interface DataJudQuery {
   size: number;
   from: number;
   query: BoolQuery | MatchAllQuery;
+}
+
+// ── Stopwords PT-BR ──────────────────────────────────────────────────────────
+
+const STOPWORDS = new Set([
+  'a', 'ao', 'aos', 'as', 'à', 'às',
+  'com', 'como',
+  'da', 'das', 'de', 'do', 'dos',
+  'e', 'em', 'entre', 'é',
+  'mas', 'me', 'muito',
+  'na', 'nas', 'nem', 'no', 'nos', 'num', 'numa',
+  'o', 'os', 'ou',
+  'para', 'pela', 'pelas', 'pelo', 'pelos', 'por',
+  'que',
+  'se', 'sem',
+  'um', 'uma', 'uns', 'umas',
+]);
+
+/**
+ * Remove stopwords do PT-BR antes de enviar para o Elasticsearch.
+ * Mantém termos com menos de 2 caracteres só se forem números.
+ */
+function stripStopwords(query: string): string {
+  return query
+    .trim()
+    .split(/\s+/)
+    .filter((t) => {
+      const lower = t.toLowerCase().replace(/[.,;:!?]/g, '');
+      return lower.length > 1 && !STOPWORDS.has(lower);
+    })
+    .join(' ');
 }
 
 // ── Builder principal ─────────────────────────────────────────────────────────
@@ -128,18 +161,22 @@ export function buildDataJudQuery(
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
   }
 
-  // busca livre: multi_match em campos textuais relevantes
+  // busca livre: cross_fields em assunto + classe + comarca num único campo
+  // Remove stopwords para que "despejo no jardim bela vista" → "despejo jardim bela vista"
+  // cross_fields distribui os tokens entre os campos: "despejo" bate em assuntos.nome,
+  // "jardim bela vista" bate em orgaoJulgador.nome
   if (filters.buscaLivre) {
-    must.push({
-      multi_match: {
-        query: filters.buscaLivre,
-        fields: [
-          'assuntos.nome',
-          'classe.nome',
-          'orgaoJulgador.nome',
-        ],
-      },
-    });
+    const termos = stripStopwords(filters.buscaLivre);
+    if (termos) {
+      must.push({
+        multi_match: {
+          query: termos,
+          fields: ['assuntos.nome', 'classe.nome', 'orgaoJulgador.nome'],
+          type: 'cross_fields',
+          operator: 'and',
+        },
+      });
+    }
   }
 
   // Se nenhum filtro foi aplicado, retorna match_all
