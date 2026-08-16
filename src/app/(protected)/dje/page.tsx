@@ -31,6 +31,79 @@ interface SearchResult {
 
 const LIMIT = 50;
 
+function ComoFunciona() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-md border border-gray-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+      >
+        <span>Como funciona esta busca?</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-200 p-4 space-y-4 text-sm text-gray-700">
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">O que é o DJE?</p>
+            <p>
+              O DJE (Diário da Justiça Eletrônico) é o veículo oficial de publicações do TJSP. Toda
+              intimação, despacho ou decisão que precisa ser comunicada às partes é publicada aqui.
+              O JurisRadar indexa diariamente os <strong>Cadernos 2 e 3</strong> (2ª e 1ª Instância
+              da Capital).
+            </p>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">Por que os dados não são em tempo real?</p>
+            <p>
+              O TJSP publica o DJE uma vez por dia útil, geralmente no final da tarde. O JurisRadar
+              baixa, extrai e indexa o diário automaticamente às <strong>20h (horário de Brasília)</strong>,
+              após confirmar que a edição do dia está disponível.
+            </p>
+            <p className="mt-2">
+              Isso significa que uma publicação de hoje estará disponível aqui a partir das
+              aproximadamente <strong>20h30</strong>. Fins de semana e feriados não têm edição.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">Como o pipeline de indexação funciona?</p>
+            <ol className="list-decimal list-inside space-y-1 text-gray-600">
+              <li>Download do PDF do caderno no portal DJE/TJSP</li>
+              <li>Extração do texto do PDF</li>
+              <li>Segmentação das publicações pelo número CNJ de cada processo</li>
+              <li>Armazenamento no banco de dados com índice de busca full-text</li>
+            </ol>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">O que é coberto?</p>
+            <ul className="list-disc list-inside space-y-1 text-gray-600">
+              <li><strong>Caderno 2</strong> — Judicial, 2ª Instância</li>
+              <li><strong>Caderno 3</strong> — Judicial, 1ª Instância Capital (Parte I)</li>
+            </ul>
+            <p className="mt-2 text-gray-500">
+              Interior do estado e outros tribunais não são cobertos nesta versão.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">Cobertura histórica</p>
+            <p>
+              Só há publicações indexadas a partir da data em que o JurisRadar entrou em operação.
+              Para períodos anteriores, a busca não retornará resultados — use diretamente o portal
+              do DJE/TJSP para consultas históricas.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DjePageContent() {
   const searchParams = useSearchParams();
   const searchId = searchParams.get('searchId');
@@ -124,6 +197,8 @@ function DjePageContent() {
         <h1 className="text-2xl font-bold text-gray-900">Publicações DJE</h1>
         <p className="mt-1 text-sm text-gray-500">Pesquise publicações do Diário da Justiça Eletrônico do TJSP.</p>
       </div>
+
+      <ComoFunciona />
 
       {/* Aviso de cobertura — sempre visível */}
       <div

@@ -174,6 +174,77 @@ const TERMOS_REFERENCIA = [
   },
 ];
 
+function ComoFunciona() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-md border border-gray-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+      >
+        <span>Como funciona esta busca?</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-200 p-4 space-y-4 text-sm text-gray-700">
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">O que é o DataJud?</p>
+            <p>
+              O DataJud é a base nacional de dados processuais do CNJ (Conselho Nacional de Justiça).
+              Todos os tribunais do Brasil enviam informações dos processos periodicamente para essa base,
+              incluindo o TJSP. A busca aqui consulta essa API diretamente.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">Por que os dados não são em tempo real?</p>
+            <p>
+              O CNJ coleta os dados dos tribunais em lotes periódicos, e cada tribunal envia com seu
+              próprio ritmo. Na prática, dados de 2023 e 2024 têm cobertura robusta, início de 2025
+              tem cobertura parcial, e dados das últimas semanas podem ainda não ter chegado ao índice.
+              O atraso típico varia de <strong>dias a semanas</strong>.
+            </p>
+            <p className="mt-2">
+              Para ver um processo muito recente em tempo real, use o link{' '}
+              <strong>"Consultar no TJSP"</strong> disponível em cada resultado — ele acessa o portal eSAJ
+              diretamente.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">Busca por número do processo</p>
+            <p>
+              Ao preencher o campo de número, todos os outros filtros (instância, comarca, datas) são
+              ignorados automaticamente. Você pode digitar o número com ou sem pontuação —
+              o sistema normaliza antes de buscar. Use o botão <strong>✕</strong> para limpar o campo
+              e voltar à busca por assunto.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">Limite de resultados</p>
+            <p>
+              O DataJud limita a <strong>10.000 processos</strong> por consulta. Se sua busca retornar
+              muitos resultados, adicione filtros de comarca, instância ou período para refinar.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900 mb-1">O que aparece em "Ver mais"?</p>
+            <p>
+              Histórico completo de movimentações, polo ativo e passivo com nomes e número de OAB dos
+              advogados, e assuntos adicionais. Partes e advogados só aparecem quando o TJSP preencheu
+              esse campo no envio ao CNJ — nem todos os processos têm essa informação.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DataJudSearchContent() {
   const searchParams = useSearchParams();
   const [showGuia, setShowGuia] = useState(false);
@@ -282,6 +353,9 @@ function DataJudSearchContent() {
         ))}
         . Para pensão alimentícia, use <strong>Alimentos</strong>.
       </div>
+
+      {/* Como funciona */}
+      <ComoFunciona />
 
       {/* Guia de termos */}
       <div className="rounded-md border border-gray-200 bg-white shadow-sm">
