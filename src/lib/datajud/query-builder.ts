@@ -31,7 +31,15 @@ interface MatchPhraseClause {
   match_phrase: Record<string, string>;
 }
 
-type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause | MatchPhraseClause;
+interface SimpleQueryStringClause {
+  simple_query_string: {
+    query: string;
+    fields: string[];
+    default_operator: 'OR' | 'AND';
+  };
+}
+
+type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause | MatchPhraseClause | SimpleQueryStringClause;
 
 interface BoolQuery {
   bool: {
@@ -161,18 +169,18 @@ export function buildDataJudQuery(
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
   }
 
-  // busca livre: cross_fields em assunto + classe + comarca + partes num único campo
-  // Remove stopwords: "despejo no jardim bela vista" → "despejo jardim bela vista"
-  // partes.nome permite buscar por nome de banco, empresa ou pessoa (polo ativo/passivo)
+  // busca livre: simple_query_string em todos os campos indexados do documento
+  // Cobre assunto, classe, vara, partes, movimentos e complementos (endereços, mandados etc.)
+  // Remove stopwords para melhorar precisão: "busca apreensão na avenida paulista"
+  //   → "busca apreensão avenida paulista"
   if (filters.buscaLivre) {
     const termos = stripStopwords(filters.buscaLivre);
     if (termos) {
       must.push({
-        multi_match: {
+        simple_query_string: {
           query: termos,
-          fields: ['assuntos.nome', 'classe.nome', 'orgaoJulgador.nome', 'partes.nome'],
-          type: 'cross_fields',
-          operator: 'or',
+          fields: ['*'],
+          default_operator: 'OR',
         },
       });
     }
