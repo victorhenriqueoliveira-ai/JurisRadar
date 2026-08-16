@@ -509,12 +509,21 @@ function DataJudSearchContent() {
               </p>
             </div>
 
-            <div>
+            <div className="flex items-center justify-between">
               <p className="text-xs text-gray-500">
                 <span className="font-medium">Datas de distribuição</span> — o DataJud indexa processos com atraso de dias a semanas.
                 Dados de 2024 e início de 2025 têm melhor cobertura; datas muito recentes podem não aparecer ainda.
                 Deixe em branco para buscar em todo o histórico disponível.
               </p>
+              {(watch('dateFrom') || watch('dateTo')) && (
+                <button
+                  type="button"
+                  onClick={() => { setValue('dateFrom', ''); setValue('dateTo', ''); }}
+                  className="ml-3 flex-shrink-0 text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                >
+                  Limpar datas ✕
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
