@@ -180,7 +180,7 @@ export function buildDataJudQuery(
         simple_query_string: {
           query: termos,
           fields: ['*'],
-          default_operator: 'OR',
+          default_operator: 'AND',
         },
       });
     }
