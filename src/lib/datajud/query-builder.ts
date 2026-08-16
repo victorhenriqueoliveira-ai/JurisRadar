@@ -162,9 +162,9 @@ export function buildDataJudQuery(
   }
 
   // busca livre: cross_fields em assunto + classe + comarca num único campo
-  // Remove stopwords para que "despejo no jardim bela vista" → "despejo jardim bela vista"
-  // cross_fields distribui os tokens entre os campos: "despejo" bate em assuntos.nome,
-  // "jardim bela vista" bate em orgaoJulgador.nome
+  // Remove stopwords: "despejo no jardim bela vista" → "despejo jardim bela vista"
+  // minimum_should_match "2<75%": para 1-2 tokens exige todos; 3+ exige 75%
+  // Isso distribui "despejo" para assuntos.nome e "jardim bela vista" para orgaoJulgador.nome
   if (filters.buscaLivre) {
     const termos = stripStopwords(filters.buscaLivre);
     if (termos) {
@@ -173,7 +173,7 @@ export function buildDataJudQuery(
           query: termos,
           fields: ['assuntos.nome', 'classe.nome', 'orgaoJulgador.nome'],
           type: 'cross_fields',
-          operator: 'and',
+          operator: 'or',
         },
       });
     }

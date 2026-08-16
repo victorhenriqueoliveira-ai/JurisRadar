@@ -253,7 +253,7 @@ function DataJudSearchContent() {
   const [searchState, setSearchState] = useState<
     | { status: 'idle' }
     | { status: 'loading' }
-    | { status: 'success'; data: SearchResult; label: string }
+    | { status: 'success'; data: SearchResult; label: string; hasDates: boolean }
     | { status: 'error'; message: string }
   >({ status: 'idle' });
 
@@ -311,8 +311,8 @@ function DataJudSearchContent() {
         throw new Error(err?.error ?? `Erro ${response.status}`);
       }
       const data = await response.json() as SearchResult;
-      const label = values.numeroProcesso ?? values.keyword ?? '';
-      setSearchState({ status: 'success', data, label });
+      const label = (values.numeroProcesso ?? values.keyword ?? '').trim();
+      setSearchState({ status: 'success', data, label, hasDates: Boolean(values.dateFrom || values.dateTo) });
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     } catch (e) {
       setSearchState({ status: 'error', message: e instanceof Error ? e.message : 'Erro desconhecido' });
@@ -564,7 +564,9 @@ function DataJudSearchContent() {
         <div ref={resultsRef} className="space-y-4 scroll-mt-4">
           <p className="text-sm text-gray-600">
             {searchState.data.total === 0
-              ? `Nenhum processo encontrado para "${searchState.label}".`
+              ? searchState.label
+                ? `Nenhum processo encontrado para "${searchState.label}".`
+                : 'Nenhum processo encontrado.'
               : `${searchState.data.total.toLocaleString('pt-BR')} processo${searchState.data.total !== 1 ? 's' : ''} encontrado${searchState.data.total !== 1 ? 's' : ''}`}
             {searchState.data.totalPages > 1 &&
               ` — página ${searchState.data.page} de ${searchState.data.totalPages}`}
@@ -581,6 +583,11 @@ function DataJudSearchContent() {
               <p className="mt-1 text-xs text-gray-500">
                 Tente um termo diferente. Para pensão alimentícia, use <strong>Alimentos</strong>.
               </p>
+              {searchState.hasDates && (
+                <p className="mt-2 text-xs text-amber-600">
+                  Datas muito recentes podem não estar no DataJud ainda — tente remover o filtro de datas.
+                </p>
+              )}
             </div>
           )}
 
