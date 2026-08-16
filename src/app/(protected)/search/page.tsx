@@ -208,7 +208,7 @@ function ComoFunciona() {
             </p>
             <p className="mt-2">
               Para ver um processo muito recente em tempo real, use o link{' '}
-              <strong>"Consultar no TJSP"</strong> disponível em cada resultado — ele acessa o portal eSAJ
+              <strong>&ldquo;Consultar no TJSP&rdquo;</strong> disponível em cada resultado — ele acessa o portal eSAJ
               diretamente.
             </p>
           </div>
@@ -232,7 +232,7 @@ function ComoFunciona() {
           </div>
 
           <div>
-            <p className="font-semibold text-gray-900 mb-1">O que aparece em "Ver mais"?</p>
+            <p className="font-semibold text-gray-900 mb-1">O que aparece em &ldquo;Ver mais&rdquo;?</p>
             <p>
               Histórico completo de movimentações, polo ativo e passivo com nomes e número de OAB dos
               advogados, e assuntos adicionais. Partes e advogados só aparecem quando o TJSP preencheu
