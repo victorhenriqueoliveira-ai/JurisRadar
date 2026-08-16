@@ -495,17 +495,17 @@ function DataJudSearchContent() {
 
             <div>
               <label htmlFor="comarca" className="block text-sm font-medium text-gray-700 mb-1">
-                Comarca / Cidade <span className="text-gray-400 font-normal">(opcional)</span>
+                Comarca / Cidade / Fórum <span className="text-gray-400 font-normal">(opcional)</span>
               </label>
               <input
                 id="comarca"
                 type="text"
-                placeholder="Ex: Campinas, Santos, Ribeirão Preto"
+                placeholder="Ex: Campinas, Jardim Bela Vista, Foro Regional VIII"
                 {...register('comarca')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
               />
               <p className="mt-1 text-xs text-gray-400">
-                Filtra pelo nome da vara/comarca — deixe em branco para buscar em todo o TJSP.
+                Busca no nome da vara/fórum/comarca — funciona com cidade, bairro ou número do fórum regional.
               </p>
             </div>
 
