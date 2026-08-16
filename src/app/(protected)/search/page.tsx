@@ -462,12 +462,12 @@ function DataJudSearchContent() {
               <input
                 id="keyword"
                 type="text"
-                placeholder="Ex: despejo jardim bela vista, alimentos santos"
+                placeholder="Ex: banco bradesco, despejo jardim bela vista"
                 {...register('keyword')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
               />
               <p className="mt-1 text-xs text-gray-400">
-                Combine assunto e local numa só busca — ex: <span className="font-medium">despejo jardim bela vista</span>
+                Busca por assunto, parte (banco, empresa, pessoa) ou local — ex: <span className="font-medium">banco bradesco</span>, <span className="font-medium">despejo santos</span>
               </p>
               {errors.keyword && !byNumero && (
                 <p role="alert" className="mt-1 text-xs text-red-600">

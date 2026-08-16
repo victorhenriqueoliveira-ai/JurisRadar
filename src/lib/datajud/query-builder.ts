@@ -161,17 +161,16 @@ export function buildDataJudQuery(
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
   }
 
-  // busca livre: cross_fields em assunto + classe + comarca num único campo
+  // busca livre: cross_fields em assunto + classe + comarca + partes num único campo
   // Remove stopwords: "despejo no jardim bela vista" → "despejo jardim bela vista"
-  // minimum_should_match "2<75%": para 1-2 tokens exige todos; 3+ exige 75%
-  // Isso distribui "despejo" para assuntos.nome e "jardim bela vista" para orgaoJulgador.nome
+  // partes.nome permite buscar por nome de banco, empresa ou pessoa (polo ativo/passivo)
   if (filters.buscaLivre) {
     const termos = stripStopwords(filters.buscaLivre);
     if (termos) {
       must.push({
         multi_match: {
           query: termos,
-          fields: ['assuntos.nome', 'classe.nome', 'orgaoJulgador.nome'],
+          fields: ['assuntos.nome', 'classe.nome', 'orgaoJulgador.nome', 'partes.nome'],
           type: 'cross_fields',
           operator: 'or',
         },
