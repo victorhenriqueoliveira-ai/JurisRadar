@@ -73,19 +73,44 @@ const STOPWORDS = new Set([
   'um', 'uma', 'uns', 'umas',
 ]);
 
+// Tipos de logradouro reconhecidos para envolver em frase exata
+const ADDRESS_PREFIX_RE =
+  /\b(avenida|av\.?|rua|r\.?|alameda|al\.?|praça|pça\.?|travessa|tv\.?|estrada|est\.?|rodovia|rod\.?|largo|lg\.?|beco|viela|via)\s+(\w+)/gi;
+
 /**
- * Remove stopwords do PT-BR antes de enviar para o Elasticsearch.
- * Mantém termos com menos de 2 caracteres só se forem números.
+ * Detecta padrões de endereço ("avenida X", "rua Y" etc.) e envolve em aspas
+ * para que o Elasticsearch trate como phrase query em vez de termos soltos.
+ * Isso impede que "paulista" em "Várzea Paulista" satisfaça "avenida paulista".
+ */
+function wrapAddressPhrases(query: string): string {
+  // Não altera se o usuário já usou aspas
+  if (query.includes('"')) return query;
+  return query.replace(ADDRESS_PREFIX_RE, (_, prefix, name) => `"${prefix} ${name}"`);
+}
+
+/**
+ * Remove stopwords PT-BR de segmentos não-quotados e descarta tokens curtos.
+ * Preserva intactos os trechos entre aspas (frases exatas).
  */
 function stripStopwords(query: string): string {
-  return query
-    .trim()
-    .split(/\s+/)
-    .filter((t) => {
-      const lower = t.toLowerCase().replace(/[.,;:!?]/g, '');
-      return lower.length > 1 && !STOPWORDS.has(lower);
+  // Divide em segmentos: ímpares são trechos entre aspas (preservados)
+  const segments = query.split(/("(?:[^"]+)")/);
+  return segments
+    .map((seg, idx) => {
+      if (idx % 2 === 1) return seg; // dentro de aspas — mantém
+      return seg
+        .trim()
+        .split(/\s+/)
+        .filter((t) => {
+          if (!t) return false;
+          const lower = t.toLowerCase().replace(/[.,;:!?]/g, '');
+          return lower.length > 1 && !STOPWORDS.has(lower);
+        })
+        .join(' ');
     })
-    .join(' ');
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 }
 
 // ── Builder principal ─────────────────────────────────────────────────────────
@@ -170,11 +195,11 @@ export function buildDataJudQuery(
   }
 
   // busca livre: simple_query_string em todos os campos indexados do documento
-  // Cobre assunto, classe, vara, partes, movimentos e complementos (endereços, mandados etc.)
-  // Remove stopwords para melhorar precisão: "busca apreensão na avenida paulista"
-  //   → "busca apreensão avenida paulista"
+  // Endereços ("avenida paulista") são envolvidos em aspas para busca de frase,
+  // evitando que "paulista" em "Vara de Várzea Paulista" satisfaça o critério.
   if (filters.buscaLivre) {
-    const termos = stripStopwords(filters.buscaLivre);
+    const comFrases = wrapAddressPhrases(filters.buscaLivre);
+    const termos = stripStopwords(comFrases);
     if (termos) {
       must.push({
         simple_query_string: {
