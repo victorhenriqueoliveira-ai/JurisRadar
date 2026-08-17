@@ -22,6 +22,8 @@ interface MultiMatchClause {
   multi_match: {
     query: string;
     fields: string[];
+    type?: string;
+    operator?: string;
   };
 }
 
@@ -29,7 +31,15 @@ interface MatchPhraseClause {
   match_phrase: Record<string, string>;
 }
 
-type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause | MatchPhraseClause;
+interface SimpleQueryStringClause {
+  simple_query_string: {
+    query: string;
+    fields: string[];
+    default_operator: 'OR' | 'AND';
+  };
+}
+
+type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause | MatchPhraseClause | SimpleQueryStringClause;
 
 interface BoolQuery {
   bool: {
@@ -45,6 +55,37 @@ export interface DataJudQuery {
   size: number;
   from: number;
   query: BoolQuery | MatchAllQuery;
+}
+
+// ── Stopwords PT-BR ──────────────────────────────────────────────────────────
+
+const STOPWORDS = new Set([
+  'a', 'ao', 'aos', 'as', 'à', 'às',
+  'com', 'como',
+  'da', 'das', 'de', 'do', 'dos',
+  'e', 'em', 'entre', 'é',
+  'mas', 'me', 'muito',
+  'na', 'nas', 'nem', 'no', 'nos', 'num', 'numa',
+  'o', 'os', 'ou',
+  'para', 'pela', 'pelas', 'pelo', 'pelos', 'por',
+  'que',
+  'se', 'sem',
+  'um', 'uma', 'uns', 'umas',
+]);
+
+/**
+ * Remove stopwords do PT-BR antes de enviar para o Elasticsearch.
+ * Mantém termos com menos de 2 caracteres só se forem números.
+ */
+function stripStopwords(query: string): string {
+  return query
+    .trim()
+    .split(/\s+/)
+    .filter((t) => {
+      const lower = t.toLowerCase().replace(/[.,;:!?]/g, '');
+      return lower.length > 1 && !STOPWORDS.has(lower);
+    })
+    .join(' ');
 }
 
 // ── Builder principal ─────────────────────────────────────────────────────────
@@ -128,18 +169,21 @@ export function buildDataJudQuery(
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
   }
 
-  // busca livre: multi_match em campos textuais relevantes
+  // busca livre: simple_query_string em todos os campos indexados do documento
+  // Cobre assunto, classe, vara, partes, movimentos e complementos (endereços, mandados etc.)
+  // Remove stopwords para melhorar precisão: "busca apreensão na avenida paulista"
+  //   → "busca apreensão avenida paulista"
   if (filters.buscaLivre) {
-    must.push({
-      multi_match: {
-        query: filters.buscaLivre,
-        fields: [
-          'assuntos.nome',
-          'classe.nome',
-          'orgaoJulgador.nome',
-        ],
-      },
-    });
+    const termos = stripStopwords(filters.buscaLivre);
+    if (termos) {
+      must.push({
+        simple_query_string: {
+          query: termos,
+          fields: ['*'],
+          default_operator: 'AND',
+        },
+      });
+    }
   }
 
   // Se nenhum filtro foi aplicado, retorna match_all

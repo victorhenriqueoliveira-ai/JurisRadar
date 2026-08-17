@@ -253,7 +253,7 @@ function DataJudSearchContent() {
   const [searchState, setSearchState] = useState<
     | { status: 'idle' }
     | { status: 'loading' }
-    | { status: 'success'; data: SearchResult; label: string }
+    | { status: 'success'; data: SearchResult; label: string; hasDates: boolean }
     | { status: 'error'; message: string }
   >({ status: 'idle' });
 
@@ -311,8 +311,8 @@ function DataJudSearchContent() {
         throw new Error(err?.error ?? `Erro ${response.status}`);
       }
       const data = await response.json() as SearchResult;
-      const label = values.numeroProcesso ?? values.keyword ?? '';
-      setSearchState({ status: 'success', data, label });
+      const label = (values.numeroProcesso ?? values.keyword ?? '').trim();
+      setSearchState({ status: 'success', data, label, hasDates: Boolean(values.dateFrom || values.dateTo) });
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     } catch (e) {
       setSearchState({ status: 'error', message: e instanceof Error ? e.message : 'Erro desconhecido' });
@@ -442,7 +442,7 @@ function DataJudSearchContent() {
 
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400 font-medium">ou busque por assunto</span>
+          <span className="text-xs text-gray-400 font-medium">ou busque por assunto / local</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
@@ -462,10 +462,13 @@ function DataJudSearchContent() {
               <input
                 id="keyword"
                 type="text"
-                placeholder="Ex: Alimentos, Divórcio, Indenização"
+                placeholder="Ex: busca apreensão avenida paulista, banco bradesco"
                 {...register('keyword')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
               />
+              <p className="mt-1 text-xs text-gray-400">
+                Busca em todos os dados do processo — assunto, parte, vara, movimentos e complementos.
+              </p>
               {errors.keyword && !byNumero && (
                 <p role="alert" className="mt-1 text-xs text-red-600">
                   {errors.keyword.message}
@@ -492,26 +495,35 @@ function DataJudSearchContent() {
 
             <div>
               <label htmlFor="comarca" className="block text-sm font-medium text-gray-700 mb-1">
-                Comarca / Cidade <span className="text-gray-400 font-normal">(opcional)</span>
+                Comarca / Cidade / Fórum <span className="text-gray-400 font-normal">(opcional)</span>
               </label>
               <input
                 id="comarca"
                 type="text"
-                placeholder="Ex: Campinas, Santos, Ribeirão Preto"
+                placeholder="Ex: Campinas, Jardim Bela Vista, Foro Regional VIII"
                 {...register('comarca')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
               />
               <p className="mt-1 text-xs text-gray-400">
-                Filtra pelo nome da vara/comarca — deixe em branco para buscar em todo o TJSP.
+                Busca no nome da vara/fórum/comarca — funciona com cidade, bairro ou número do fórum regional.
               </p>
             </div>
 
-            <div>
+            <div className="flex items-center justify-between">
               <p className="text-xs text-gray-500">
                 <span className="font-medium">Datas de distribuição</span> — o DataJud indexa processos com atraso de dias a semanas.
                 Dados de 2024 e início de 2025 têm melhor cobertura; datas muito recentes podem não aparecer ainda.
                 Deixe em branco para buscar em todo o histórico disponível.
               </p>
+              {(watch('dateFrom') || watch('dateTo')) && (
+                <button
+                  type="button"
+                  onClick={() => { setValue('dateFrom', ''); setValue('dateTo', ''); }}
+                  className="ml-3 flex-shrink-0 text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                >
+                  Limpar datas ✕
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -561,7 +573,9 @@ function DataJudSearchContent() {
         <div ref={resultsRef} className="space-y-4 scroll-mt-4">
           <p className="text-sm text-gray-600">
             {searchState.data.total === 0
-              ? `Nenhum processo encontrado para "${searchState.label}".`
+              ? searchState.label
+                ? `Nenhum processo encontrado para "${searchState.label}".`
+                : 'Nenhum processo encontrado.'
               : `${searchState.data.total.toLocaleString('pt-BR')} processo${searchState.data.total !== 1 ? 's' : ''} encontrado${searchState.data.total !== 1 ? 's' : ''}`}
             {searchState.data.totalPages > 1 &&
               ` — página ${searchState.data.page} de ${searchState.data.totalPages}`}
@@ -578,6 +592,11 @@ function DataJudSearchContent() {
               <p className="mt-1 text-xs text-gray-500">
                 Tente um termo diferente. Para pensão alimentícia, use <strong>Alimentos</strong>.
               </p>
+              {searchState.hasDates && (
+                <p className="mt-2 text-xs text-amber-600">
+                  Datas muito recentes podem não estar no DataJud ainda — tente remover o filtro de datas.
+                </p>
+              )}
             </div>
           )}
 
