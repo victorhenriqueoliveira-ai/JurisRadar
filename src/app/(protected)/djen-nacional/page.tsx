@@ -154,48 +154,73 @@ function DjenNacionalContent() {
   async function search(values: FormValues, offset = 0) {
     setState({ status: 'loading' });
 
-    // Chama a API do CNJ direto do browser (CORS: Access-Control-Allow-Origin: *)
-    const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: String(LIMIT), offset: String(offset) });
+    const BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
+    const temFiltroAdicional = !values.numeroProcesso && !!values.nomeParte;
 
-    if (values.numeroProcesso) {
-      params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
-    } else {
-      if (values.texto) params.set('texto', values.texto);
-      if (values.data) params.set('dataDisponibilizacao', values.data);
-    }
-    if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+    // Quando há filtro adicional, busca 5 páginas de 100 em paralelo para maximizar a interseção
+    const fetchPage = async (off: number) => {
+      const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: '100', offset: String(off) });
+      if (values.numeroProcesso) {
+        params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
+      } else {
+        if (values.texto) params.set('texto', values.texto);
+        if (values.data) params.set('dataDisponibilizacao', values.data);
+      }
+      if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+      const res = await fetch(`${BASE}?${params}`);
+      if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+      return res.json();
+    };
 
     try {
-      const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
-      if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
-      const data = await res.json();
+      let total = 0;
+      let raw: Record<string, unknown>[] = [];
 
-      let items: Record<string, unknown>[] = data.items ?? [];
+      if (temFiltroAdicional) {
+        // Busca 5 lotes de 100 em paralelo (500 publicações) e filtra
+        const lotes = await Promise.all([0, 100, 200, 300, 400].map(fetchPage));
+        total = lotes[0].count ?? 0;
+        raw = lotes.flatMap((d) => d.items ?? []);
 
-      // Filtro adicional client-side: aplica sobre o texto completo retornado
-      if (values.nomeParte) {
         const filtro = values.nomeParte.toLowerCase();
-        items = items.filter((item) =>
+        raw = raw.filter((item) =>
           stripHtml(String(item.texto ?? '')).toLowerCase().includes(filtro)
         );
+      } else {
+        // Busca simples — paginação normal
+        const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: String(LIMIT), offset: String(offset) });
+        if (values.numeroProcesso) {
+          params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
+        } else {
+          if (values.texto) params.set('texto', values.texto);
+          if (values.data) params.set('dataDisponibilizacao', values.data);
+        }
+        if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+        const res = await fetch(`${BASE}?${params}`);
+        if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+        const data = await res.json();
+        total = data.count ?? 0;
+        raw = data.items ?? [];
       }
+
+      const mapItem = (item: Record<string, unknown>) => ({
+        id: item.id as number,
+        data: item.data_disponibilizacao as string,
+        tipo: item.tipoComunicacao as string,
+        orgao: item.nomeOrgao as string,
+        classe: item.nomeClasse as string,
+        numeroProcesso: (item.numeroprocessocommascara ?? item.numero_processo) as string,
+        partes: (item.destinatarios ?? []) as Parte[],
+        advogados: (item.destinatarioadvogados ?? []) as Advogado[],
+        link: item.link as string,
+        texto: item.texto as string,
+      });
 
       setState({
         status: 'success',
-        total: data.count ?? 0,
-        offset,
-        items: items.map((item) => ({
-          id: item.id as number,
-          data: item.data_disponibilizacao as string,
-          tipo: item.tipoComunicacao as string,
-          orgao: item.nomeOrgao as string,
-          classe: item.nomeClasse as string,
-          numeroProcesso: (item.numeroprocessocommascara ?? item.numero_processo) as string,
-          partes: (item.destinatarios ?? []) as Parte[],
-          advogados: (item.destinatarioadvogados ?? []) as Advogado[],
-          link: item.link as string,
-          texto: item.texto as string,
-        })),
+        total: temFiltroAdicional ? raw.length : total,
+        offset: temFiltroAdicional ? 0 : offset,
+        items: raw.map(mapItem),
       });
     } catch (e) {
       setState({ status: 'error', error: e instanceof Error ? e.message : 'Erro desconhecido' });
