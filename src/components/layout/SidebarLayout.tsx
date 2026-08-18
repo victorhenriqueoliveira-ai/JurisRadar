@@ -15,8 +15,14 @@ const navItems = [
   {
     group: 'Publicações DJE',
     links: [
-      { href: '/dje', label: 'Busca' },
+      { href: '/dje', label: 'Busca (legado)' },
       { href: '/dje/history', label: 'Histórico' },
+    ],
+  },
+  {
+    group: 'DJEN Nacional',
+    links: [
+      { href: '/djen-nacional', label: 'Busca DJEN' },
     ],
   },
 ];
