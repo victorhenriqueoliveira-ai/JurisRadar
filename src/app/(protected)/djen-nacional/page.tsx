@@ -29,8 +29,7 @@ interface FormValues {
   texto: string;
   nomeParte: string;
   numeroProcesso: string;
-  dataInicio: string;
-  dataFim: string;
+  data: string;
   tipoComunicacao: string;
 }
 
@@ -145,8 +144,7 @@ function DjenNacionalContent() {
       texto: '',
       nomeParte: '',
       numeroProcesso: '',
-      dataInicio: '',
-      dataFim: '',
+      data: '',
       tipoComunicacao: '',
     },
   });
@@ -164,7 +162,7 @@ function DjenNacionalContent() {
     } else {
       const termos = [values.texto, values.nomeParte].filter(Boolean).join(' ');
       if (termos) params.set('texto', termos);
-      if (values.dataInicio) params.set('dataDisponibilizacao', values.dataInicio);
+      if (values.data) params.set('dataDisponibilizacao', values.data);
     }
     if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
 
@@ -173,15 +171,7 @@ function DjenNacionalContent() {
       if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
       const data = await res.json();
 
-      let items: Record<string, unknown>[] = data.items ?? [];
-
-      // Filtro local por data fim (API só aceita uma data)
-      if (values.dataFim && values.dataInicio && values.dataInicio !== values.dataFim) {
-        items = items.filter((item) => {
-          const d = String(item.data_disponibilizacao ?? '');
-          return d >= values.dataInicio && d <= values.dataFim;
-        });
-      }
+      const items: Record<string, unknown>[] = data.items ?? [];
 
       setState({
         status: 'success',
@@ -280,31 +270,20 @@ function DjenNacionalContent() {
           </p>
         </div>
 
-        {/* Datas + Tipo */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Data + Tipo */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="dataInicio" className="block text-sm font-medium text-gray-700 mb-1">
-              Data inicial
+            <label htmlFor="data" className="block text-sm font-medium text-gray-700 mb-1">
+              Data de disponibilização
             </label>
             <input
-              id="dataInicio"
+              id="data"
               type="date"
-              {...register('dataInicio')}
+              {...register('data')}
               disabled={isLoading}
               className={inputCls}
             />
-          </div>
-          <div>
-            <label htmlFor="dataFim" className="block text-sm font-medium text-gray-700 mb-1">
-              Data final
-            </label>
-            <input
-              id="dataFim"
-              type="date"
-              {...register('dataFim')}
-              disabled={isLoading}
-              className={inputCls}
-            />
+            <p className="mt-1 text-xs text-gray-500">Deixe em branco para buscar em todas as datas.</p>
           </div>
           <div>
             <label htmlFor="tipoComunicacao" className="block text-sm font-medium text-gray-700 mb-1">
@@ -344,7 +323,7 @@ function DjenNacionalContent() {
           <p className="text-sm text-gray-600">
             {state.total === 0
               ? 'Nenhuma publicação encontrada.'
-              : `${state.total?.toLocaleString('pt-BR')} publicação${state.total !== 1 ? 'ões' : ''} encontrada${state.total !== 1 ? 's' : ''}`}
+              : `${state.total?.toLocaleString('pt-BR')} ${state.total === 1 ? 'publicação encontrada' : 'publicações encontradas'}`}
             {totalPages > 1 && ` — página ${page} de ${totalPages}`}
           </p>
 
