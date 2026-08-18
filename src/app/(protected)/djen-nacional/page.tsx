@@ -155,23 +155,51 @@ function DjenNacionalContent() {
 
   async function search(values: FormValues, offset = 0) {
     setState({ status: 'loading' });
-    const params = new URLSearchParams({ limit: String(LIMIT), offset: String(offset) });
+
+    // Chama a API do CNJ direto do browser (CORS: Access-Control-Allow-Origin: *)
+    const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: String(LIMIT), offset: String(offset) });
 
     if (values.numeroProcesso) {
-      params.set('numeroProcesso', values.numeroProcesso);
+      params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
     } else {
-      if (values.texto) params.set('texto', values.texto);
-      if (values.nomeParte) params.set('nomeParte', values.nomeParte);
-      if (values.dataInicio) params.set('dataInicio', values.dataInicio);
-      if (values.dataFim) params.set('dataFim', values.dataFim);
+      const termos = [values.texto, values.nomeParte].filter(Boolean).join(' ');
+      if (termos) params.set('texto', termos);
+      if (values.dataInicio) params.set('dataDisponibilizacao', values.dataInicio);
     }
     if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
 
     try {
-      const res = await fetch(`/api/djen-nacional?${params}`);
+      const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
+      if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Erro ${res.status}`);
-      setState({ status: 'success', items: data.items, total: data.total, offset });
+
+      let items: Record<string, unknown>[] = data.items ?? [];
+
+      // Filtro local por data fim (API só aceita uma data)
+      if (values.dataFim && values.dataInicio && values.dataInicio !== values.dataFim) {
+        items = items.filter((item) => {
+          const d = String(item.data_disponibilizacao ?? '');
+          return d >= values.dataInicio && d <= values.dataFim;
+        });
+      }
+
+      setState({
+        status: 'success',
+        total: data.count ?? 0,
+        offset,
+        items: items.map((item) => ({
+          id: item.id as number,
+          data: item.data_disponibilizacao as string,
+          tipo: item.tipoComunicacao as string,
+          orgao: item.nomeOrgao as string,
+          classe: item.nomeClasse as string,
+          numeroProcesso: (item.numeroprocessocommascara ?? item.numero_processo) as string,
+          partes: (item.destinatarios ?? []) as Parte[],
+          advogados: (item.destinatarioadvogados ?? []) as Advogado[],
+          link: item.link as string,
+          texto: item.texto as string,
+        })),
+      });
     } catch (e) {
       setState({ status: 'error', error: e instanceof Error ? e.message : 'Erro desconhecido' });
     }
