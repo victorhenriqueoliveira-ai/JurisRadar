@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-
 import { useForm } from 'react-hook-form';
 
 interface Parte {
@@ -28,8 +27,10 @@ interface DjenItem {
 
 interface FormValues {
   texto: string;
+  nomeParte: string;
   numeroProcesso: string;
-  data: string;
+  dataInicio: string;
+  dataFim: string;
   tipoComunicacao: string;
 }
 
@@ -51,7 +52,8 @@ function ResultCard({ item }: { item: DjenItem }) {
   const [expanded, setExpanded] = useState(false);
   const partes = item.partes ?? [];
   const advs = item.advogados ?? [];
-  const textoPlain = stripHtml(item.texto ?? '').slice(0, expanded ? 2000 : 300);
+  const plain = stripHtml(item.texto ?? '');
+  const textoPlain = plain.slice(0, expanded ? 3000 : 300);
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm space-y-2">
@@ -79,10 +81,10 @@ function ResultCard({ item }: { item: DjenItem }) {
       )}
 
       <p className="text-xs text-gray-600">{item.orgao}</p>
-      {item.classe && <p className="text-xs text-gray-500">{item.classe}</p>}
+      {item.classe && <p className="text-xs text-gray-500 italic">{item.classe}</p>}
 
       {partes.length > 0 && (
-        <div className="text-xs text-gray-700">
+        <div className="text-xs text-gray-700 space-x-1">
           {partes.map((p, i) => (
             <span key={i}>
               <span className="text-gray-400 uppercase text-[10px] mr-1">
@@ -110,7 +112,7 @@ function ResultCard({ item }: { item: DjenItem }) {
 
       <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 leading-relaxed">
         {textoPlain}
-        {!expanded && (item.texto ?? '').length > 300 && (
+        {!expanded && plain.length > 300 && (
           <button
             type="button"
             onClick={() => setExpanded(true)}
@@ -133,10 +135,20 @@ function ResultCard({ item }: { item: DjenItem }) {
   );
 }
 
+const inputCls =
+  'w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50';
+
 function DjenNacionalContent() {
   const [state, setState] = useState<SearchState>({ status: 'idle' });
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
-    defaultValues: { texto: '', numeroProcesso: '', data: '', tipoComunicacao: '' },
+  const { register, handleSubmit, watch } = useForm<FormValues>({
+    defaultValues: {
+      texto: '',
+      nomeParte: '',
+      numeroProcesso: '',
+      dataInicio: '',
+      dataFim: '',
+      tipoComunicacao: '',
+    },
   });
 
   const byNumero = !!watch('numeroProcesso');
@@ -144,9 +156,15 @@ function DjenNacionalContent() {
   async function search(values: FormValues, offset = 0) {
     setState({ status: 'loading' });
     const params = new URLSearchParams({ limit: String(LIMIT), offset: String(offset) });
-    if (values.numeroProcesso) params.set('numeroProcesso', values.numeroProcesso);
-    else if (values.texto) params.set('texto', values.texto);
-    if (values.data) params.set('data', values.data);
+
+    if (values.numeroProcesso) {
+      params.set('numeroProcesso', values.numeroProcesso);
+    } else {
+      if (values.texto) params.set('texto', values.texto);
+      if (values.nomeParte) params.set('nomeParte', values.nomeParte);
+      if (values.dataInicio) params.set('dataInicio', values.dataInicio);
+      if (values.dataFim) params.set('dataFim', values.dataFim);
+    }
     if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
 
     try {
@@ -168,13 +186,8 @@ function DjenNacionalContent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Publicações DJEN</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Busca no Diário de Justiça Eletrônico Nacional — publicações do TJSP em tempo real via API do CNJ.
+          Diário de Justiça Eletrônico Nacional — publicações do TJSP em tempo real via API do CNJ.
         </p>
-      </div>
-
-      <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
-        Dados do DJEN (CNJ) — substituto do antigo DJE PDF a partir de julho/2025. Cobre intimações,
-        citações e editais do TJSP com texto completo, partes e advogados.
       </div>
 
       <form
@@ -182,7 +195,8 @@ function DjenNacionalContent() {
         className="bg-white border border-gray-200 rounded-lg p-5 space-y-4 shadow-sm"
         noValidate
       >
-        <div className="relative">
+        {/* Número do processo */}
+        <div>
           <label htmlFor="numeroProcesso" className="block text-sm font-medium text-gray-700 mb-1">
             Número do processo <span className="text-gray-400 font-normal">(CNJ)</span>
           </label>
@@ -192,16 +206,17 @@ function DjenNacionalContent() {
             placeholder="Ex: 1501260-42.2024.8.26.0052"
             {...register('numeroProcesso')}
             disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+            className={inputCls}
           />
         </div>
 
         <div className="relative flex items-center gap-3">
           <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400 flex-shrink-0">ou busque por termo</span>
+          <span className="text-xs text-gray-400 flex-shrink-0">ou busque por termos</span>
           <div className="flex-1 border-t border-gray-200" />
         </div>
 
+        {/* Termo livre */}
         <div>
           <label htmlFor="texto" className="block text-sm font-medium text-gray-700 mb-1">
             Termo de busca
@@ -209,31 +224,60 @@ function DjenNacionalContent() {
           <input
             id="texto"
             type="text"
-            placeholder="Ex: busca e apreensão capão redondo, banco bradesco avenida paulista"
+            placeholder="Ex: busca e apreensão capão redondo, avenida paulista"
             {...register('texto')}
             disabled={isLoading || byNumero}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+            className={inputCls}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Busca no texto completo da publicação — endereço, nome da parte, bairro, qualquer conteúdo.
+            Busca no texto completo — endereço, bairro, tipo de ação, qualquer conteúdo da publicação.
           </p>
-          {errors.texto && <p className="mt-1 text-xs text-red-600">{errors.texto.message}</p>}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Nome da parte */}
+        <div>
+          <label htmlFor="nomeParte" className="block text-sm font-medium text-gray-700 mb-1">
+            Nome da parte
+          </label>
+          <input
+            id="nomeParte"
+            type="text"
+            placeholder="Ex: Banco Bradesco, João da Silva"
+            {...register('nomeParte')}
+            disabled={isLoading || byNumero}
+            className={inputCls}
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Combinado com o termo de busca — restringe às publicações que mencionam essa parte.
+          </p>
+        </div>
+
+        {/* Datas + Tipo */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label htmlFor="data" className="block text-sm font-medium text-gray-700 mb-1">
-              Data de disponibilização
+            <label htmlFor="dataInicio" className="block text-sm font-medium text-gray-700 mb-1">
+              Data inicial
             </label>
             <input
-              id="data"
+              id="dataInicio"
               type="date"
-              {...register('data')}
+              {...register('dataInicio')}
               disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              className={inputCls}
             />
           </div>
-
+          <div>
+            <label htmlFor="dataFim" className="block text-sm font-medium text-gray-700 mb-1">
+              Data final
+            </label>
+            <input
+              id="dataFim"
+              type="date"
+              {...register('dataFim')}
+              disabled={isLoading}
+              className={inputCls}
+            />
+          </div>
           <div>
             <label htmlFor="tipoComunicacao" className="block text-sm font-medium text-gray-700 mb-1">
               Tipo
@@ -242,7 +286,7 @@ function DjenNacionalContent() {
               id="tipoComunicacao"
               {...register('tipoComunicacao')}
               disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              className={inputCls}
             >
               <option value="">Todos os tipos</option>
               <option value="Intimação">Intimação</option>
@@ -269,14 +313,12 @@ function DjenNacionalContent() {
 
       {state.status === 'success' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600">
-              {state.total === 0
-                ? 'Nenhuma publicação encontrada.'
-                : `${state.total?.toLocaleString('pt-BR')} publicação${state.total !== 1 ? 'ões' : ''} encontrada${state.total !== 1 ? 's' : ''}`}
-              {totalPages > 1 && ` — página ${page} de ${totalPages}`}
-            </p>
-          </div>
+          <p className="text-sm text-gray-600">
+            {state.total === 0
+              ? 'Nenhuma publicação encontrada.'
+              : `${state.total?.toLocaleString('pt-BR')} publicação${state.total !== 1 ? 'ões' : ''} encontrada${state.total !== 1 ? 's' : ''}`}
+            {totalPages > 1 && ` — página ${page} de ${totalPages}`}
+          </p>
 
           {(state.items ?? []).length === 0 && (
             <div className="rounded-md bg-gray-50 border border-gray-200 px-4 py-8 text-center">
