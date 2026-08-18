@@ -160,8 +160,7 @@ function DjenNacionalContent() {
     if (values.numeroProcesso) {
       params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
     } else {
-      const termos = [values.texto, values.nomeParte].filter(Boolean).join(' ');
-      if (termos) params.set('texto', termos);
+      if (values.texto) params.set('texto', values.texto);
       if (values.data) params.set('dataDisponibilizacao', values.data);
     }
     if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
@@ -171,7 +170,15 @@ function DjenNacionalContent() {
       if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
       const data = await res.json();
 
-      const items: Record<string, unknown>[] = data.items ?? [];
+      let items: Record<string, unknown>[] = data.items ?? [];
+
+      // Filtro adicional client-side: aplica sobre o texto completo retornado
+      if (values.nomeParte) {
+        const filtro = values.nomeParte.toLowerCase();
+        items = items.filter((item) =>
+          stripHtml(String(item.texto ?? '')).toLowerCase().includes(filtro)
+        );
+      }
 
       setState({
         status: 'success',
@@ -237,36 +244,36 @@ function DjenNacionalContent() {
         {/* Termo livre */}
         <div>
           <label htmlFor="texto" className="block text-sm font-medium text-gray-700 mb-1">
-            Termo de busca
+            Busca principal
           </label>
           <input
             id="texto"
             type="text"
-            placeholder="Ex: busca e apreensão capão redondo, avenida paulista"
+            placeholder="Ex: capão redondo, banco bradesco, avenida paulista"
             {...register('texto')}
             disabled={isLoading || byNumero}
             className={inputCls}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Busca no texto completo — endereço, bairro, tipo de ação, qualquer conteúdo da publicação.
+            Use o termo <strong>mais específico</strong> aqui — bairro, nome da parte, endereço.
           </p>
         </div>
 
-        {/* Nome da parte */}
+        {/* Filtro adicional */}
         <div>
           <label htmlFor="nomeParte" className="block text-sm font-medium text-gray-700 mb-1">
-            Nome da parte
+            Filtro adicional no texto <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
           <input
             id="nomeParte"
             type="text"
-            placeholder="Ex: Banco Bradesco, João da Silva"
+            placeholder="Ex: busca e apreensão, alimentos, divórcio"
             {...register('nomeParte')}
             disabled={isLoading || byNumero}
             className={inputCls}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Combinado com o termo de busca — restringe às publicações que mencionam essa parte.
+            Filtra os resultados da busca principal pelo conteúdo do texto da publicação.
           </p>
         </div>
 
