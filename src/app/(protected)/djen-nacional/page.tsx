@@ -154,41 +154,73 @@ function DjenNacionalContent() {
   async function search(values: FormValues, offset = 0) {
     setState({ status: 'loading' });
 
-    // Chama a API do CNJ direto do browser (CORS: Access-Control-Allow-Origin: *)
-    const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: String(LIMIT), offset: String(offset) });
+    const BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
+    const temFiltroAdicional = !values.numeroProcesso && !!values.nomeParte;
 
-    if (values.numeroProcesso) {
-      params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
-    } else {
-      const termos = [values.texto, values.nomeParte].filter(Boolean).join(' ');
-      if (termos) params.set('texto', termos);
-      if (values.data) params.set('dataDisponibilizacao', values.data);
-    }
-    if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+    // Quando há filtro adicional, busca 5 páginas de 100 em paralelo para maximizar a interseção
+    const fetchPage = async (off: number) => {
+      const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: '100', offset: String(off) });
+      if (values.numeroProcesso) {
+        params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
+      } else {
+        if (values.texto) params.set('texto', values.texto);
+        if (values.data) params.set('dataDisponibilizacao', values.data);
+      }
+      if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+      const res = await fetch(`${BASE}?${params}`);
+      if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+      return res.json();
+    };
 
     try {
-      const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
-      if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
-      const data = await res.json();
+      let total = 0;
+      let raw: Record<string, unknown>[] = [];
 
-      const items: Record<string, unknown>[] = data.items ?? [];
+      if (temFiltroAdicional) {
+        // Busca 5 lotes de 100 em paralelo (500 publicações) e filtra
+        const lotes = await Promise.all([0, 100, 200, 300, 400].map(fetchPage));
+        total = lotes[0].count ?? 0;
+        raw = lotes.flatMap((d) => d.items ?? []);
+
+        const filtro = values.nomeParte.toLowerCase();
+        raw = raw.filter((item) =>
+          stripHtml(String(item.texto ?? '')).toLowerCase().includes(filtro)
+        );
+      } else {
+        // Busca simples — paginação normal
+        const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: String(LIMIT), offset: String(offset) });
+        if (values.numeroProcesso) {
+          params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
+        } else {
+          if (values.texto) params.set('texto', values.texto);
+          if (values.data) params.set('dataDisponibilizacao', values.data);
+        }
+        if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+        const res = await fetch(`${BASE}?${params}`);
+        if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+        const data = await res.json();
+        total = data.count ?? 0;
+        raw = data.items ?? [];
+      }
+
+      const mapItem = (item: Record<string, unknown>) => ({
+        id: item.id as number,
+        data: item.data_disponibilizacao as string,
+        tipo: item.tipoComunicacao as string,
+        orgao: item.nomeOrgao as string,
+        classe: item.nomeClasse as string,
+        numeroProcesso: (item.numeroprocessocommascara ?? item.numero_processo) as string,
+        partes: (item.destinatarios ?? []) as Parte[],
+        advogados: (item.destinatarioadvogados ?? []) as Advogado[],
+        link: item.link as string,
+        texto: item.texto as string,
+      });
 
       setState({
         status: 'success',
-        total: data.count ?? 0,
-        offset,
-        items: items.map((item) => ({
-          id: item.id as number,
-          data: item.data_disponibilizacao as string,
-          tipo: item.tipoComunicacao as string,
-          orgao: item.nomeOrgao as string,
-          classe: item.nomeClasse as string,
-          numeroProcesso: (item.numeroprocessocommascara ?? item.numero_processo) as string,
-          partes: (item.destinatarios ?? []) as Parte[],
-          advogados: (item.destinatarioadvogados ?? []) as Advogado[],
-          link: item.link as string,
-          texto: item.texto as string,
-        })),
+        total: temFiltroAdicional ? raw.length : total,
+        offset: temFiltroAdicional ? 0 : offset,
+        items: raw.map(mapItem),
       });
     } catch (e) {
       setState({ status: 'error', error: e instanceof Error ? e.message : 'Erro desconhecido' });
@@ -237,36 +269,36 @@ function DjenNacionalContent() {
         {/* Termo livre */}
         <div>
           <label htmlFor="texto" className="block text-sm font-medium text-gray-700 mb-1">
-            Termo de busca
+            Busca principal
           </label>
           <input
             id="texto"
             type="text"
-            placeholder="Ex: busca e apreensão capão redondo, avenida paulista"
+            placeholder="Ex: capão redondo, banco bradesco, avenida paulista"
             {...register('texto')}
             disabled={isLoading || byNumero}
             className={inputCls}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Busca no texto completo — endereço, bairro, tipo de ação, qualquer conteúdo da publicação.
+            Use o termo <strong>mais específico</strong> aqui — bairro, nome da parte, endereço.
           </p>
         </div>
 
-        {/* Nome da parte */}
+        {/* Filtro adicional */}
         <div>
           <label htmlFor="nomeParte" className="block text-sm font-medium text-gray-700 mb-1">
-            Nome da parte
+            Filtro adicional no texto <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
           <input
             id="nomeParte"
             type="text"
-            placeholder="Ex: Banco Bradesco, João da Silva"
+            placeholder="Ex: busca e apreensão, alimentos, divórcio"
             {...register('nomeParte')}
             disabled={isLoading || byNumero}
             className={inputCls}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Combinado com o termo de busca — restringe às publicações que mencionam essa parte.
+            Filtra os resultados da busca principal pelo conteúdo do texto da publicação.
           </p>
         </div>
 
