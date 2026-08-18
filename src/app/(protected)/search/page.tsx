@@ -98,10 +98,16 @@ const formSchema = z
     dateFrom: z.string().optional(),
     dateTo: z.string().optional(),
   })
-  .refine((d) => (d.keyword && d.keyword.length >= 2) || (d.numeroProcesso && d.numeroProcesso.length >= 5), {
-    message: 'Informe uma palavra-chave (mín. 2 caracteres) ou número do processo',
-    path: ['keyword'],
-  });
+  .refine(
+    (d) =>
+      (d.keyword && d.keyword.length >= 2) ||
+      (d.numeroProcesso && d.numeroProcesso.length >= 5) ||
+      (d.comarca && d.comarca.length >= 2),
+    {
+      message: 'Informe uma palavra-chave, número do processo ou comarca',
+      path: ['keyword'],
+    },
+  );
 
 type FormValues = z.infer<typeof formSchema>;
 
