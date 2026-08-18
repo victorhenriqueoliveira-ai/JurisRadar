@@ -3,7 +3,7 @@ import type { SearchFilters } from './types';
 // ── Tipos auxiliares do DSL ───────────────────────────────────────────────────
 
 interface MatchClause {
-  match: Record<string, string>;
+  match: Record<string, string | { query: string; operator?: 'and' | 'or' }>;
 }
 
 interface TermClause {
@@ -73,19 +73,23 @@ const STOPWORDS = new Set([
   'um', 'uma', 'uns', 'umas',
 ]);
 
-// Tipos de logradouro reconhecidos para envolver em frase exata
-const ADDRESS_PREFIX_RE =
-  /\b(avenida|av\.?|rua|r\.?|alameda|al\.?|praça|pça\.?|travessa|tv\.?|estrada|est\.?|rodovia|rod\.?|largo|lg\.?|beco|viela|via)\s+(\w+)/gi;
+// Prefixos de logradouro e bairro que indicam que as próximas palavras formam uma frase
+// Logradouros: avenida paulista, rua augusta...
+// Bairros/fóruns: jardim bela vista, vila mariana, fórum da barra funda...
+const PHRASE_PREFIX_RE =
+  /\b(avenida|av\.?|rua|r\.?|alameda|al\.?|praça|pça\.?|travessa|tv\.?|estrada|est\.?|rodovia|rod\.?|largo|lg\.?|beco|viela|via|jardim|jd\.?|vila|vl\.?|bairro|fórum|forum|foro|parque|pq\.?|conjunto|núcleo)\s+(\w+(?:\s+\w+)?)/gi;
 
 /**
- * Detecta padrões de endereço ("avenida X", "rua Y" etc.) e envolve em aspas
- * para que o Elasticsearch trate como phrase query em vez de termos soltos.
- * Isso impede que "paulista" em "Várzea Paulista" satisfaça "avenida paulista".
+ * Detecta padrões de endereço/bairro/fórum e envolve em aspas para phrase query.
+ * Exemplos: "avenida paulista" → '"avenida paulista"'
+ *           "jardim bela vista" → '"jardim bela vista"'
+ *           "fórum regional" → '"fórum regional"'
+ * Isso impede falsos positivos onde cada palavra bate em campos diferentes.
  */
 function wrapAddressPhrases(query: string): string {
   // Não altera se o usuário já usou aspas
   if (query.includes('"')) return query;
-  return query.replace(ADDRESS_PREFIX_RE, (_, prefix, name) => `"${prefix} ${name}"`);
+  return query.replace(PHRASE_PREFIX_RE, (match) => `"${match.trim()}"`);
 }
 
 /**
@@ -189,9 +193,14 @@ export function buildDataJudQuery(
     });
   }
 
-  // comarca/cidade: match em orgaoJulgador.nome (ex: "Campinas" filtra varas de Campinas)
+  // comarca/cidade: todas as palavras devem aparecer no nome do órgão julgador.
+  // operator "and" evita que "capão redondo" case com "Capão Bonito" (só "capão" em comum).
   if (filters.comarca) {
-    must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
+    must.push({
+      match: {
+        'orgaoJulgador.nome': { query: filters.comarca, operator: 'and' },
+      },
+    });
   }
 
   // busca livre: simple_query_string em todos os campos indexados do documento
