@@ -20,7 +20,7 @@
 | 14 | Calendário processual: UI, API de eventos e export iCal | pending | high | task_04, task_08, task_11 |
 | 15 | Alertas de prazo via Inngest (T-5, T-2, T-1) | pending | medium | task_11, task_14 |
 | 16 | Módulo financeiro: honorários e pagamentos | pending | high | task_04, task_08, task_09 |
-| 17 | Busca avançada: adaptação SaaS, histórico e favoritos | pending | medium | task_03, task_04 |
-| 18 | Onboarding guiado: fluxo 3 passos e tour interativo | pending | medium | task_03, task_04, task_07 |
+| 17 | Busca avançada: adaptação SaaS, histórico e favoritos | completed | medium | task_03, task_04 |
+| 18 | Onboarding guiado: fluxo 3 passos e tour interativo | completed | medium | task_03, task_04, task_07 |
 | 19 | Stripe Customer Portal e self-service de assinatura | completed | medium | task_05 |
 | 20 | Gestão de escritório e membros: convites e papéis | pending | medium | task_03, task_04, task_09 |
