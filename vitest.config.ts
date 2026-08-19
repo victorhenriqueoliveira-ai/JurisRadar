@@ -46,6 +46,8 @@ export default defineConfig({
         'src/components/history/**/*.tsx',
         'src/components/dje/**/*.tsx',
         'src/app/(protected)/dje/**/*.tsx',
+        'src/components/layout/**/*.tsx',
+        'src/components/ui-custom/**/*.tsx',
       ],
       exclude: [
         'src/db/index.ts',
@@ -59,6 +61,8 @@ export default defineConfig({
         'src/auth/__tests__/**',
         'src/auth.ts',
         'src/app/(protected)/dje/__tests__/**',
+        'src/components/layout/__tests__/**',
+        'src/components/ui-custom/__tests__/**',
       ],
       thresholds: {
         lines: 80,
