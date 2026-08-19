@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Busca avançada: adaptação SaaS, histórico e favoritos
 type: frontend
 complexity: medium
@@ -34,12 +34,12 @@ Adapta a busca avançada existente do JurisRadar ao contexto SaaS: adiciona `org
 
 ## Subtasks
 
-- [ ] 17.1 Migrar rotas de busca para `/app/busca/` e adaptar ao novo layout (task_04)
-- [ ] 17.2 Adicionar `org_id` às queries de histórico de busca; limitar a 50 entradas por usuário
-- [ ] 17.3 Criar tabela/coluna de buscas favoritas e endpoints para salvar, listar e deletar favoritos
-- [ ] 17.4 Implementar UI de favoritos: botão "Salvar busca", lista de favoritos, clique para reaplicar
-- [ ] 17.5 Adicionar botão "Adicionar ao CRM" em cada card de resultado com feedback de "já monitorado"
-- [ ] 17.6 Escrever testes de histórico e favoritos
+- [x] 17.1 Migrar rotas de busca para `/app/busca/` e adaptar ao novo layout (task_04)
+- [x] 17.2 Adicionar `org_id` às queries de histórico de busca; limitar a 50 entradas por usuário
+- [x] 17.3 Criar tabela/coluna de buscas favoritas e endpoints para salvar, listar e deletar favoritos
+- [x] 17.4 Implementar UI de favoritos: botão "Salvar busca", lista de favoritos, clique para reaplicar
+- [x] 17.5 Adicionar botão "Adicionar ao CRM" em cada card de resultado com feedback de "já monitorado"
+- [x] 17.6 Escrever testes de histórico e favoritos
 
 ## Implementation Details
 
