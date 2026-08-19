@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Importação automática de processos via Inngest + DataJud/PJe
 type: backend
 complexity: high
@@ -37,13 +37,13 @@ Implementa o mecanismo central de importação e sincronização de processos: d
 
 ## Subtasks
 
-- [ ] 7.1 Criar `src/inngest/sync-processos-scheduler.ts` com cron e fan-out por advogado ativo
-- [ ] 7.2 Criar `src/inngest/sync-processos-worker.ts` com step de busca DataJud por OAB
-- [ ] 7.3 Adicionar step de busca PJe/Comunica por número CNJ dos processos encontrados
-- [ ] 7.4 Implementar upsert de `processos` e insert com `ON CONFLICT DO NOTHING` em `movimentacoes`
-- [ ] 7.5 Criar `POST /api/processos/sync` para disparo manual e indicador de status no CRM
-- [ ] 7.6 Adicionar rate limiting de 10 processos/segundo com `step.sleep` entre lotes
-- [ ] 7.7 Escrever testes com mocks das APIs externas
+- [x] 7.1 Criar `src/inngest/sync-processos-scheduler.ts` com cron e fan-out por advogado ativo
+- [x] 7.2 Criar `src/inngest/sync-processos-worker.ts` com step de busca DataJud por OAB
+- [x] 7.3 Adicionar step de busca PJe/Comunica por número CNJ dos processos encontrados
+- [x] 7.4 Implementar upsert de `processos` e insert com `ON CONFLICT DO NOTHING` em `movimentacoes`
+- [x] 7.5 Criar `POST /api/processos/sync` para disparo manual e indicador de status no CRM
+- [x] 7.6 Adicionar rate limiting de 10 processos/segundo com `step.sleep` entre lotes
+- [x] 7.7 Escrever testes com mocks das APIs externas
 
 ## Implementation Details
 
@@ -88,15 +88,15 @@ Veja a seção "Integration Points — DataJud CNJ" e "Integration Points — PJ
 ## Tests
 
 - Testes unitários:
-  - [ ] `sync-processos-worker` com mock DataJud retornando 3 processos insere 3 registros em `processos`
-  - [ ] `sync-processos-worker` com processo já existente (mesmo `numero_cnj`) não duplica registro
-  - [ ] `sync-processos-worker` com mock DataJud retornando `DataJudRateLimitError` registra falha e não atualiza `ultima_sync_at`
-  - [ ] `sync-processos-scheduler` filtra advogados com `subscription.status = 'canceled'` e não emite eventos para eles
-  - [ ] Upsert de movimentação com mesmo `(processo_id, externo_id)` não lança erro (ON CONFLICT DO NOTHING)
+  - [x] `sync-processos-worker` com mock DataJud retornando 3 processos insere 3 registros em `processos`
+  - [x] `sync-processos-worker` com processo já existente (mesmo `numero_cnj`) não duplica registro
+  - [x] `sync-processos-worker` com mock DataJud retornando `DataJudRateLimitError` registra falha e não atualiza `ultima_sync_at`
+  - [x] `sync-processos-scheduler` filtra advogados com `subscription.status = 'canceled'` e não emite eventos para eles
+  - [x] Upsert de movimentação com mesmo `(processo_id, externo_id)` não lança erro (ON CONFLICT DO NOTHING)
 - Testes de integração:
-  - [ ] `POST /api/processos/sync` sem autenticação retorna 401
-  - [ ] `POST /api/processos/sync` com usuário autenticado emite evento Inngest `processos/sync.requested`
-  - [ ] Após execução do worker com mock DataJud, `processos.ultima_sync_at` é atualizado
+  - [x] `POST /api/processos/sync` sem autenticação retorna 401
+  - [x] `POST /api/processos/sync` com usuário autenticado emite evento Inngest `processos/sync.requested`
+  - [x] Após execução do worker com mock DataJud, `processos.ultima_sync_at` é atualizado
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 
