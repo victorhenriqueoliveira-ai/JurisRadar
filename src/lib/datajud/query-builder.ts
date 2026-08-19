@@ -128,6 +128,11 @@ export function buildDataJudQuery(
     must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
   }
 
+  // OAB: match em advogados.numeroOAB (nested field no DataJud)
+  if (filters.oabNumero) {
+    must.push({ match: { 'advogados.numeroOAB': filters.oabNumero } });
+  }
+
   // busca livre: multi_match em campos textuais relevantes
   if (filters.buscaLivre) {
     must.push({
