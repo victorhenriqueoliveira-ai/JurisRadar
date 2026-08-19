@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Auth expandido: CPF, OAB, organizations, papéis e 2FA
 type: backend
 complexity: high
@@ -35,13 +35,13 @@ Expande o sistema de autenticação NextAuth.js existente para suportar cadastro
 
 ## Subtasks
 
-- [ ] 3.1 Adicionar campos CPF e OAB à action de registro; validar CPF e formato OAB
-- [ ] 3.2 Criar organização e vínculo sócio automaticamente ao registrar primeiro usuário do escritório
-- [ ] 3.3 Incluir `orgId`, `role` e `subscriptionStatus` no JWT callback e atualizar `next-auth.d.ts`
-- [ ] 3.4 Criar `src/lib/org-context.ts` com `requireOrgContext()` e `requireRole()`
-- [ ] 3.5 Implementar 2FA TOTP: geração de secret, endpoint de QR code e verificação no login
-- [ ] 3.6 Atualizar `middleware.ts` para redirecionar `/onboarding` quando `orgId` ausente no JWT
-- [ ] 3.7 Escrever testes unitários para validação de CPF, OAB e lógica de controle de acesso
+- [x] 3.1 Adicionar campos CPF e OAB à action de registro; validar CPF e formato OAB
+- [x] 3.2 Criar organização e vínculo sócio automaticamente ao registrar primeiro usuário do escritório
+- [x] 3.3 Incluir `orgId`, `role` e `subscriptionStatus` no JWT callback e atualizar `next-auth.d.ts`
+- [x] 3.4 Criar `src/lib/org-context.ts` com `requireOrgContext()` e `requireRole()`
+- [x] 3.5 Implementar 2FA TOTP: geração de secret, endpoint de QR code e verificação no login
+- [x] 3.6 Atualizar `middleware.ts` para redirecionar `/onboarding` quando `orgId` ausente no JWT
+- [x] 3.7 Escrever testes unitários para validação de CPF, OAB e lógica de controle de acesso
 
 ## Implementation Details
 
