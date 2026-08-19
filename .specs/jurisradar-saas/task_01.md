@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Design tokens e componentes uiverse.io base
 type: frontend
 complexity: medium
@@ -33,13 +33,13 @@ Cria a camada de design tokens centralizada em CSS custom properties que harmoni
 
 ## Subtasks
 
-- [ ] 1.1 Criar `src/styles/tokens.css` com paleta completa (light + dark) e importar em `globals.css`
-- [ ] 1.2 Copiar e adaptar `UiButton` do uiverse.io (efeito glow/ripple) substituindo cores hardcoded por tokens
-- [ ] 1.3 Copiar e adaptar `GlassCard` (glassmorphism) com `var(--jr-glass-bg)` e `var(--jr-glass-border)`
-- [ ] 1.4 Copiar e adaptar `PulsingBadge` (badge com pulso animado para notificações urgentes)
-- [ ] 1.5 Copiar e adaptar `ImportLoader` (loader animado para tela de importação do onboarding)
-- [ ] 1.6 Copiar e adaptar `EmptyStateIllustrated` (SVG animado para seções sem dados)
-- [ ] 1.7 Criar barrel export em `src/components/ui-custom/index.ts` e escrever testes de renderização
+- [x] 1.1 Criar `src/styles/tokens.css` com paleta completa (light + dark) e importar em `globals.css`
+- [x] 1.2 Copiar e adaptar `UiButton` do uiverse.io (efeito glow/ripple) substituindo cores hardcoded por tokens
+- [x] 1.3 Copiar e adaptar `GlassCard` (glassmorphism) com `var(--jr-glass-bg)` e `var(--jr-glass-border)`
+- [x] 1.4 Copiar e adaptar `PulsingBadge` (badge com pulso animado para notificações urgentes)
+- [x] 1.5 Copiar e adaptar `ImportLoader` (loader animado para tela de importação do onboarding)
+- [x] 1.6 Copiar e adaptar `EmptyStateIllustrated` (SVG animado para seções sem dados)
+- [x] 1.7 Criar barrel export em `src/components/ui-custom/index.ts` e escrever testes de renderização
 
 ## Implementation Details
 
@@ -85,15 +85,15 @@ Veja a seção "Integration Points — uiverse.io + Design System" e "ADR-004" d
 ## Tests
 
 - Testes unitários:
-  - [ ] `GlassCard` renderiza com `children` e aplica classe `glass-card` derivada dos tokens
-  - [ ] `UiButton` renderiza com `variant="primary"` e `variant="secondary"` sem erro
-  - [ ] `PulsingBadge` com `count=0` não renderiza o badge; com `count=5` renderiza "5"
-  - [ ] `ImportLoader` renderiza a animação sem prop; com `label="Importando..."` exibe o texto
-  - [ ] `EmptyStateIllustrated` com `title` e `description` renderiza ambos os textos
-  - [ ] Todos os componentes aceitam `className` adicional sem sobrescrever estilos base
+  - [x] `GlassCard` renderiza com `children` e aplica classe `glass-card` derivada dos tokens
+  - [x] `UiButton` renderiza com `variant="primary"` e `variant="secondary"` sem erro
+  - [x] `PulsingBadge` com `count=0` não renderiza o badge; com `count=5` renderiza "5"
+  - [x] `ImportLoader` renderiza a animação sem prop; com `label="Importando..."` exibe o texto
+  - [x] `EmptyStateIllustrated` com `title` e `description` renderiza ambos os textos
+  - [x] Todos os componentes aceitam `className` adicional sem sobrescrever estilos base
 - Testes de integração:
-  - [ ] Alternar tema dark/light via atributo `data-theme` no `<html>` faz tokens `--jr-primary` mudarem de valor (verificável via `getComputedStyle`)
-  - [ ] `globals.css` importado numa página Next.js de teste não gera erro de especificidade com classes Tailwind existentes
+  - [x] Alternar tema dark/light via atributo `data-theme` no `<html>` faz tokens `--jr-primary` mudarem de valor (verificável via `getComputedStyle`)
+  - [x] `globals.css` importado numa página Next.js de teste não gera erro de especificidade com classes Tailwind existentes
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 
