@@ -225,11 +225,13 @@ export async function createDjeSearch(
   params: DjeSearchParams,
   name?: string,
   totalResults?: number,
+  orgId?: string,
 ): Promise<string> {
   const [search] = await db
     .insert(djeSearches)
     .values({
       userId,
+      orgId: orgId ?? null,
       term: params.term,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
@@ -237,6 +239,25 @@ export async function createDjeSearch(
       totalResults: totalResults ?? 0,
     })
     .returning({ id: djeSearches.id });
+
+  // Limita histórico a 50 entradas por usuário — remove excedente
+  const countResult = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(djeSearches)
+    .where(eq(djeSearches.userId, userId));
+  const total = Number(countResult[0].count);
+  if (total > 50) {
+    const oldest = await db
+      .select({ id: djeSearches.id })
+      .from(djeSearches)
+      .where(eq(djeSearches.userId, userId))
+      .orderBy(desc(djeSearches.createdAt))
+      .offset(50)
+      .limit(total - 50);
+    for (const o of oldest) {
+      await db.delete(djeSearches).where(eq(djeSearches.id, o.id));
+    }
+  }
 
   return search.id;
 }

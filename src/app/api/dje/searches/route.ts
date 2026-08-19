@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { getSystemUserId } from '@/lib/system-user';
+import { requireOrgContext } from '@/lib/org-context';
+import { UnauthorizedError } from '@/lib/errors';
 import {
   searchPublications,
   createDjeSearch,
@@ -9,7 +10,18 @@ import {
 import { DjeSearchSchema } from './schema';
 
 export async function POST(request: NextRequest) {
-  const userId = await getSystemUserId();
+  let userId: string;
+  let orgId: string | undefined;
+  try {
+    const ctx = await requireOrgContext();
+    userId = ctx.userId;
+    orgId = ctx.orgId;
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+    throw err;
+  }
 
   let body: unknown;
   try {
@@ -35,7 +47,7 @@ export async function POST(request: NextRequest) {
   const params = { term, dateFrom, dateTo };
 
   const { results, total } = await searchPublications(params, page, limit, userId);
-  const searchId = await createDjeSearch(userId, params, name, total);
+  const searchId = await createDjeSearch(userId, params, name, total, orgId);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -46,7 +58,16 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const userId = await getSystemUserId();
+  let userId: string;
+  try {
+    const ctx = await requireOrgContext();
+    userId = ctx.userId;
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+    throw err;
+  }
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
