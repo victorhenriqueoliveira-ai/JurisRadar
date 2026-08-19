@@ -13,7 +13,8 @@ export default auth((req: NextRequest & { auth: { user?: { id?: string; orgId?: 
     pathname === '/onboarding' ||
     pathname === '/billing' ||
     pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/inngest');
+    pathname.startsWith('/api/inngest') ||
+    pathname === '/api/billing/webhook';
 
   // Redireciona para login se não autenticado e rota não é pública
   if (!isRotaPublica && !isAutenticado) {
