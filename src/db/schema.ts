@@ -8,6 +8,8 @@ import {
   date,
   index,
   unique,
+  boolean,
+  numeric,
 } from 'drizzle-orm/pg-core';
 
 // ── Tipos auxiliares ──────────────────────────────────────────────────────────
@@ -49,7 +51,220 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   name: text('name'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  // Colunas adicionadas para SaaS multi-tenant
+  cpf: text('cpf'),
+  oabNumero: text('oab_numero'),
+  oabEstado: text('oab_estado'),
+  totpSecret: text('totp_secret'),
 });
+
+// ── Tabelas SaaS multi-tenant ─────────────────────────────────────────────────
+
+/** Organizações (escritórios de advocacia) */
+export const organizations = pgTable('organizations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  slug: text('slug').unique().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+/** Membros de cada organização */
+export const orgMembers = pgTable(
+  'org_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role')
+      .$type<'socio' | 'associado' | 'estagiario'>()
+      .notNull()
+      .default('associado'),
+  },
+  (t) => ({
+    uniqueOrgUser: unique('org_members_org_id_user_id_unique').on(t.orgId, t.userId),
+  }),
+);
+
+/** Assinaturas Stripe por organização */
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  stripeSubscriptionId: text('stripe_subscription_id').unique(),
+  status: text('status').notNull(),
+  plan: text('plan').notNull(),
+  trialEndsAt: timestamp('trial_ends_at'),
+  currentPeriodEnd: timestamp('current_period_end'),
+  stripeEventId: text('stripe_event_id').unique(),
+});
+
+/** Processos judiciais monitorados por organização */
+export const processos = pgTable(
+  'processos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    numeroCnj: text('numero_cnj').notNull(),
+    tribunal: text('tribunal'),
+    areaDireito: text('area_direito'),
+    status: text('status').notNull().default('ativo'),
+    responsavelId: uuid('responsavel_id').references(() => users.id),
+    ultimaMovimentacao: text('ultima_movimentacao'),
+    ultimaSyncAt: timestamp('ultima_sync_at'),
+    fonteSync: text('fonte_sync').array(),
+    arquivadoAt: timestamp('arquivado_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    orgIdStatusIdx: index('processos_org_id_status_idx').on(t.orgId, t.status),
+    orgIdResponsavelIdx: index('processos_org_id_responsavel_idx').on(
+      t.orgId,
+      t.responsavelId,
+    ),
+  }),
+);
+
+/** Movimentações dos processos */
+export const movimentacoes = pgTable(
+  'movimentacoes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    processoId: uuid('processo_id')
+      .notNull()
+      .references(() => processos.id, { onDelete: 'cascade' }),
+    data: timestamp('data').notNull(),
+    descricao: text('descricao').notNull(),
+    tipo: text('tipo'),
+    fonte: text('fonte'),
+    externoId: text('externo_id'),
+  },
+  (t) => ({
+    uniqueProcessoExterno: unique('movimentacoes_processo_id_externo_id_unique').on(
+      t.processoId,
+      t.externoId,
+    ),
+    processoIdDataIdx: index('movimentacoes_processo_id_data_idx').on(
+      t.processoId,
+      t.data,
+    ),
+    orgIdDataIdx: index('movimentacoes_org_id_data_idx').on(t.orgId, t.data),
+  }),
+);
+
+/** Notificações para usuários */
+export const notificacoes = pgTable(
+  'notificacoes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id),
+    processoId: uuid('processo_id').references(() => processos.id),
+    tipo: text('tipo').notNull(),
+    titulo: text('titulo').notNull(),
+    corpo: text('corpo'),
+    lida: boolean('lida').notNull().default(false),
+    lidaAt: timestamp('lida_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    userIdLidaCreatedAtIdx: index('notificacoes_user_id_lida_created_at_idx').on(
+      t.userId,
+      t.lida,
+      t.createdAt,
+    ),
+  }),
+);
+
+/** Honorários vinculados a processos */
+export const honorarios = pgTable(
+  'honorarios',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    processoId: uuid('processo_id')
+      .unique()
+      .references(() => processos.id),
+    tipo: text('tipo').notNull(),
+    valor: numeric('valor', { precision: 12, scale: 2 }),
+    dataPrevista: date('data_prevista'),
+    statusPagamento: text('status_pagamento').notNull().default('pendente'),
+  },
+  (t) => ({
+    orgIdStatusPagamentoIdx: index('honorarios_org_id_status_pagamento_idx').on(
+      t.orgId,
+      t.statusPagamento,
+    ),
+  }),
+);
+
+/** Pagamentos de honorários */
+export const pagamentos = pgTable('pagamentos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  honorarioId: uuid('honorario_id')
+    .notNull()
+    .references(() => honorarios.id, { onDelete: 'cascade' }),
+  valor: numeric('valor', { precision: 12, scale: 2 }).notNull(),
+  pagoEm: date('pago_em').notNull(),
+  observacao: text('observacao'),
+});
+
+/** Notas internas de processos */
+export const notasProcesso = pgTable('notas_processo', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  processoId: uuid('processo_id')
+    .notNull()
+    .references(() => processos.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id),
+  conteudo: text('conteudo').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+/** Eventos de calendário vinculados a processos */
+export const eventosCalendario = pgTable(
+  'eventos_calendario',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    processoId: uuid('processo_id')
+      .notNull()
+      .references(() => processos.id, { onDelete: 'cascade' }),
+    tipo: text('tipo').notNull(),
+    titulo: text('titulo').notNull(),
+    data: date('data').notNull(),
+    alertadoT5: boolean('alertado_t5').notNull().default(false),
+    alertadoT2: boolean('alertado_t2').notNull().default(false),
+    alertadoT1: boolean('alertado_t1').notNull().default(false),
+  },
+  (t) => ({
+    orgIdDataIdx: index('eventos_calendario_org_id_data_idx').on(t.orgId, t.data),
+  }),
+);
+
+// ── Tabelas de busca (com org_id adicionado para multi-tenant) ────────────────
 
 /** Tabela de buscas federadas */
 export const searches = pgTable(
@@ -59,6 +274,7 @@ export const searches = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id),
+    orgId: uuid('org_id').references(() => organizations.id),
     name: text('name'),
     filters: jsonb('filters').$type<SearchFilters>(),
     status: text('status')
@@ -172,6 +388,7 @@ export const djeSearches = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id),
+    orgId: uuid('org_id').references(() => organizations.id),
     name: text('name'),
     term: text('term').notNull(),
     dateFrom: date('date_from').notNull(),
