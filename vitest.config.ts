@@ -1,10 +1,27 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import react from '@vitejs/plugin-react';
+import path from 'path';
+
+// Resolve the real node_modules root (worktree uses a symlink)
+const nodeModulesRoot = path.resolve(__dirname, 'node_modules');
 
 export default defineConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: [react() as any, tsconfigPaths()],
+  resolve: {
+    alias: {
+      react: path.resolve(nodeModulesRoot, 'react'),
+      'react-dom': path.resolve(nodeModulesRoot, 'react-dom'),
+      'react/jsx-dev-runtime': path.resolve(nodeModulesRoot, 'react/jsx-dev-runtime'),
+      'react/jsx-runtime': path.resolve(nodeModulesRoot, 'react/jsx-runtime'),
+    },
+  },
+  server: {
+    fs: {
+      allow: [__dirname, nodeModulesRoot],
+    },
+  },
   test: {
     environment: 'node',
     globals: true,
