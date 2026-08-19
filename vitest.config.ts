@@ -48,6 +48,8 @@ export default defineConfig({
         'src/app/(protected)/dje/**/*.tsx',
         'src/components/layout/**/*.tsx',
         'src/components/ui-custom/**/*.tsx',
+        'src/components/billing/**/*.tsx',
+        'src/app/api/billing/portal/**/*.ts',
       ],
       exclude: [
         'src/db/index.ts',
@@ -63,6 +65,8 @@ export default defineConfig({
         'src/app/(protected)/dje/__tests__/**',
         'src/components/layout/__tests__/**',
         'src/components/ui-custom/__tests__/**',
+        'src/components/billing/__tests__/**',
+        'src/app/api/billing/__tests__/**',
       ],
       thresholds: {
         lines: 80,
