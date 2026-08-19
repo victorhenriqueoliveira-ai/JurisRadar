@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CRM backend: endpoints de processos, movimentações e notas
 type: backend
 complexity: high
@@ -37,13 +37,13 @@ Implementa todos os endpoints REST do CRM: listagem paginada com filtros, detalh
 
 ## Subtasks
 
-- [ ] 8.1 Criar `GET /api/processos` com filtros, ordenação e paginação por cursor
-- [ ] 8.2 Criar `GET /api/processos/:id` com movimentações, honorário e notas
-- [ ] 8.3 Criar `PATCH /api/processos/:id` para responsável e status com verificação de papel
-- [ ] 8.4 Criar `DELETE /api/processos/:id` (soft delete via `arquivado_at`)
-- [ ] 8.5 Criar `POST /api/processos/:id/notas` e `DELETE /api/processos/:id/notas/:notaId`
-- [ ] 8.6 Criar `src/services/processos.ts` com queries Drizzle reutilizáveis por estes endpoints
-- [ ] 8.7 Escrever testes de isolamento multi-tenant e de controle de acesso por papel
+- [x] 8.1 Criar `GET /api/processos` com filtros, ordenação e paginação por cursor
+- [x] 8.2 Criar `GET /api/processos/:id` com movimentações, honorário e notas
+- [x] 8.3 Criar `PATCH /api/processos/:id` para responsável e status com verificação de papel
+- [x] 8.4 Criar `DELETE /api/processos/:id` (soft delete via `arquivado_at`)
+- [x] 8.5 Criar `POST /api/processos/:id/notas` e `DELETE /api/processos/:id/notas/:notaId`
+- [x] 8.6 Criar `src/services/processos.ts` com queries Drizzle reutilizáveis por estes endpoints
+- [x] 8.7 Escrever testes de isolamento multi-tenant e de controle de acesso por papel
 
 ## Implementation Details
 
@@ -81,16 +81,16 @@ Veja a seção "API Endpoints — Processos" do TechSpec para a especificação 
 ## Tests
 
 - Testes unitários:
-  - [ ] `listProcessos({ orgId: 'A', status: 'ativo' })` retorna apenas processos do org A com status ativo
-  - [ ] `archiveProcesso({ orgId: 'A', processoId: 'X' })` seta `arquivado_at` sem deletar o registro
-  - [ ] `deleteNota` com `userId` diferente do autor e papel `associado` lança `ForbiddenError`
-  - [ ] `deleteNota` com papel `socio` deleta nota de qualquer autor
+  - [x] `listProcessos({ orgId: 'A', status: 'ativo' })` retorna apenas processos do org A com status ativo
+  - [x] `archiveProcesso({ orgId: 'A', processoId: 'X' })` seta `arquivado_at` sem deletar o registro
+  - [x] `deleteNota` com `userId` diferente do autor e papel `associado` lança `ForbiddenError`
+  - [x] `deleteNota` com papel `socio` deleta nota de qualquer autor
 - Testes de integração:
-  - [ ] `GET /api/processos/:id` com `id` de processo de outro escritório retorna 403
-  - [ ] `GET /api/processos` sem filtros retorna lista paginada apenas do escritório do usuário autenticado
-  - [ ] `PATCH /api/processos/:id` com papel `estagiario` retorna 403
-  - [ ] `POST /api/processos/:id/notas` com `conteudo` vazio retorna 400
-  - [ ] `DELETE /api/processos/:id` realiza soft delete: processo não aparece na listagem mas existe no banco
+  - [x] `GET /api/processos/:id` com `id` de processo de outro escritório retorna 403
+  - [x] `GET /api/processos` sem filtros retorna lista paginada apenas do escritório do usuário autenticado
+  - [x] `PATCH /api/processos/:id` com papel `estagiario` retorna 403
+  - [x] `POST /api/processos/:id/notas` com `conteudo` vazio retorna 400
+  - [x] `DELETE /api/processos/:id` realiza soft delete: processo não aparece na listagem mas existe no banco
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 
