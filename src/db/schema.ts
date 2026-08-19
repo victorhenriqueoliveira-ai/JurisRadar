@@ -65,6 +65,9 @@ export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   slug: text('slug').unique().notNull(),
+  cnpj: text('cnpj'),
+  areaAtuacao: text('area_atuacao'),
+  onboardingCompletedAt: timestamp('onboarding_completed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
