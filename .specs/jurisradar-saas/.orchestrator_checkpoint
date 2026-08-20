@@ -1,0 +1,8 @@
+{
+  "spec_dir": "/Users/victorhenriqueoliveira/Documents/Projetos/Victor/JurisRadar/.specs/jurisradar-saas",
+  "spec_slug": "jurisradar-saas",
+  "last_wave": 2,
+  "integrated_tasks": ["task_01", "task_02"],
+  "pending": 18,
+  "failed": []
+}
