@@ -17,8 +17,8 @@
 | 11 | Worker de diff de movimentações e dispatch de notificações | completed | high | task_07, task_10 |
 | 12 | Templates de e-mail de notificação via Resend | completed | medium | task_06, task_11 |
 | 13 | Dashboard analítico: API de métricas e UI com gráficos | completed | high | task_01, task_04, task_08, task_10 |
-| 14 | Calendário processual: UI, API de eventos e export iCal | pending | high | task_04, task_08, task_11 |
-| 15 | Alertas de prazo via Inngest (T-5, T-2, T-1) | pending | medium | task_11, task_14 |
+| 14 | Calendário processual: UI, API de eventos e export iCal | completed | high | task_04, task_08, task_11 |
+| 15 | Alertas de prazo via Inngest (T-5, T-2, T-1) | completed | medium | task_11, task_14 |
 | 16 | Módulo financeiro: honorários e pagamentos | completed | high | task_04, task_08, task_09 |
 | 17 | Busca avançada: adaptação SaaS, histórico e favoritos | completed | medium | task_03, task_04 |
 | 18 | Onboarding guiado: fluxo 3 passos e tour interativo | completed | medium | task_03, task_04, task_07 |
