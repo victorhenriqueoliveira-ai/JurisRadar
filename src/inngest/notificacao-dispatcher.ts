@@ -25,6 +25,7 @@ import { db } from '@/db';
 import { notificacoes } from '@/db/schema';
 import { getNotificacaoPrefs, getUserEmail, isEmailDesativado } from '@/lib/notificacoes/preferencias';
 import { sendEmail } from '@/lib/email/send';
+import { NotificacaoIntimacao } from '@/lib/email/templates/NotificacaoIntimacao';
 
 // ── Tipos de evento que geram notificação ─────────────────────────────────────
 
@@ -47,6 +48,53 @@ export interface NotificacaoNovaPayload {
   tipo: string;
   titulo: string;
   processoId: string;
+  // Campos adicionais para templates específicos
+  numeroCnj?: string;
+  tribunal?: string;
+  descricao?: string;
+  prazo?: string;
+  linkCrm?: string;
+  processo?: string;
+}
+
+// ── Helpers de template ───────────────────────────────────────────────────────
+
+/**
+ * Seleciona o template React Email correto com base no tipo de notificação.
+ * Tipos 'intimacao' e 'citacao' usam NotificacaoIntimacao.
+ * Demais tipos usam um template base genérico.
+ */
+function buildEmailReactElement(
+  tipo: string,
+  payload: NotificacaoNovaPayload,
+): React.ReactElement {
+  if (tipo === 'intimacao' || tipo === 'citacao') {
+    return React.createElement(NotificacaoIntimacao, {
+      processo: payload.processo ?? payload.titulo,
+      numeroCnj: payload.numeroCnj ?? payload.processoId,
+      tribunal: payload.tribunal ?? 'Tribunal não informado',
+      descricao: payload.descricao ?? payload.titulo,
+      prazo: payload.prazo,
+      linkCrm: payload.linkCrm ?? `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.jurisradar.com.br'}/processos/${payload.processoId}`,
+    });
+  }
+
+  // Template genérico para tipos não específicos (decisao, sentenca, publicacao_dje)
+  return React.createElement(
+    'div',
+    null,
+    React.createElement('h2', null, payload.titulo),
+    React.createElement(
+      'p',
+      null,
+      `Você tem uma nova notificação do tipo "${tipo}" em um dos seus processos monitorados.`,
+    ),
+    React.createElement(
+      'p',
+      null,
+      'Acesse o JurisRadar para ver os detalhes.',
+    ),
+  );
 }
 
 // ── Inngest Function ──────────────────────────────────────────────────────────
@@ -62,8 +110,8 @@ export const notificacaoDispatcher = inngest.createFunction(
     triggers: [{ event: 'notificacao/nova' }],
   },
   async ({ event, step }) => {
-    const { movimentacaoId, orgId, userId, tipo, titulo, processoId } =
-      event.data as NotificacaoNovaPayload;
+    const payload = event.data as NotificacaoNovaPayload;
+    const { movimentacaoId, orgId, userId, tipo, titulo, processoId } = payload;
 
     // Step 1: verificar idempotência — evitar notificação duplicada
     const existing = await step.run('check-idempotency', async () => {
@@ -123,28 +171,12 @@ export const notificacaoDispatcher = inngest.createFunction(
         return { sent: false, reason: 'email_disabled_for_type' };
       }
 
-      // Template inline — o template específico (NotificacaoIntimacao.tsx) é da task_12
-      // Por ora usa um template base simples para não bloquear o pipeline
-      const emailHtml = React.createElement(
-        'div',
-        null,
-        React.createElement('h2', null, titulo),
-        React.createElement(
-          'p',
-          null,
-          `Você tem uma nova notificação do tipo "${tipo}" em um dos seus processos monitorados.`,
-        ),
-        React.createElement(
-          'p',
-          null,
-          'Acesse o JurisRadar para ver os detalhes.',
-        ),
-      );
+      const emailReactElement = buildEmailReactElement(tipo, payload);
 
       await sendEmail({
         to: userEmail,
         subject: titulo,
-        react: emailHtml,
+        react: emailReactElement,
       });
 
       return { sent: true, to: userEmail };
