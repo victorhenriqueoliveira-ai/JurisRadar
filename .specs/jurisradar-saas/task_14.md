@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Calendário processual: UI, API de eventos e export iCal
 type: frontend
 complexity: high
@@ -35,13 +35,13 @@ Implementa o calendário processual com visualizações mensal, semanal e agenda
 
 ## Subtasks
 
-- [ ] 14.1 Criar `GET /api/calendario` e `GET /api/calendario/export.ics`
-- [ ] 14.2 Criar `src/services/calendario.ts` com query de eventos por período e geração de iCal
-- [ ] 14.3 Instalar e configurar biblioteca de calendário React; criar componente `CalendarioProcessual`
-- [ ] 14.4 Implementar coloração de eventos por tipo e urgência
-- [ ] 14.5 Implementar clique em evento para abrir painel lateral do processo (reutilizar `ProcessoSheet` da task_09)
-- [ ] 14.6 Implementar swipe horizontal entre semanas/meses no mobile
-- [ ] 14.7 Escrever testes de renderização e de geração do iCal
+- [x] 14.1 Criar `GET /api/calendario` e `GET /api/calendario/export.ics`
+- [x] 14.2 Criar `src/services/calendario.ts` com query de eventos por período e geração de iCal
+- [x] 14.3 Instalar e configurar biblioteca de calendário React; criar componente `CalendarioProcessual`
+- [x] 14.4 Implementar coloração de eventos por tipo e urgência
+- [x] 14.5 Implementar clique em evento para abrir painel lateral do processo (reutilizar `ProcessoSheet` da task_09)
+- [x] 14.6 Implementar swipe horizontal entre semanas/meses no mobile
+- [x] 14.7 Escrever testes de renderização e de geração do iCal
 
 ## Implementation Details
 
