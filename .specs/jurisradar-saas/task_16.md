@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Módulo financeiro: honorários e pagamentos
 type: frontend
 complexity: high
@@ -38,13 +38,13 @@ Implementa o módulo financeiro básico: endpoints para registro de honorários 
 
 ## Subtasks
 
-- [ ] 16.1 Criar endpoints `GET /api/financeiro`, `GET /api/financeiro/honorarios`, `POST /api/financeiro/honorarios`
-- [ ] 16.2 Criar endpoints `POST /api/financeiro/honorarios/:id/pagamentos` e `DELETE .../pagamentos/:pgId`
-- [ ] 16.3 Criar `src/services/financeiro.ts` com queries e cálculo automático de `status_pagamento`
-- [ ] 16.4 Criar componente `HonorarioForm` para registro no painel do processo (integrar em `ProcessoSheet`)
-- [ ] 16.5 Criar componente `PagamentoList` com botão de adicionar parcela e histórico de pagamentos
-- [ ] 16.6 Criar página `/financeiro` com `DashboardFinanceiro` (totais) e `HonorarioTable` (listagem)
-- [ ] 16.7 Escrever testes de cálculo de status e de endpoints
+- [x] 16.1 Criar endpoints `GET /api/financeiro`, `GET /api/financeiro/honorarios`, `POST /api/financeiro/honorarios`
+- [x] 16.2 Criar endpoints `POST /api/financeiro/honorarios/:id/pagamentos` e `DELETE .../pagamentos/:pgId`
+- [x] 16.3 Criar `src/services/financeiro.ts` com queries e cálculo automático de `status_pagamento`
+- [x] 16.4 Criar componente `HonorarioForm` para registro no painel do processo (integrar em `ProcessoSheet`)
+- [x] 16.5 Criar componente `PagamentoList` com botão de adicionar parcela e histórico de pagamentos
+- [x] 16.6 Criar página `/financeiro` com `DashboardFinanceiro` (totais) e `HonorarioTable` (listagem)
+- [x] 16.7 Escrever testes de cálculo de status e de endpoints
 
 ## Implementation Details
 
@@ -86,15 +86,15 @@ Nenhum — esta task é folha na árvore de dependências de UI.
 ## Tests
 
 - Testes unitários:
-  - [ ] `calcularStatusPagamento(valorTotal=1000, pagamentos=[{valor:500}])` retorna `'parcial'`
-  - [ ] `calcularStatusPagamento(valorTotal=1000, pagamentos=[{valor:1000}])` retorna `'quitado'`
-  - [ ] `calcularStatusPagamento(valorTotal=1000, pagamentos=[])` retorna `'pendente'`
-  - [ ] `POST /api/financeiro/honorarios` com `valor=-100` retorna 400
+  - [x] `calcularStatusPagamento(valorTotal=1000, pagamentos=[{valor:500}])` retorna `'parcial'`
+  - [x] `calcularStatusPagamento(valorTotal=1000, pagamentos=[{valor:1000}])` retorna `'quitado'`
+  - [x] `calcularStatusPagamento(valorTotal=1000, pagamentos=[])` retorna `'pendente'`
+  - [x] `POST /api/financeiro/honorarios` com `valor=-100` retorna 400
 - Testes de integração:
-  - [ ] `POST /api/financeiro/honorarios` cria honorário e retorna `status_pagamento: 'pendente'`
-  - [ ] `POST .../pagamentos` com valor igual ao honorário atualiza `status_pagamento` para `'quitado'`
-  - [ ] `DELETE .../pagamentos/:pgId` com ID de outro escritório retorna 403
-  - [ ] `GET /api/financeiro` retorna `totalAReceber`, `totalRecebido`, `emAtraso` para o período solicitado
+  - [x] `POST /api/financeiro/honorarios` cria honorário e retorna `status_pagamento: 'pendente'`
+  - [x] `POST .../pagamentos` com valor igual ao honorário atualiza `status_pagamento` para `'quitado'`
+  - [x] `DELETE .../pagamentos/:pgId` com ID de outro escritório retorna 403
+  - [x] `GET /api/financeiro` retorna `totalAReceber`, `totalRecebido`, `emAtraso` para o período solicitado
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 

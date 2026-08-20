@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Worker de diff de movimentações e dispatch de notificações
 type: backend
 complexity: high
@@ -35,13 +35,13 @@ Implementa o coração do sistema de alertas: função Inngest `notificacao-disp
 
 ## Subtasks
 
-- [ ] 11.1 Criar função `notificacao-dispatcher` em `src/inngest/notificacao-dispatcher.ts`
-- [ ] 11.2 Implementar step de persistência de notificação in-app com verificação de idempotência
-- [ ] 11.3 Implementar step de envio de e-mail via Resend respeitando preferências do usuário
-- [ ] 11.4 Expandir `sync-processos-worker` (task_07) para emitir `notificacao/nova` por movimentação relevante
-- [ ] 11.5 Criar modelo de preferências de notificação por usuário (tabela ou coluna JSON em `users`)
-- [ ] 11.6 Registrar nova função no cliente Inngest
-- [ ] 11.7 Escrever testes com mocks do Inngest e Resend
+- [x] 11.1 Criar função `notificacao-dispatcher` em `src/inngest/notificacao-dispatcher.ts`
+- [x] 11.2 Implementar step de persistência de notificação in-app com verificação de idempotência
+- [x] 11.3 Implementar step de envio de e-mail via Resend respeitando preferências do usuário
+- [x] 11.4 Expandir `sync-processos-worker` (task_07) para emitir `notificacao/nova` por movimentação relevante
+- [x] 11.5 Criar modelo de preferências de notificação por usuário (tabela ou coluna JSON em `users`)
+- [x] 11.6 Registrar nova função no cliente Inngest
+- [x] 11.7 Escrever testes com mocks do Inngest e Resend
 
 ## Implementation Details
 
@@ -82,10 +82,10 @@ Veja a seção "Fluxo de dados — sync de processos" do TechSpec para o diagram
 ## Tests
 
 - Testes unitários:
-  - [ ] `notificacao-dispatcher` com movimentação tipo `intimacao` cria registro em `notificacoes` com `tipo: 'intimacao'`
-  - [ ] `notificacao-dispatcher` com mesma `movimentacao_id` processada duas vezes cria apenas 1 registro em `notificacoes`
-  - [ ] `notificacao-dispatcher` com usuário com e-mail desativado para `intimacao` persiste in-app mas não chama Resend
-  - [ ] Movimentação tipo `despacho_simples` (não está na lista de relevantes) não gera notificação
+  - [x] `notificacao-dispatcher` com movimentação tipo `intimacao` cria registro em `notificacoes` com `tipo: 'intimacao'`
+  - [x] `notificacao-dispatcher` com mesma `movimentacao_id` processada duas vezes cria apenas 1 registro em `notificacoes`
+  - [x] `notificacao-dispatcher` com usuário com e-mail desativado para `intimacao` persiste in-app mas não chama Resend
+  - [x] Movimentação tipo `despacho_simples` (não está na lista de relevantes) não gera notificação
 - Testes de integração:
   - [ ] Pipeline completo com mock DataJud: sync detecta nova intimação → `notificacao/nova` emitido → notificação in-app criada → e-mail enviado (mock Resend)
   - [ ] `GET /api/notificacoes/count` retorna 1 após pipeline de sync com 1 intimação nova

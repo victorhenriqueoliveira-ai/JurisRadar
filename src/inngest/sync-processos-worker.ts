@@ -6,6 +6,7 @@
  *   1. Busca processos no DataJud por OAB (todos os tribunais relevantes)
  *   2. Upsert em `processos` + insert idempotente em `movimentacoes`
  *   3. Atualiza `ultima_sync_at` de todos os processos sincronizados
+ *   4. Emite `notificacao/nova` para cada movimentação de tipo relevante
  *
  * Erros de rate limit (DataJudRateLimitError) são capturados e registrados
  * sem propagar — o worker segue para o próximo tribunal.
@@ -19,6 +20,7 @@ import { DataJudRateLimitError } from '@/lib/datajud/types';
 import { DATAJUD_TRIBUNALS } from '@/lib/datajud/tribunals';
 import { upsertProcesso, insertMovimentacoesIdempotente } from '@/lib/processos/upsert';
 import type { ProcessoResult } from '@/lib/datajud/types';
+import { TIPOS_RELEVANTES } from './notificacao-dispatcher';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -148,6 +150,14 @@ export const syncProcessosWorker = inngest.createFunction(
     let totalMovimentacoes = 0;
     let totalProcessos = 0;
 
+    // Acumula movimentações relevantes para emitir notificações depois
+    const movimentacoesRelevantes: Array<{
+      movimentacaoExternoId: string;
+      processoId: string;
+      tipo: string;
+      descricao: string;
+    }> = [];
+
     const lotes = [];
     for (let i = 0; i < processosEncontrados.length; i += BATCH_SIZE) {
       lotes.push(processosEncontrados.slice(i, i + BATCH_SIZE));
@@ -159,6 +169,7 @@ export const syncProcessosWorker = inngest.createFunction(
       const resultado = await step.run(`persistir-lote-${loteIdx}`, async () => {
         let processosLote = 0;
         let movimentacoesLote = 0;
+        const relevantesLote: typeof movimentacoesRelevantes = [];
 
         for (const processo of lote) {
           try {
@@ -186,6 +197,18 @@ export const syncProcessosWorker = inngest.createFunction(
 
               const inserted = await insertMovimentacoesIdempotente(movInputs);
               movimentacoesLote += inserted;
+
+              // Coleta movimentações de tipos relevantes para notificação
+              for (const mov of processo.movimentos) {
+                if (mov.tipo && (TIPOS_RELEVANTES as readonly string[]).includes(mov.tipo)) {
+                  relevantesLote.push({
+                    movimentacaoExternoId: `datajud-${processo.numero}-${mov.data}-${processo.movimentos.indexOf(mov)}`,
+                    processoId,
+                    tipo: mov.tipo,
+                    descricao: mov.descricao,
+                  });
+                }
+              }
             }
           } catch (error) {
             console.error(
@@ -195,16 +218,39 @@ export const syncProcessosWorker = inngest.createFunction(
           }
         }
 
-        return { processosLote, movimentacoesLote };
+        return { processosLote, movimentacoesLote, relevantesLote };
       });
 
       totalProcessos += resultado.processosLote;
       totalMovimentacoes += resultado.movimentacoesLote;
+      movimentacoesRelevantes.push(...resultado.relevantesLote);
 
       // Rate limiting: pausa entre lotes (exceto no último)
       if (loteIdx < lotes.length - 1) {
         await step.sleep(`rate-limit-${loteIdx}`, RATE_LIMIT_SLEEP);
       }
+    }
+
+    // Step 3: emitir notificacao/nova para cada movimentação relevante
+    if (movimentacoesRelevantes.length > 0) {
+      await step.sendEvent(
+        'emitir-notificacoes',
+        movimentacoesRelevantes.map((mov) => ({
+          name: 'notificacao/nova' as const,
+          data: {
+            movimentacaoId: mov.movimentacaoExternoId,
+            orgId,
+            userId,
+            tipo: mov.tipo,
+            titulo: `Nova ${mov.tipo}: ${mov.descricao.slice(0, 100)}`,
+            processoId: mov.processoId,
+          },
+        })),
+      );
+
+      console.log(
+        `[sync-processos-worker] emitido ${movimentacoesRelevantes.length} eventos notificacao/nova`,
+      );
     }
 
     console.log(
@@ -215,6 +261,7 @@ export const syncProcessosWorker = inngest.createFunction(
       status: 'completed',
       processosSincronizados: totalProcessos,
       movimentacoesInseridas: totalMovimentacoes,
+      notificacoesEmitidas: movimentacoesRelevantes.length,
     };
   },
 );

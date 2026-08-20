@@ -42,6 +42,12 @@ export interface UltimaMovimentacao {
   descricao: string;
 }
 
+/** Preferências de notificação por usuário */
+export interface NotificationPrefs {
+  /** Tipos de notificação com e-mail desativado */
+  emailDesativado?: string[];
+}
+
 // ── Tabelas ───────────────────────────────────────────────────────────────────
 
 /** Tabela de usuários do sistema */
@@ -56,6 +62,8 @@ export const users = pgTable('users', {
   oabNumero: text('oab_numero'),
   oabEstado: text('oab_estado'),
   totpSecret: text('totp_secret'),
+  // Preferências de notificação (task_11)
+  notificationPrefs: jsonb('notification_prefs').$type<NotificationPrefs>(),
 });
 
 // ── Tabelas SaaS multi-tenant ─────────────────────────────────────────────────
@@ -182,6 +190,8 @@ export const notificacoes = pgTable(
     lida: boolean('lida').notNull().default(false),
     lidaAt: timestamp('lida_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    // Referência à movimentação que originou a notificação (task_11)
+    movimentacaoId: uuid('movimentacao_id').references(() => movimentacoes.id),
   },
   (t) => ({
     userIdLidaCreatedAtIdx: index('notificacoes_user_id_lida_created_at_idx').on(
@@ -189,6 +199,7 @@ export const notificacoes = pgTable(
       t.lida,
       t.createdAt,
     ),
+    movimentacaoIdIdx: index('notificacoes_movimentacao_id_idx').on(t.movimentacaoId),
   }),
 );
 
