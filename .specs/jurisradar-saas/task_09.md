@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CRM frontend: tabela, filtros e painel lateral
 type: frontend
 complexity: high
@@ -38,13 +38,13 @@ Constrói a interface do CRM de processos: tabela de listagem com filtros e orde
 
 ## Subtasks
 
-- [ ] 9.1 Criar `src/app/(app)/crm/page.tsx` com fetch de `GET /api/processos` e estado de filtros/ordenação
-- [ ] 9.2 Criar componente `ProcessoTable` com colunas, sorting e paginação por cursor
-- [ ] 9.3 Criar componente `ProcessoFilters` com todos os filtros e busca com debounce
-- [ ] 9.4 Criar componente `ProcessoSheet` (painel lateral) com movimentações, notas e honorário
-- [ ] 9.5 Criar componente `ProcessoCard` para visualização mobile
-- [ ] 9.6 Adicionar badge de urgência com `PulsingBadge` e indicador de última sync
-- [ ] 9.7 Escrever testes de renderização e interação dos filtros
+- [x] 9.1 Criar `src/app/(app)/crm/page.tsx` com fetch de `GET /api/processos` e estado de filtros/ordenação
+- [x] 9.2 Criar componente `ProcessoTable` com colunas, sorting e paginação por cursor
+- [x] 9.3 Criar componente `ProcessoFilters` com todos os filtros e busca com debounce
+- [x] 9.4 Criar componente `ProcessoSheet` (painel lateral) com movimentações, notas e honorário
+- [x] 9.5 Criar componente `ProcessoCard` para visualização mobile
+- [x] 9.6 Adicionar badge de urgência com `PulsingBadge` e indicador de última sync
+- [x] 9.7 Escrever testes de renderização e interação dos filtros
 
 ## Implementation Details
 
@@ -84,15 +84,15 @@ Componentes uiverse.io a usar: `PulsingBadge` (urgência), `EmptyStateIllustrate
 ## Tests
 
 - Testes unitários:
-  - [ ] `ProcessoTable` com lista vazia renderiza `EmptyStateIllustrated`
-  - [ ] `ProcessoTable` com 5 processos renderiza 5 linhas
-  - [ ] Clicar em cabeçalho de coluna "Próximo prazo" muda ícone para `asc`; segundo clique para `desc`
-  - [ ] `ProcessoFilters` com `status="ativo"` selecionado chama `onFilterChange` com `{ status: 'ativo' }`
-  - [ ] Busca textual com debounce: não chama `onSearch` imediatamente; chama após 300ms
-  - [ ] Processo com prazo ≤ 5 dias exibe `PulsingBadge` vermelho
+  - [x] `ProcessoTable` com lista vazia renderiza `EmptyStateIllustrated`
+  - [x] `ProcessoTable` com 5 processos renderiza 5 linhas
+  - [x] Clicar em cabeçalho de coluna "Próximo prazo" muda ícone para `asc`; segundo clique para `desc`
+  - [x] `ProcessoFilters` com `status="ativo"` selecionado chama `onFilterChange` com `{ status: 'ativo' }`
+  - [x] Busca textual com debounce: não chama `onSearch` imediatamente; chama após 300ms
+  - [x] Processo com prazo ≤ 5 dias exibe `PulsingBadge` vermelho
 - Testes de integração:
-  - [ ] Clicar numa linha da tabela abre `ProcessoSheet` com detalhes do processo
-  - [ ] `ProcessoSheet` com 3 movimentações exibe 3 itens na timeline
+  - [x] Clicar numa linha da tabela abre `ProcessoSheet` com detalhes do processo
+  - [x] `ProcessoSheet` com 3 movimentações exibe 3 itens na timeline
   - [ ] Em viewport 375px, `ProcessoTable` não renderiza; `ProcessoCard` renderiza
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar

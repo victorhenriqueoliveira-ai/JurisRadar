@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Notificações in-app: persistência, sino e painel
 type: backend
 complexity: high
@@ -37,13 +37,13 @@ Implementa o sistema completo de notificações in-app: endpoints de listagem e 
 
 ## Subtasks
 
-- [ ] 10.1 Criar endpoints `GET /api/notificacoes`, `PATCH /api/notificacoes/:id/lida`, `PATCH /api/notificacoes/lida-todas`, `GET /api/notificacoes/count`
-- [ ] 10.2 Criar `src/services/notificacoes.ts` com queries Drizzle para os endpoints
-- [ ] 10.3 Atualizar `AppHeader` para polling de `GET /api/notificacoes/count` a cada 30s e exibir badge
-- [ ] 10.4 Criar componente `NotificacoesSheet` com lista, marcação de lidas e link para processo
-- [ ] 10.5 Implementar marcação automática como lida ao clicar na notificação e navegar
-- [ ] 10.6 Criar `src/app/(app)/notificacoes/page.tsx` com listagem completa e histórico
-- [ ] 10.7 Escrever testes de endpoints e do polling de contagem
+- [x] 10.1 Criar endpoints `GET /api/notificacoes`, `PATCH /api/notificacoes/:id/lida`, `PATCH /api/notificacoes/lida-todas`, `GET /api/notificacoes/count`
+- [x] 10.2 Criar `src/services/notificacoes.ts` com queries Drizzle para os endpoints
+- [x] 10.3 Atualizar `AppHeader` para polling de `GET /api/notificacoes/count` a cada 30s e exibir badge
+- [x] 10.4 Criar componente `NotificacoesSheet` com lista, marcação de lidas e link para processo
+- [x] 10.5 Implementar marcação automática como lida ao clicar na notificação e navegar
+- [x] 10.6 Criar `src/app/(app)/notificacoes/page.tsx` com listagem completa e histórico
+- [x] 10.7 Escrever testes de endpoints e do polling de contagem
 
 ## Implementation Details
 
@@ -84,14 +84,14 @@ Arquivos a modificar:
 ## Tests
 
 - Testes unitários:
-  - [ ] `GET /api/notificacoes/count` retorna `{ count: 0 }` para usuário sem notificações
-  - [ ] `GET /api/notificacoes/count` retorna `{ count: 3 }` para usuário com 3 não lidas
-  - [ ] `PATCH /api/notificacoes/:id/lida` com ID de notificação de outro usuário retorna 403
-  - [ ] `PATCH /api/notificacoes/lida-todas` marca apenas as notificações do usuário autenticado
+  - [x] `GET /api/notificacoes/count` retorna `{ count: 0 }` para usuário sem notificações
+  - [x] `GET /api/notificacoes/count` retorna `{ count: 3 }` para usuário com 3 não lidas
+  - [x] `PATCH /api/notificacoes/:id/lida` com ID de notificação de outro usuário retorna 403
+  - [x] `PATCH /api/notificacoes/lida-todas` marca apenas as notificações do usuário autenticado
 - Testes de integração:
-  - [ ] Polling de 30s no `AppHeader` chama `GET /api/notificacoes/count` e atualiza badge
-  - [ ] Clicar numa notificação no painel chama `PATCH /:id/lida` e remove o badge daquele item
-  - [ ] `GET /api/notificacoes` de usuário do org A não retorna notificações do org B
+  - [x] Polling de 30s no `AppHeader` chama `GET /api/notificacoes/count` e atualiza badge
+  - [x] Clicar numa notificação no painel chama `PATCH /:id/lida` e remove o badge daquele item
+  - [x] `GET /api/notificacoes` de usuário do org A não retorna notificações do org B
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 
