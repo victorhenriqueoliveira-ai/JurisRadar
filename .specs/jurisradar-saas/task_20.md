@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Gestão de escritório e membros: convites e papéis
 type: frontend
 complexity: medium
@@ -36,13 +36,13 @@ Implementa a área de configurações do escritório: endpoints e UI para convid
 
 ## Subtasks
 
-- [ ] 20.1 Criar endpoints `GET/PATCH /api/organizacoes/me` e `GET/POST /api/organizacoes/me/membros`
-- [ ] 20.2 Criar endpoints `PATCH/DELETE /api/organizacoes/me/membros/:id`
-- [ ] 20.3 Integrar envio de e-mail de convite via `ConviteMembro.tsx` (task_06) no endpoint de convite
-- [ ] 20.4 Criar página `/configuracoes/escritorio` com dados do escritório e tabela de membros
-- [ ] 20.5 Criar componente `ConviteDialog` com formulário de e-mail e select de papel
-- [ ] 20.6 Implementar proteção: sócio não pode rebaixar/remover a si mesmo se for o único sócio
-- [ ] 20.7 Escrever testes dos endpoints e das regras de negócio de auto-remoção
+- [x] 20.1 Criar endpoints `GET/PATCH /api/organizacoes/me` e `GET/POST /api/organizacoes/me/membros`
+- [x] 20.2 Criar endpoints `PATCH/DELETE /api/organizacoes/me/membros/:id`
+- [x] 20.3 Integrar envio de e-mail de convite via `ConviteMembro.tsx` (task_06) no endpoint de convite
+- [x] 20.4 Criar página `/configuracoes/escritorio` com dados do escritório e tabela de membros
+- [x] 20.5 Criar componente `ConviteDialog` com formulário de e-mail e select de papel
+- [x] 20.6 Implementar proteção: sócio não pode rebaixar/remover a si mesmo se for o único sócio
+- [x] 20.7 Escrever testes dos endpoints e das regras de negócio de auto-remoção
 
 ## Implementation Details
 
@@ -80,13 +80,13 @@ Nenhum — esta task é folha na árvore de dependências.
 ## Tests
 
 - Testes unitários:
-  - [ ] `PATCH /api/organizacoes/me/membros/:id` com papel `associado` tentando chamar o endpoint retorna 403
-  - [ ] `DELETE /api/organizacoes/me/membros/:id` onde o membro é o único sócio retorna 400 com mensagem "Escritório deve ter ao menos um sócio"
-  - [ ] `PATCH /api/organizacoes/me/membros/:id` para rebaixar o próprio usuário de sócio para associado retorna 400
+  - [x] `PATCH /api/organizacoes/me/membros/:id` com papel `associado` tentando chamar o endpoint retorna 403
+  - [x] `DELETE /api/organizacoes/me/membros/:id` onde o membro é o único sócio retorna 400 com mensagem "Escritório deve ter ao menos um sócio"
+  - [x] `PATCH /api/organizacoes/me/membros/:id` para rebaixar o próprio usuário de sócio para associado retorna 400
 - Testes de integração:
-  - [ ] `POST /api/organizacoes/me/membros` com e-mail válido cria registro em `org_members` com status `pendente` e dispara e-mail de convite
-  - [ ] `GET /api/organizacoes/me/membros` retorna apenas membros do escritório do usuário autenticado
-  - [ ] `DELETE /api/organizacoes/me/membros/:id` com ID de membro de outro escritório retorna 403
+  - [x] `POST /api/organizacoes/me/membros` com e-mail válido cria registro em `org_members` com status `pendente` e dispara e-mail de convite
+  - [x] `GET /api/organizacoes/me/membros` retorna apenas membros do escritório do usuário autenticado
+  - [x] `DELETE /api/organizacoes/me/membros/:id` com ID de membro de outro escritório retorna 403
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 
