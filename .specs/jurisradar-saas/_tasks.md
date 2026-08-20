@@ -23,4 +23,4 @@
 | 17 | Busca avançada: adaptação SaaS, histórico e favoritos | completed | medium | task_03, task_04 |
 | 18 | Onboarding guiado: fluxo 3 passos e tour interativo | completed | medium | task_03, task_04, task_07 |
 | 19 | Stripe Customer Portal e self-service de assinatura | completed | medium | task_05 |
-| 20 | Gestão de escritório e membros: convites e papéis | pending | medium | task_03, task_04, task_09 |
+| 20 | Gestão de escritório e membros: convites e papéis | completed | medium | task_03, task_04, task_09 |
