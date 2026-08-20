@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Alertas de prazo via Inngest (T-5, T-2, T-1)
 type: backend
 complexity: medium
@@ -34,12 +34,12 @@ Implementa a função Inngest `alertas-prazo` que roda diariamente, verifica eve
 
 ## Subtasks
 
-- [ ] 15.1 Criar `src/inngest/alertas-prazo.ts` com cron `"0 8 * * *"`
-- [ ] 15.2 Implementar query de eventos por data (T-5, T-2, T-1) com filtro de flags não enviadas
-- [ ] 15.3 Implementar emit de `notificacao/nova` por evento encontrado
-- [ ] 15.4 Implementar atualização atômica das flags `alertado_t*` após emit
-- [ ] 15.5 Registrar função no cliente Inngest
-- [ ] 15.6 Escrever testes com mock de data e banco
+- [x] 15.1 Criar `src/inngest/alertas-prazo.ts` com cron `"0 8 * * *"`
+- [x] 15.2 Implementar query de eventos por data (T-5, T-2, T-1) com filtro de flags não enviadas
+- [x] 15.3 Implementar emit de `notificacao/nova` por evento encontrado
+- [x] 15.4 Implementar atualização atômica das flags `alertado_t*` após emit
+- [x] 15.5 Registrar função no cliente Inngest
+- [x] 15.6 Escrever testes com mock de data e banco
 
 ## Implementation Details
 
@@ -73,13 +73,13 @@ Nenhum — esta task é folha na árvore de dependências de backend.
 ## Tests
 
 - Testes unitários:
-  - [ ] Função com evento em `data = hoje + 5` e `alertado_t5 = false` emite `notificacao/nova` e seta `alertado_t5 = true`
-  - [ ] Função com evento em `data = hoje + 5` e `alertado_t5 = true` não emite evento duplicado
-  - [ ] Função com processo arquivado (`arquivado_at IS NOT NULL`) não emite alerta mesmo com prazo próximo
-  - [ ] Função com evento em `data = hoje + 2` e `alertado_t2 = false` emite alerta T-2
+  - [x] Função com evento em `data = hoje + 5` e `alertado_t5 = false` emite `notificacao/nova` e seta `alertado_t5 = true`
+  - [x] Função com evento em `data = hoje + 5` e `alertado_t5 = true` não emite evento duplicado
+  - [x] Função com processo arquivado (`arquivado_at IS NOT NULL`) não emite alerta mesmo com prazo próximo
+  - [x] Função com evento em `data = hoje + 2` e `alertado_t2 = false` emite alerta T-2
 - Testes de integração:
-  - [ ] Execução da função com banco contendo 3 eventos em T-5 emite 3 eventos `notificacao/nova`
-  - [ ] Segunda execução no mesmo dia não emite eventos duplicados (flags já estão `true`)
+  - [x] Execução da função com banco contendo 3 eventos em T-5 emite 3 eventos `notificacao/nova`
+  - [x] Segunda execução no mesmo dia não emite eventos duplicados (flags já estão `true`)
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 
