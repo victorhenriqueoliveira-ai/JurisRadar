@@ -1,0 +1,109 @@
+/* JurisRadar Design Tokens — paleta jurídica azul-marinho + dourado */
+
+:root {
+  /* Paleta principal */
+  --jr-primary: #0f2d5e;
+  --jr-primary-foreground: #ffffff;
+  --jr-accent: #c9a84c;
+  --jr-accent-foreground: #0f2d5e;
+
+  /* Semáforo processual */
+  --jr-success: #16a34a;
+  --jr-success-foreground: #ffffff;
+  --jr-warning: #d97706;
+  --jr-warning-foreground: #ffffff;
+  --jr-danger: #dc2626;
+  --jr-danger-foreground: #ffffff;
+
+  /* Glassmorphism */
+  --jr-glass-bg: rgba(255, 255, 255, 0.08);
+  --jr-glass-border: rgba(255, 255, 255, 0.15);
+  --jr-glass-shadow: 0 8px 32px rgba(15, 45, 94, 0.12);
+
+  /* Gradientes */
+  --jr-gradient-start: #0f2d5e;
+  --jr-gradient-end: #1a4a8a;
+  --jr-gradient: linear-gradient(135deg, var(--jr-gradient-start), var(--jr-gradient-end));
+
+  /* Tipografia e espaçamento */
+  --jr-radius: 0.75rem;
+  --jr-radius-sm: 0.375rem;
+  --jr-radius-lg: 1rem;
+
+  /* Mapeamento para shadcn/ui (cssVariables: true) */
+  --primary: var(--jr-primary);
+  --primary-foreground: var(--jr-primary-foreground);
+  --accent: var(--jr-accent);
+  --accent-foreground: var(--jr-accent-foreground);
+}
+
+/* Dark mode via atributo data-theme */
+[data-theme="dark"] {
+  --jr-primary: #1a4a8a;
+  --jr-primary-foreground: #ffffff;
+  --jr-accent: #e2c070;
+  --jr-accent-foreground: #0f2d5e;
+
+  --jr-success: #22c55e;
+  --jr-warning: #f59e0b;
+  --jr-danger: #ef4444;
+
+  --jr-glass-bg: rgba(0, 0, 0, 0.3);
+  --jr-glass-border: rgba(255, 255, 255, 0.08);
+  --jr-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  --jr-gradient-start: #1a4a8a;
+  --jr-gradient-end: #2563b0;
+}
+
+/* Dark mode via prefers-color-scheme (fallback quando data-theme não está presente) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --jr-primary: #1a4a8a;
+    --jr-primary-foreground: #ffffff;
+    --jr-accent: #e2c070;
+    --jr-accent-foreground: #0f2d5e;
+
+    --jr-success: #22c55e;
+    --jr-warning: #f59e0b;
+    --jr-danger: #ef4444;
+
+    --jr-glass-bg: rgba(0, 0, 0, 0.3);
+    --jr-glass-border: rgba(255, 255, 255, 0.08);
+    --jr-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+    --jr-gradient-start: #1a4a8a;
+    --jr-gradient-end: #2563b0;
+  }
+}
+
+/* Animações globais reutilizadas pelos componentes */
+@keyframes jr-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.8;
+  }
+}
+
+@keyframes jr-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes jr-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--jr-primary), 0 0 16px var(--jr-accent);
+  }
+  50% {
+    box-shadow: 0 0 16px var(--jr-primary), 0 0 32px var(--jr-accent);
+  }
+}
+
+@keyframes jr-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
