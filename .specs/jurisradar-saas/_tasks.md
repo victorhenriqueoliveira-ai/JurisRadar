@@ -15,7 +15,7 @@
 | 09 | CRM frontend: tabela, filtros e painel lateral | completed | high | task_01, task_04, task_08 |
 | 10 | Notificações in-app: persistência, sino e painel | completed | high | task_02, task_03, task_08 |
 | 11 | Worker de diff de movimentações e dispatch de notificações | completed | high | task_07, task_10 |
-| 12 | Templates de e-mail de notificação via Resend | pending | medium | task_06, task_11 |
+| 12 | Templates de e-mail de notificação via Resend | completed | medium | task_06, task_11 |
 | 13 | Dashboard analítico: API de métricas e UI com gráficos | completed | high | task_01, task_04, task_08, task_10 |
 | 14 | Calendário processual: UI, API de eventos e export iCal | pending | high | task_04, task_08, task_11 |
 | 15 | Alertas de prazo via Inngest (T-5, T-2, T-1) | pending | medium | task_11, task_14 |
