@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Onboarding guiado: fluxo 3 passos e tour interativo
 type: frontend
 complexity: medium
@@ -36,13 +36,13 @@ Implementa o fluxo de onboarding pós-cadastro em 3 passos (dados do escritório
 
 ## Subtasks
 
-- [ ] 18.1 Criar `src/app/(onboarding)/layout.tsx` sem sidebar e `src/app/(onboarding)/page.tsx` com wizard
-- [ ] 18.2 Implementar Passo 1: formulário de dados do escritório com validação
-- [ ] 18.3 Implementar Passo 2: campos OAB/CPF, `ImportLoader` e polling de progresso da importação
-- [ ] 18.4 Implementar Passo 3: preview do dashboard e marcação de onboarding concluído
-- [ ] 18.5 Implementar tour interativo com biblioteca de highlight (ex: `driver.js`)
-- [ ] 18.6 Adicionar botão "Pular" em todos os passos e no tour
-- [ ] 18.7 Escrever testes do fluxo de wizard e da marcação de conclusão
+- [x] 18.1 Criar `src/app/(onboarding)/layout.tsx` sem sidebar e `src/app/(onboarding)/page.tsx` com wizard
+- [x] 18.2 Implementar Passo 1: formulário de dados do escritório com validação
+- [x] 18.3 Implementar Passo 2: campos OAB/CPF, `ImportLoader` e polling de progresso da importação
+- [x] 18.4 Implementar Passo 3: preview do dashboard e marcação de onboarding concluído
+- [x] 18.5 Implementar tour interativo com biblioteca de highlight (ex: `driver.js`)
+- [x] 18.6 Adicionar botão "Pular" em todos os passos e no tour
+- [x] 18.7 Escrever testes do fluxo de wizard e da marcação de conclusão
 
 ## Implementation Details
 

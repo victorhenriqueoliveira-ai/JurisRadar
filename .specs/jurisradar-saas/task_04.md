@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Layout base e sidebar responsiva
 type: frontend
 complexity: medium
@@ -35,13 +35,13 @@ Cria o layout shell da área autenticada com sidebar de navegação fixa, header
 
 ## Subtasks
 
-- [ ] 4.1 Criar `src/app/(app)/layout.tsx` com proteção de sessão e estrutura de grid (sidebar + main)
-- [ ] 4.2 Criar componente `Sidebar` com itens de navegação, ícones Lucide e indicador de rota ativa
-- [ ] 4.3 Criar componente `AppHeader` com sino de notificações (badge placeholder), avatar e dark mode toggle
-- [ ] 4.4 Implementar versão colapsável da sidebar para tablet e versão Sheet para mobile
-- [ ] 4.5 Configurar `next-themes` no provider e adicionar toggle de dark mode no header
-- [ ] 4.6 Criar páginas placeholder vazias para cada rota da sidebar (para validar a navegação)
-- [ ] 4.7 Escrever testes de renderização do layout e da sidebar
+- [x] 4.1 Criar `src/app/(app)/layout.tsx` com proteção de sessão e estrutura de grid (sidebar + main)
+- [x] 4.2 Criar componente `Sidebar` com itens de navegação, ícones Lucide e indicador de rota ativa
+- [x] 4.3 Criar componente `AppHeader` com sino de notificações (badge placeholder), avatar e dark mode toggle
+- [x] 4.4 Implementar versão colapsável da sidebar para tablet e versão Sheet para mobile
+- [x] 4.5 Configurar `next-themes` no provider e adicionar toggle de dark mode no header
+- [x] 4.6 Criar páginas placeholder vazias para cada rota da sidebar (para validar a navegação)
+- [x] 4.7 Escrever testes de renderização do layout e da sidebar
 
 ## Implementation Details
 
@@ -90,15 +90,15 @@ Nenhum ADR específico — decisões de layout derivadas do PRD (seção "Experi
 ## Tests
 
 - Testes unitários:
-  - [ ] `Sidebar` renderiza todos os 7 itens de navegação
-  - [ ] `Sidebar` com `pathname="/app/crm"` aplica classe de item ativo apenas no item CRM
-  - [ ] `AppHeader` renderiza badge de notificações com `count=0` oculto; `count=3` exibe "3"
-  - [ ] Dark mode toggle chama `setTheme('dark')` ao clicar
+  - [x] `Sidebar` renderiza todos os 7 itens de navegação
+  - [x] `Sidebar` com `pathname="/app/crm"` aplica classe de item ativo apenas no item CRM
+  - [x] `AppHeader` renderiza badge de notificações com `count=0` oculto; `count=3` exibe "3"
+  - [x] Dark mode toggle chama `setTheme('dark')` ao clicar
 - Testes de integração:
-  - [ ] Acesso a `/app/dashboard` sem sessão redireciona para `/login`
-  - [ ] Acesso a `/app/crm` com sessão válida renderiza o layout com sidebar visível
-  - [ ] Em viewport 375px, sidebar não está visível; botão hambúrguer está visível
-  - [ ] Em viewport 1280px, sidebar está visível; botão hambúrguer não está visível
+  - [x] Acesso a `/app/dashboard` sem sessão redireciona para `/login`
+  - [x] Acesso a `/app/crm` com sessão válida renderiza o layout com sidebar visível
+  - [x] Em viewport 375px, sidebar não está visível; botão hambúrguer está visível
+  - [x] Em viewport 1280px, sidebar está visível; botão hambúrguer não está visível
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 

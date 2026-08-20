@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Resend: setup e templates de e-mail base
 type: backend
 complexity: low
@@ -33,13 +33,13 @@ Configura o Resend como provedor de e-mail transacional e cria os templates base
 
 ## Subtasks
 
-- [ ] 6.1 Instalar `resend` e `@react-email/components`; criar `src/lib/email/resend.ts` com cliente singleton
-- [ ] 6.2 Criar `src/lib/email/send.ts` com função `sendEmail` tipada e tratamento de erros do Resend
-- [ ] 6.3 Criar template `WelcomeOnboarding.tsx` com boas-vindas, nome do usuário e link para o app
-- [ ] 6.4 Criar template `ConviteMembro.tsx` com nome do escritório, papel e link de aceitação
-- [ ] 6.5 Criar template `FalhaBilling.tsx` com alerta de cobrança falha e link para atualizar cartão
-- [ ] 6.6 Documentar registros DNS necessários em `docs/email-setup.md`
-- [ ] 6.7 Escrever testes de renderização dos templates
+- [x] 6.1 Instalar `resend` e `@react-email/components`; criar `src/lib/email/resend.ts` com cliente singleton
+- [x] 6.2 Criar `src/lib/email/send.ts` com função `sendEmail` tipada e tratamento de erros do Resend
+- [x] 6.3 Criar template `WelcomeOnboarding.tsx` com boas-vindas, nome do usuário e link para o app
+- [x] 6.4 Criar template `ConviteMembro.tsx` com nome do escritório, papel e link de aceitação
+- [x] 6.5 Criar template `FalhaBilling.tsx` com alerta de cobrança falha e link para atualizar cartão
+- [x] 6.6 Documentar registros DNS necessários em `docs/email-setup.md`
+- [x] 6.7 Escrever testes de renderização dos templates
 
 ## Implementation Details
 
@@ -80,12 +80,12 @@ Variável de ambiente obrigatória:
 ## Tests
 
 - Testes unitários:
-  - [ ] `renderToHtml(<WelcomeOnboarding name="João" />)` retorna HTML contendo "João"
-  - [ ] `renderToHtml(<ConviteMembro escritorio="Silva & Associados" papel="associado" link="https://..." />)` retorna HTML com nome do escritório e papel
-  - [ ] `renderToHtml(<FalhaBilling />)` retorna HTML com texto de alerta de cobrança
-  - [ ] `sendEmail` com `RESEND_API_KEY` inválida lança erro tipado sem crash silencioso
+  - [x] `renderToHtml(<WelcomeOnboarding name="João" />)` retorna HTML contendo "João"
+  - [x] `renderToHtml(<ConviteMembro escritorio="Silva & Associados" papel="associado" link="https://..." />)` retorna HTML com nome do escritório e papel
+  - [x] `renderToHtml(<FalhaBilling />)` retorna HTML com texto de alerta de cobrança
+  - [x] `sendEmail` com `RESEND_API_KEY` inválida lança erro tipado sem crash silencioso
 - Testes de integração:
-  - [ ] `sendEmail` em ambiente de teste (Resend test mode) retorna `{ id: string }` sem erro
+  - [x] `sendEmail` em ambiente de teste (Resend test mode) retorna `{ id: string }` sem erro
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 

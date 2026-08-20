@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Stripe billing: checkout, webhook e middleware de acesso
 type: backend
 complexity: high
@@ -35,13 +35,13 @@ Implementa o sistema completo de billing via Stripe: criação de sessão de che
 
 ## Subtasks
 
-- [ ] 5.1 Instalar `stripe` npm package e criar cliente singleton em `src/lib/stripe.ts`
-- [ ] 5.2 Criar `POST /api/billing/checkout` com suporte a plano mensal e anual
-- [ ] 5.3 Criar `POST /api/billing/webhook` com verificação de assinatura e handler por tipo de evento
-- [ ] 5.4 Implementar idempotência no webhook via `stripe_event_id` em `subscriptions`
-- [ ] 5.5 Estender `middleware.ts` para bloquear rotas `/(app)/` com status `past_due` ou `canceled`
-- [ ] 5.6 Criar página `/billing` com mensagem de trial expirado e botão de checkout
-- [ ] 5.7 Escrever testes para o webhook handler e middleware de acesso
+- [x] 5.1 Instalar `stripe` npm package e criar cliente singleton em `src/lib/stripe.ts`
+- [x] 5.2 Criar `POST /api/billing/checkout` com suporte a plano mensal e anual
+- [x] 5.3 Criar `POST /api/billing/webhook` com verificação de assinatura e handler por tipo de evento
+- [x] 5.4 Implementar idempotência no webhook via `stripe_event_id` em `subscriptions`
+- [x] 5.5 Estender `middleware.ts` para bloquear rotas `/(app)/` com status `past_due` ou `canceled`
+- [x] 5.6 Criar página `/billing` com mensagem de trial expirado e botão de checkout
+- [x] 5.7 Escrever testes para o webhook handler e middleware de acesso
 
 ## Implementation Details
 
@@ -91,15 +91,15 @@ Veja a seção "Integration Points — Stripe" do TechSpec para a lista completa
 ## Tests
 
 - Testes unitários:
-  - [ ] Webhook com assinatura HMAC inválida retorna 400 sem processar o evento
-  - [ ] Webhook `checkout.session.completed` com `stripe_event_id` já processado retorna 200 sem duplicar registro
-  - [ ] Webhook `customer.subscription.deleted` atualiza `subscriptions.status` para `'canceled'`
-  - [ ] Webhook `invoice.payment_failed` atualiza `subscriptions.status` para `'past_due'`
+  - [x] Webhook com assinatura HMAC inválida retorna 400 sem processar o evento
+  - [x] Webhook `checkout.session.completed` com `stripe_event_id` já processado retorna 200 sem duplicar registro
+  - [x] Webhook `customer.subscription.deleted` atualiza `subscriptions.status` para `'canceled'`
+  - [x] Webhook `invoice.payment_failed` atualiza `subscriptions.status` para `'past_due'`
 - Testes de integração:
-  - [ ] `POST /api/billing/checkout?plan=monthly` retorna URL de checkout do Stripe
-  - [ ] `POST /api/billing/checkout?plan=annual` retorna URL de checkout com preço anual
-  - [ ] Acesso a `/app/dashboard` com `subscriptionStatus: 'canceled'` redireciona para `/billing`
-  - [ ] Acesso a `/app/dashboard` com `subscriptionStatus: 'trialing'` é permitido
+  - [x] `POST /api/billing/checkout?plan=monthly` retorna URL de checkout do Stripe
+  - [x] `POST /api/billing/checkout?plan=annual` retorna URL de checkout com preço anual
+  - [x] Acesso a `/app/dashboard` com `subscriptionStatus: 'canceled'` redireciona para `/billing`
+  - [x] Acesso a `/app/dashboard` com `subscriptionStatus: 'trialing'` é permitido
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 

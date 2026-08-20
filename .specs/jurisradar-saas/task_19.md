@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Stripe Customer Portal e self-service de assinatura
 type: backend
 complexity: medium
@@ -31,11 +31,11 @@ Implementa o portal self-service de assinatura: endpoint de redirecionamento par
 
 ## Subtasks
 
-- [ ] 19.1 Criar `GET /api/billing/portal` com geração de sessão Stripe Customer Portal
-- [ ] 19.2 Criar página `/configuracoes/billing` com dados de assinatura e botão de portal
-- [ ] 19.3 Criar componente `TrialBanner` exibido no layout quando trial expira em ≤ 4 dias
-- [ ] 19.4 Integrar `TrialBanner` no `AppHeader` ou layout `(app)`
-- [ ] 19.5 Escrever testes do endpoint e do banner
+- [x] 19.1 Criar `GET /api/billing/portal` com geração de sessão Stripe Customer Portal
+- [x] 19.2 Criar página `/configuracoes/billing` com dados de assinatura e botão de portal
+- [x] 19.3 Criar componente `TrialBanner` exibido no layout quando trial expira em ≤ 4 dias
+- [x] 19.4 Integrar `TrialBanner` no `AppHeader` ou layout `(app)`
+- [x] 19.5 Escrever testes do endpoint e do banner
 
 ## Implementation Details
 
@@ -71,13 +71,13 @@ Nenhum — esta task é folha na árvore de dependências.
 ## Tests
 
 - Testes unitários:
-  - [ ] `TrialBanner` com `trial_ends_at = hoje + 3` renderiza com texto "3 dias restantes"
-  - [ ] `TrialBanner` com `trial_ends_at = hoje + 5` não renderiza (fora da janela de alerta)
-  - [ ] `TrialBanner` com `status = 'active'` não renderiza (não é trial)
+  - [x] `TrialBanner` com `trial_ends_at = hoje + 3` renderiza com texto "3 dias restantes"
+  - [x] `TrialBanner` com `trial_ends_at = hoje + 5` não renderiza (fora da janela de alerta)
+  - [x] `TrialBanner` com `status = 'active'` não renderiza (não é trial)
 - Testes de integração:
-  - [ ] `GET /api/billing/portal` sem autenticação retorna 401
-  - [ ] `GET /api/billing/portal` com org sem `stripe_customer_id` retorna 400 com mensagem clara
-  - [ ] `GET /api/billing/portal` com cliente Stripe válido redireciona para URL do Customer Portal
+  - [x] `GET /api/billing/portal` sem autenticação retorna 401
+  - [x] `GET /api/billing/portal` com org sem `stripe_customer_id` retorna 400 com mensagem clara
+  - [x] `GET /api/billing/portal` com cliente Stripe válido redireciona para URL do Customer Portal
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 
