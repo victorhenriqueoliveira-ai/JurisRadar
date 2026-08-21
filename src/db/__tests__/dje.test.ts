@@ -364,6 +364,12 @@ describe('searchPublications', () => {
 describe('createDjeSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock select para count (limite de 50 entradas por usuário)
+    mockDb.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ count: 1 }]),
+      }),
+    });
   });
 
   it('deve persistir busca e retornar UUID', async () => {

@@ -9,7 +9,6 @@
  *   SEED_USER_NAME     — nome do usuário administrador (padrão: Administrador)
  */
 
-import 'dotenv/config';
 import { hash } from 'bcryptjs';
 import { db } from './index';
 import { users } from './schema';
@@ -43,7 +42,9 @@ async function seed() {
       .limit(1);
 
     if (existing.length > 0) {
-      console.log(`⚠️  Usuário ${userData.email} já existe — ignorando.`);
+      // Garante que usuário seed existente tenha role admin
+      await db.update(users).set({ systemRole: 'admin' }).where(eq(users.email, userData.email));
+      console.log(`⚠️  Usuário ${userData.email} já existe — role atualizado para admin.`);
       continue;
     }
 
@@ -54,6 +55,7 @@ async function seed() {
       email: userData.email,
       passwordHash,
       name: userData.name,
+      systemRole: 'admin',
     });
 
     console.log(`✅ Usuário criado: ${userData.email} (${userData.name})`);

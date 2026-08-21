@@ -1,15 +1,27 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+// ── Schema ────────────────────────────────────────────────────────────────────
+
+const formSchema = z.object({
+  numeroProcesso: z.string().optional(),
+  texto: z.string().optional(),
+  nomeParte: z.string().optional(),
+  data: z.string().optional(),
+  tipoComunicacao: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+// ── Tipos ─────────────────────────────────────────────────────────────────────
 
 interface Parte {
-  nome: string;
-  polo: string;
-}
-
-interface Advogado {
-  advogado?: { nome?: string; numeroOab?: string };
+  nome?: string;
+  polo?: string;
 }
 
 interface DjenItem {
@@ -20,219 +32,224 @@ interface DjenItem {
   classe: string;
   numeroProcesso: string;
   partes: Parte[];
-  advogados: Advogado[];
   link: string;
   texto: string;
 }
 
-interface FormValues {
-  texto: string;
-  nomeParte: string;
-  numeroProcesso: string;
-  data: string;
-  tipoComunicacao: string;
-}
+type BuscaState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; items: DjenItem[]; total: number; page: number; totalPages: number }
+  | { status: 'error'; message: string };
 
-interface SearchState {
-  status: 'idle' | 'loading' | 'success' | 'error';
-  items?: DjenItem[];
-  total?: number;
-  offset?: number;
-  error?: string;
-}
-
-const LIMIT = 20;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function ResultCard({ item }: { item: DjenItem }) {
+function formatDate(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('pt-BR');
+}
+
+// ── Card de publicação ────────────────────────────────────────────────────────
+
+function PublicacaoCard({ item }: { item: DjenItem }) {
   const [expanded, setExpanded] = useState(false);
-  const partes = item.partes ?? [];
-  const advs = item.advogados ?? [];
   const plain = stripHtml(item.texto ?? '');
   const textoPlain = plain.slice(0, expanded ? 3000 : 300);
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm space-y-2">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 mr-2">
-            {item.tipo}
-          </span>
-          <span className="text-xs text-gray-500">{item.data}</span>
+      {/* Linha superior: tipo + data + link */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {item.tipo && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+              {item.tipo}
+            </span>
+          )}
+          {item.data && (
+            <span className="text-xs text-gray-500">{formatDate(item.data)}</span>
+          )}
         </div>
         {item.link && (
           <a
             href={item.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-shrink-0 text-xs text-blue-600 hover:text-blue-800 underline"
+            className="text-xs text-blue-600 hover:underline whitespace-nowrap"
           >
             Ver no e-SAJ ↗
           </a>
         )}
       </div>
 
+      {/* Número do processo */}
       {item.numeroProcesso && (
-        <p className="text-sm font-mono font-semibold text-gray-900">{item.numeroProcesso}</p>
+        <p className="text-sm font-bold text-gray-900 font-mono tracking-tight">
+          {item.numeroProcesso}
+        </p>
       )}
 
-      <p className="text-xs text-gray-600">{item.orgao}</p>
-      {item.classe && <p className="text-xs text-gray-500 italic">{item.classe}</p>}
+      {/* Órgão */}
+      {item.orgao && (
+        <p className="text-xs text-gray-600">{item.orgao}</p>
+      )}
 
-      {partes.length > 0 && (
-        <div className="text-xs text-gray-700 space-x-1">
-          {partes.map((p, i) => (
-            <span key={i}>
-              <span className="text-gray-400 uppercase text-[10px] mr-1">
-                {p.polo === 'A' ? 'Ativo' : p.polo === 'P' ? 'Passivo' : p.polo}
-              </span>
+      {/* Classe */}
+      {item.classe && (
+        <p className="text-xs text-gray-500 italic">{item.classe}</p>
+      )}
+
+      {/* Partes */}
+      {item.partes && item.partes.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+          {item.partes.map((p, i) => (
+            <span key={i} className="text-xs text-gray-700">
+              {p.polo && (
+                <span className="text-gray-400 uppercase mr-1 font-medium">{p.polo}</span>
+              )}
               {p.nome}
-              {i < partes.length - 1 && <span className="mx-2 text-gray-300">·</span>}
             </span>
           ))}
         </div>
       )}
 
-      {advs.length > 0 && (
-        <div className="text-xs text-gray-500">
-          {advs.slice(0, 3).map((a, i) => (
-            <span key={i}>
-              {a.advogado?.nome}
-              {a.advogado?.numeroOab && ` (OAB ${a.advogado.numeroOab})`}
-              {i < Math.min(advs.length, 3) - 1 && <span className="mx-1">·</span>}
-            </span>
-          ))}
-          {advs.length > 3 && <span className="text-gray-400"> +{advs.length - 3}</span>}
+      {/* Texto da publicação */}
+      {plain && (
+        <div className="pt-1 border-t border-gray-100">
+          <p className="text-xs text-gray-600 leading-relaxed">
+            {textoPlain}
+            {!expanded && plain.length > 300 && '…'}
+          </p>
+          {plain.length > 300 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-1 text-xs text-blue-600 hover:underline"
+            >
+              {expanded ? 'Recolher' : 'Ver mais'}
+            </button>
+          )}
         </div>
       )}
-
-      <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 leading-relaxed">
-        {textoPlain}
-        {!expanded && plain.length > 300 && (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="ml-1 text-blue-600 hover:underline"
-          >
-            ver mais ▼
-          </button>
-        )}
-        {expanded && (
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="ml-1 text-blue-600 hover:underline"
-          >
-            ver menos ▲
-          </button>
-        )}
-      </div>
     </div>
   );
 }
 
+// ── Constantes ────────────────────────────────────────────────────────────────
+
+const LIMIT = 20;
+const BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
+
+const TIPOS = [
+  { value: '', label: 'Todos os tipos' },
+  { value: 'D', label: 'Despacho' },
+  { value: 'S', label: 'Sentença' },
+  { value: 'A', label: 'Acórdão' },
+  { value: 'I', label: 'Intimação' },
+];
+
 const inputCls =
-  'w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50';
+  'w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50';
+
+// ── Mapeamento da resposta da API ─────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapItem(raw: any): DjenItem {
+  return {
+    id: raw.id,
+    data: raw.dataDisponibilizacao ?? raw.data_disponibilizacao ?? '',
+    tipo: raw.tipoComunicacao ?? '',
+    orgao: raw.nomeOrgao ?? '',
+    classe: raw.nomeClasse ?? '',
+    numeroProcesso: raw.numeroprocessocommascara ?? raw.numero_processo ?? raw.numeroProcesso ?? '',
+    partes: (raw.destinatarios ?? []).map((d: any) => ({ nome: d.nome, polo: d.polo })),
+    link: raw.link ?? '',
+    texto: raw.texto ?? '',
+  };
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 
 function DjenNacionalContent() {
-  const [state, setState] = useState<SearchState>({ status: 'idle' });
+  const [state, setState] = useState<BuscaState>({ status: 'idle' });
+
   const { register, handleSubmit, watch } = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
+      numeroProcesso: '',
       texto: '',
       nomeParte: '',
-      numeroProcesso: '',
       data: '',
       tipoComunicacao: '',
     },
   });
 
-  const byNumero = !!watch('numeroProcesso');
+  const numeroProcessoValue = watch('numeroProcesso');
+  const byNumero = Boolean(numeroProcessoValue?.trim());
+  const isLoading = state.status === 'loading';
 
-  async function search(values: FormValues, offset = 0) {
+  async function fetchPage(values: FormValues, offset: number, loteSize = LIMIT) {
+    const params = new URLSearchParams({
+      siglaTribunal: 'TJSP',
+      limit: String(loteSize),
+      offset: String(offset),
+    });
+
+    if (values.numeroProcesso?.trim()) {
+      params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
+    } else {
+      if (values.texto) params.set('texto', values.texto);
+      if (values.data) params.set('dataDisponibilizacao', values.data);
+    }
+    if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+
+    const res = await fetch(`${BASE}?${params}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+    return res.json() as Promise<{ items?: unknown[]; count?: number }>;
+  }
+
+  async function search(values: FormValues, page = 1) {
     setState({ status: 'loading' });
-
-    const BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
-    const temFiltroAdicional = !values.numeroProcesso && !!values.nomeParte;
-
-    // Quando há filtro adicional, busca 5 páginas de 100 em paralelo para maximizar a interseção
-    const fetchPage = async (off: number) => {
-      const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: '100', offset: String(off) });
-      if (values.numeroProcesso) {
-        params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
-      } else {
-        if (values.texto) params.set('texto', values.texto);
-        if (values.data) params.set('dataDisponibilizacao', values.data);
-      }
-      if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
-      const res = await fetch(`${BASE}?${params}`);
-      if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
-      return res.json();
-    };
-
     try {
-      let total = 0;
-      let raw: Record<string, unknown>[] = [];
+      const temFiltroAdicional = !values.numeroProcesso?.trim() && !!values.nomeParte?.trim();
+
+      let items: DjenItem[];
+      let total: number;
 
       if (temFiltroAdicional) {
-        // Busca 5 lotes de 100 em paralelo (500 publicações) e filtra
-        const lotes = await Promise.all([0, 100, 200, 300, 400].map(fetchPage));
-        total = lotes[0].count ?? 0;
-        raw = lotes.flatMap((d) => d.items ?? []);
-
-        const filtro = values.nomeParte.toLowerCase();
-        raw = raw.filter((item) =>
-          stripHtml(String(item.texto ?? '')).toLowerCase().includes(filtro)
-        );
+        const lotes = await Promise.all([0, 100, 200, 300, 400].map((off) => fetchPage(values, off, 100)));
+        total = (lotes[0] as { count?: number }).count ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = lotes.flatMap((d: any) => d.items ?? []);
+        const filtro = values.nomeParte!.trim().toLowerCase();
+        items = raw
+          .filter((r: unknown) => stripHtml(String((r as Record<string, unknown>).texto ?? '')).toLowerCase().includes(filtro))
+          .map(mapItem);
       } else {
-        // Busca simples — paginação normal
-        const params = new URLSearchParams({ siglaTribunal: 'TJSP', limit: String(LIMIT), offset: String(offset) });
-        if (values.numeroProcesso) {
-          params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-]/g, ''));
-        } else {
-          if (values.texto) params.set('texto', values.texto);
-          if (values.data) params.set('dataDisponibilizacao', values.data);
-        }
-        if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
-        const res = await fetch(`${BASE}?${params}`);
-        if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
-        const data = await res.json();
+        const offset = (page - 1) * LIMIT;
+        const data = await fetchPage(values, offset);
         total = data.count ?? 0;
-        raw = data.items ?? [];
+        items = (data.items ?? []).map(mapItem);
       }
 
-      const mapItem = (item: Record<string, unknown>) => ({
-        id: item.id as number,
-        data: item.data_disponibilizacao as string,
-        tipo: item.tipoComunicacao as string,
-        orgao: item.nomeOrgao as string,
-        classe: item.nomeClasse as string,
-        numeroProcesso: (item.numeroprocessocommascara ?? item.numero_processo) as string,
-        partes: (item.destinatarios ?? []) as Parte[],
-        advogados: (item.destinatarioadvogados ?? []) as Advogado[],
-        link: item.link as string,
-        texto: item.texto as string,
-      });
-
-      setState({
-        status: 'success',
-        total: temFiltroAdicional ? raw.length : total,
-        offset: temFiltroAdicional ? 0 : offset,
-        items: raw.map(mapItem),
-      });
-    } catch (e) {
-      setState({ status: 'error', error: e instanceof Error ? e.message : 'Erro desconhecido' });
+      const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+      setState({ status: 'success', items, total, page, totalPages });
+    } catch (err) {
+      setState({ status: 'error', message: err instanceof Error ? err.message : 'Erro desconhecido' });
     }
   }
 
-  const isLoading = state.status === 'loading';
-  const page = state.offset !== undefined ? Math.floor(state.offset / LIMIT) + 1 : 1;
-  const totalPages = state.total ? Math.ceil(Math.min(state.total, 10000) / LIMIT) : 0;
-
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 p-4 md:p-6">
+      {/* Cabeçalho */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Publicações DJEN</h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -240,15 +257,17 @@ function DjenNacionalContent() {
         </p>
       </div>
 
+      {/* Formulário */}
       <form
-        onSubmit={handleSubmit((v) => search(v, 0))}
+        onSubmit={handleSubmit((v) => search(v, 1))}
         className="bg-white border border-gray-200 rounded-lg p-5 space-y-4 shadow-sm"
         noValidate
       >
         {/* Número do processo */}
         <div>
           <label htmlFor="numeroProcesso" className="block text-sm font-medium text-gray-700 mb-1">
-            Número do processo <span className="text-gray-400 font-normal">(CNJ)</span>
+            Número do processo{' '}
+            <span className="text-gray-400 font-normal">(CNJ)</span>
           </label>
           <input
             id="numeroProcesso"
@@ -260,13 +279,14 @@ function DjenNacionalContent() {
           />
         </div>
 
-        <div className="relative flex items-center gap-3">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400 flex-shrink-0">ou busque por termos</span>
-          <div className="flex-1 border-t border-gray-200" />
+        {/* Divisor */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400 shrink-0">ou busque por termos</span>
+          <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* Termo livre */}
+        {/* Busca principal */}
         <div>
           <label htmlFor="texto" className="block text-sm font-medium text-gray-700 mb-1">
             Busca principal
@@ -287,7 +307,8 @@ function DjenNacionalContent() {
         {/* Filtro adicional */}
         <div>
           <label htmlFor="nomeParte" className="block text-sm font-medium text-gray-700 mb-1">
-            Filtro adicional no texto <span className="text-gray-400 font-normal">(opcional)</span>
+            Filtro adicional no texto{' '}
+            <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
           <input
             id="nomeParte"
@@ -312,11 +333,12 @@ function DjenNacionalContent() {
               id="data"
               type="date"
               {...register('data')}
-              disabled={isLoading}
+              disabled={isLoading || byNumero}
               className={inputCls}
             />
             <p className="mt-1 text-xs text-gray-500">Deixe em branco para buscar em todas as datas.</p>
           </div>
+
           <div>
             <label htmlFor="tipoComunicacao" className="block text-sm font-medium text-gray-700 mb-1">
               Tipo
@@ -324,75 +346,48 @@ function DjenNacionalContent() {
             <select
               id="tipoComunicacao"
               {...register('tipoComunicacao')}
-              disabled={isLoading}
+              disabled={isLoading || byNumero}
               className={inputCls}
             >
-              <option value="">Todos os tipos</option>
-              <option value="Intimação">Intimação</option>
-              <option value="Citação">Citação</option>
-              <option value="Edital">Edital</option>
+              {TIPOS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
             </select>
           </div>
         </div>
 
+        {/* Botão */}
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full flex justify-center items-center gap-2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors"
         >
-          {isLoading ? 'Buscando...' : 'Buscar no DJEN'}
+          {isLoading ? 'Buscando…' : 'Buscar no DJEN'}
         </button>
       </form>
 
+      {/* Erro */}
       {state.status === 'error' && (
         <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {state.error}
+          {state.message}
         </div>
       )}
 
+      {/* Resultados */}
       {state.status === 'success' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            {state.total === 0
+            {state.items.length === 0
               ? 'Nenhuma publicação encontrada.'
-              : `${state.total?.toLocaleString('pt-BR')} ${state.total === 1 ? 'publicação encontrada' : 'publicações encontradas'}`}
-            {totalPages > 1 && ` — página ${page} de ${totalPages}`}
+              : `${state.items.length.toLocaleString('pt-BR')} publicaç${state.items.length !== 1 ? 'ões' : 'ão'} encontrada${state.items.length !== 1 ? 's' : ''}`}
+            {state.totalPages > 1 && ` — página ${state.page} de ${state.totalPages}`}
           </p>
 
-          {(state.items ?? []).length === 0 && (
-            <div className="rounded-md bg-gray-50 border border-gray-200 px-4 py-8 text-center">
-              <p className="text-sm font-medium text-gray-900">Nenhuma publicação encontrada.</p>
-              <p className="mt-1 text-xs text-gray-500">Tente outro termo ou outra data.</p>
-            </div>
-          )}
-
           <div className="space-y-3">
-            {(state.items ?? []).map((item) => (
-              <ResultCard key={item.id} item={item} />
+            {state.items.map((item, idx) => (
+              <PublicacaoCard key={item.id ?? idx} item={item} />
             ))}
           </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <button
-                type="button"
-                onClick={() => handleSubmit((v) => search(v, (state.offset ?? 0) - LIMIT))()}
-                disabled={page <= 1 || isLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                ← Anterior
-              </button>
-              <span className="text-sm text-gray-500">{page} / {totalPages}</span>
-              <button
-                type="button"
-                onClick={() => handleSubmit((v) => search(v, (state.offset ?? 0) + LIMIT))()}
-                disabled={page >= totalPages || isLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Próxima →
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -400,9 +395,5 @@ function DjenNacionalContent() {
 }
 
 export default function DjenNacionalPage() {
-  return (
-    <Suspense>
-      <DjenNacionalContent />
-    </Suspense>
-  );
+  return <DjenNacionalContent />;
 }

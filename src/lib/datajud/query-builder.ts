@@ -193,6 +193,11 @@ export function buildDataJudQuery(
     });
   }
 
+  // OAB: match em advogados.numeroOAB (nested field no DataJud)
+  if (filters.oabNumero) {
+    must.push({ match: { 'advogados.numeroOAB': filters.oabNumero } });
+  }
+
   // comarca/cidade: todas as palavras devem aparecer no nome do órgão julgador.
   // operator "and" evita que "capão redondo" case com "Capão Bonito" (só "capão" em comum).
   if (filters.comarca) {

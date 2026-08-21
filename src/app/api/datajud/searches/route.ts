@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { getSystemUserId } from '@/lib/system-user';
+import { requireOrgContext } from '@/lib/org-context';
+import { UnauthorizedError } from '@/lib/errors';
 import { queryTribunal } from '@/lib/datajud/client';
 import { createDataJudSearch, listDataJudSearches } from '@/db/datajud';
 import { DataJudSearchSchema } from './schema';
@@ -8,7 +9,19 @@ import { DataJudSearchSchema } from './schema';
 const TJSP_TRIBUNAL = 'api_publica_tjsp';
 
 export async function POST(request: NextRequest) {
-  const userId = await getSystemUserId();
+  // Tenta obter contexto de org; fallback para usuário sistema se não autenticado
+  let userId: string;
+  let orgId: string | undefined;
+  try {
+    const ctx = await requireOrgContext();
+    userId = ctx.userId;
+    orgId = ctx.orgId;
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+    throw err;
+  }
 
   let body: unknown;
   try {
@@ -50,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (page === 1) {
       const label = (numeroProcesso ?? keyword) ?? '';
-      await createDataJudSearch(userId, label, grau, dateFrom, dateTo, total).catch(() => {});
+      await createDataJudSearch(userId, label, grau, dateFrom, dateTo, total, orgId).catch(() => {});
     }
 
     const totalPages = Math.ceil(total / limit);
@@ -63,13 +76,24 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const userId = await getSystemUserId();
+  let userId: string;
+  let orgId: string | undefined;
+  try {
+    const ctx = await requireOrgContext();
+    userId = ctx.userId;
+    orgId = ctx.orgId;
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+    throw err;
+  }
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10) || 20));
 
-  const { records, total } = await listDataJudSearches(userId, page, limit);
+  const { records, total } = await listDataJudSearches(userId, page, limit, orgId);
 
   return NextResponse.json({ searches: records, total }, { status: 200 });
 }

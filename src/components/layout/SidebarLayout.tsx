@@ -6,23 +6,18 @@ import { usePathname } from 'next/navigation';
 
 const navItems = [
   {
-    group: 'DataJud',
+    group: 'BUSCAS',
     links: [
-      { href: '/search', label: 'Buscar Processos' },
-      { href: '/history', label: 'Histórico' },
+      { href: '/djen-nacional', label: 'DJEN Nacional' },
+      { href: '/search', label: 'DataJud / CNJ' },
+      { href: '/dje', label: 'DJe TJSP' },
     ],
   },
   {
-    group: 'Publicações DJE',
+    group: 'HISTÓRICO',
     links: [
-      { href: '/dje', label: 'Busca (legado)' },
-      { href: '/dje/history', label: 'Histórico' },
-    ],
-  },
-  {
-    group: 'DJEN Nacional',
-    links: [
-      { href: '/djen-nacional', label: 'Busca DJEN' },
+      { href: '/history', label: 'Histórico DataJud' },
+      { href: '/dje/history', label: 'Histórico DJe' },
     ],
   },
 ];

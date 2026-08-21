@@ -10,8 +10,12 @@
 import { serve } from 'inngest/next';
 import { inngest } from '@/inngest/client';
 import { djeIndexer } from '@/inngest/dje-indexer';
+import { syncProcessosScheduler } from '@/inngest/sync-processos-scheduler';
+import { syncProcessosWorker } from '@/inngest/sync-processos-worker';
+import { notificacaoDispatcher } from '@/inngest/notificacao-dispatcher';
+import { alertasPrazo } from '@/inngest/alertas-prazo';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [djeIndexer],
+  functions: [djeIndexer, syncProcessosScheduler, syncProcessosWorker, notificacaoDispatcher, alertasPrazo],
 });

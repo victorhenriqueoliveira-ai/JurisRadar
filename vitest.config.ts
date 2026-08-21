@@ -1,10 +1,27 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import react from '@vitejs/plugin-react';
+import path from 'path';
+
+// Resolve the real node_modules root (worktree uses a symlink)
+const nodeModulesRoot = path.resolve(__dirname, 'node_modules');
 
 export default defineConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: [react() as any, tsconfigPaths()],
+  resolve: {
+    alias: {
+      react: path.resolve(nodeModulesRoot, 'react'),
+      'react-dom': path.resolve(nodeModulesRoot, 'react-dom'),
+      'react/jsx-dev-runtime': path.resolve(nodeModulesRoot, 'react/jsx-dev-runtime'),
+      'react/jsx-runtime': path.resolve(nodeModulesRoot, 'react/jsx-runtime'),
+    },
+  },
+  server: {
+    fs: {
+      allow: [__dirname, nodeModulesRoot],
+    },
+  },
   test: {
     environment: 'node',
     globals: true,
@@ -17,6 +34,9 @@ export default defineConfig({
         'src/lib/dje/**/*.ts',
         'src/lib/export/**/*.ts',
         'src/lib/validations.ts',
+        'src/lib/auth/**/*.ts',
+        'src/lib/org-context.ts',
+        'src/lib/errors.ts',
         'src/auth/**/*.ts',
         'src/inngest/**/*.ts',
         'src/app/api/searches/**/*.ts',
@@ -26,6 +46,10 @@ export default defineConfig({
         'src/components/history/**/*.tsx',
         'src/components/dje/**/*.tsx',
         'src/app/(protected)/dje/**/*.tsx',
+        'src/components/layout/**/*.tsx',
+        'src/components/ui-custom/**/*.tsx',
+        'src/components/billing/**/*.tsx',
+        'src/app/api/billing/portal/**/*.ts',
       ],
       exclude: [
         'src/db/index.ts',
@@ -35,9 +59,14 @@ export default defineConfig({
         'src/lib/datajud/tribunals.ts',
         'src/lib/dje/__tests__/**',
         'src/lib/export/__tests__/**',
+        'src/lib/auth/__tests__/**',
         'src/auth/__tests__/**',
         'src/auth.ts',
         'src/app/(protected)/dje/__tests__/**',
+        'src/components/layout/__tests__/**',
+        'src/components/ui-custom/__tests__/**',
+        'src/components/billing/__tests__/**',
+        'src/app/api/billing/__tests__/**',
       ],
       thresholds: {
         lines: 80,
