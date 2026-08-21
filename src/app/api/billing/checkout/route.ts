@@ -24,12 +24,13 @@ export async function POST(req: NextRequest) {
 
   const origin = req.headers.get('origin') ?? `https://${req.headers.get('host')}`
 
-  const checkoutSession = await stripe.checkout.sessions.create({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const checkoutSession = await (stripe.checkout.sessions as any).create({
     mode: 'subscription',
-    trial_period_days: 14,
+    subscription_data: { trial_period_days: 14 },
     customer_creation: 'always',
     line_items: [{ price: planPrice, quantity: 1 }],
-    success_url: `${origin}/app/dashboard?checkout=success`,
+    success_url: `${origin}/dashboard?checkout=success`,
     cancel_url: `${origin}/billing`,
     metadata: { orgId },
   })

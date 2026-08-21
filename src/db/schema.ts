@@ -64,6 +64,11 @@ export const users = pgTable('users', {
   totpSecret: text('totp_secret'),
   // Preferências de notificação (task_11)
   notificationPrefs: jsonb('notification_prefs').$type<NotificationPrefs>(),
+  // Papel na plataforma (admin = dono do produto, user = cliente advogado)
+  systemRole: text('system_role').$type<'admin' | 'user'>().notNull().default('user'),
+  // Token para aceitar convite de membro
+  inviteToken: text('invite_token'),
+  inviteTokenExpiresAt: timestamp('invite_token_expires_at'),
 });
 
 // ── Tabelas SaaS multi-tenant ─────────────────────────────────────────────────

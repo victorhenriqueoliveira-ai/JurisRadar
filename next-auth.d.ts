@@ -1,4 +1,4 @@
-import type { MemberRole, SubscriptionStatus } from '@/types/domain'
+import type { MemberRole, SubscriptionStatus, SystemRole } from '@/types/domain'
 import type { DefaultSession } from 'next-auth'
 import type { JWT as DefaultJWT } from 'next-auth/jwt'
 
@@ -9,6 +9,7 @@ declare module 'next-auth' {
       orgId: string
       role: MemberRole
       subscriptionStatus: SubscriptionStatus
+      systemRole: SystemRole
     } & DefaultSession['user']
   }
 }
@@ -19,5 +20,6 @@ declare module 'next-auth/jwt' {
     orgId?: string
     role?: string
     subscriptionStatus?: string
+    systemRole?: string
   }
 }

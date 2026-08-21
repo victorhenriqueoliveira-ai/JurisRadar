@@ -3,11 +3,12 @@
 import { useState, FormEvent, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/search';
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,6 +64,7 @@ function LoginPageContent() {
 
           {/* Formulário */}
           <form onSubmit={handleSubmit} className="space-y-5">
+
             <div>
               <label
                 htmlFor="email"
@@ -112,6 +114,13 @@ function LoginPageContent() {
             >
               {carregando ? 'Entrando...' : 'Entrar'}
             </button>
+
+            <p className="text-center text-sm text-gray-600">
+              Não tem conta?{' '}
+              <Link href="/register" className="font-semibold text-blue-600 hover:underline">
+                Criar conta grátis
+              </Link>
+            </p>
           </form>
         </div>
       </div>

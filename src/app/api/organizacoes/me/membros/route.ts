@@ -127,7 +127,16 @@ export async function POST(req: NextRequest) {
       .where(eq(users.id, ctx.userId));
 
     const token = randomUUID();
-    const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
+    const tokenExpiresAt = new Date();
+    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 7); // token válido por 7 dias
+
+    // Persistir token no usuário convidado
+    await db
+      .update(users)
+      .set({ inviteToken: token, inviteTokenExpiresAt: tokenExpiresAt })
+      .where(eq(users.id, targetUserId));
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
     const inviteUrl = `${baseUrl}/convite?token=${token}`;
 
     // Fire-and-forget email — do not await in production to avoid blocking

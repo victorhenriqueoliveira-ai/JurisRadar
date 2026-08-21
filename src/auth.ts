@@ -58,6 +58,7 @@ export const authConfig: NextAuthConfig = {
           id: user.id,
           email: user.email,
           name: user.name ?? undefined,
+          systemRole: user.systemRole ?? 'user',
         };
       },
     }),
@@ -73,6 +74,8 @@ export const authConfig: NextAuthConfig = {
       // Quando o usuário faz login, busca org e subscription
       if (user?.id) {
         token.id = user.id;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token.systemRole = (user as any).systemRole ?? 'user';
 
         try {
           // Busca membro de organização
@@ -123,6 +126,10 @@ export const authConfig: NextAuthConfig = {
       if (token?.subscriptionStatus) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         session.user.subscriptionStatus = token.subscriptionStatus as any;
+      }
+      if (token?.systemRole) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        session.user.systemRole = token.systemRole as any;
       }
       return session;
     },

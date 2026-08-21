@@ -51,7 +51,8 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 }
 
 async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
-  const invoice = event.data.object as Stripe.Invoice
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const invoice = event.data.object as any
 
   const subscriptionId =
     typeof invoice.subscription === 'string'
@@ -67,7 +68,8 @@ async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
 }
 
 async function handleInvoicePaymentFailed(event: Stripe.Event) {
-  const invoice = event.data.object as Stripe.Invoice
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const invoice = event.data.object as any
 
   const subscriptionId =
     typeof invoice.subscription === 'string'
