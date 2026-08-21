@@ -17,8 +17,8 @@ export const DataJudSearchSchema = z
     page: z.number().int().min(1).default(1),
     limit: z.number().int().min(1).max(100).default(20),
   })
-  .refine((d) => d.keyword || d.numeroProcesso, {
-    message: 'Informe uma palavra-chave ou número do processo',
+  .refine((d) => d.keyword || d.numeroProcesso || d.comarca, {
+    message: 'Informe uma palavra-chave, número do processo ou comarca',
     path: ['keyword'],
   });
 

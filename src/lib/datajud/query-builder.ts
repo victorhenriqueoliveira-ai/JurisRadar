@@ -3,7 +3,7 @@ import type { SearchFilters } from './types';
 // ── Tipos auxiliares do DSL ───────────────────────────────────────────────────
 
 interface MatchClause {
-  match: Record<string, string>;
+  match: Record<string, string | { query: string; operator?: 'and' | 'or' }>;
 }
 
 interface TermClause {
@@ -22,6 +22,8 @@ interface MultiMatchClause {
   multi_match: {
     query: string;
     fields: string[];
+    type?: string;
+    operator?: string;
   };
 }
 
@@ -29,7 +31,15 @@ interface MatchPhraseClause {
   match_phrase: Record<string, string>;
 }
 
-type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause | MatchPhraseClause;
+interface SimpleQueryStringClause {
+  simple_query_string: {
+    query: string;
+    fields: string[];
+    default_operator: 'OR' | 'AND';
+  };
+}
+
+type MustClause = MatchClause | TermClause | TermsClause | RangeClause | MultiMatchClause | MatchPhraseClause | SimpleQueryStringClause;
 
 interface BoolQuery {
   bool: {
@@ -45,6 +55,66 @@ export interface DataJudQuery {
   size: number;
   from: number;
   query: BoolQuery | MatchAllQuery;
+}
+
+// ── Stopwords PT-BR ──────────────────────────────────────────────────────────
+
+const STOPWORDS = new Set([
+  'a', 'ao', 'aos', 'as', 'à', 'às',
+  'com', 'como',
+  'da', 'das', 'de', 'do', 'dos',
+  'e', 'em', 'entre', 'é',
+  'mas', 'me', 'muito',
+  'na', 'nas', 'nem', 'no', 'nos', 'num', 'numa',
+  'o', 'os', 'ou',
+  'para', 'pela', 'pelas', 'pelo', 'pelos', 'por',
+  'que',
+  'se', 'sem',
+  'um', 'uma', 'uns', 'umas',
+]);
+
+// Prefixos de logradouro e bairro que indicam que as próximas palavras formam uma frase
+// Logradouros: avenida paulista, rua augusta...
+// Bairros/fóruns: jardim bela vista, vila mariana, fórum da barra funda...
+const PHRASE_PREFIX_RE =
+  /\b(avenida|av\.?|rua|r\.?|alameda|al\.?|praça|pça\.?|travessa|tv\.?|estrada|est\.?|rodovia|rod\.?|largo|lg\.?|beco|viela|via|jardim|jd\.?|vila|vl\.?|bairro|fórum|forum|foro|parque|pq\.?|conjunto|núcleo)\s+(\w+(?:\s+\w+)?)/gi;
+
+/**
+ * Detecta padrões de endereço/bairro/fórum e envolve em aspas para phrase query.
+ * Exemplos: "avenida paulista" → '"avenida paulista"'
+ *           "jardim bela vista" → '"jardim bela vista"'
+ *           "fórum regional" → '"fórum regional"'
+ * Isso impede falsos positivos onde cada palavra bate em campos diferentes.
+ */
+function wrapAddressPhrases(query: string): string {
+  // Não altera se o usuário já usou aspas
+  if (query.includes('"')) return query;
+  return query.replace(PHRASE_PREFIX_RE, (match) => `"${match.trim()}"`);
+}
+
+/**
+ * Remove stopwords PT-BR de segmentos não-quotados e descarta tokens curtos.
+ * Preserva intactos os trechos entre aspas (frases exatas).
+ */
+function stripStopwords(query: string): string {
+  // Divide em segmentos: ímpares são trechos entre aspas (preservados)
+  const segments = query.split(/("(?:[^"]+)")/);
+  return segments
+    .map((seg, idx) => {
+      if (idx % 2 === 1) return seg; // dentro de aspas — mantém
+      return seg
+        .trim()
+        .split(/\s+/)
+        .filter((t) => {
+          if (!t) return false;
+          const lower = t.toLowerCase().replace(/[.,;:!?]/g, '');
+          return lower.length > 1 && !STOPWORDS.has(lower);
+        })
+        .join(' ');
+    })
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 }
 
 // ── Builder principal ─────────────────────────────────────────────────────────
@@ -123,28 +193,36 @@ export function buildDataJudQuery(
     });
   }
 
-  // comarca/cidade: match em orgaoJulgador.nome (ex: "Campinas" filtra varas de Campinas)
-  if (filters.comarca) {
-    must.push({ match: { 'orgaoJulgador.nome': filters.comarca } });
-  }
-
   // OAB: match em advogados.numeroOAB (nested field no DataJud)
   if (filters.oabNumero) {
     must.push({ match: { 'advogados.numeroOAB': filters.oabNumero } });
   }
 
-  // busca livre: multi_match em campos textuais relevantes
-  if (filters.buscaLivre) {
+  // comarca/cidade: todas as palavras devem aparecer no nome do órgão julgador.
+  // operator "and" evita que "capão redondo" case com "Capão Bonito" (só "capão" em comum).
+  if (filters.comarca) {
     must.push({
-      multi_match: {
-        query: filters.buscaLivre,
-        fields: [
-          'assuntos.nome',
-          'classe.nome',
-          'orgaoJulgador.nome',
-        ],
+      match: {
+        'orgaoJulgador.nome': { query: filters.comarca, operator: 'and' },
       },
     });
+  }
+
+  // busca livre: simple_query_string em todos os campos indexados do documento
+  // Endereços ("avenida paulista") são envolvidos em aspas para busca de frase,
+  // evitando que "paulista" em "Vara de Várzea Paulista" satisfaça o critério.
+  if (filters.buscaLivre) {
+    const comFrases = wrapAddressPhrases(filters.buscaLivre);
+    const termos = stripStopwords(comFrases);
+    if (termos) {
+      must.push({
+        simple_query_string: {
+          query: termos,
+          fields: ['*'],
+          default_operator: 'AND',
+        },
+      });
+    }
   }
 
   // Se nenhum filtro foi aplicado, retorna match_all
