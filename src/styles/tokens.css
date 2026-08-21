@@ -15,10 +15,10 @@
   --jr-danger: #dc2626;
   --jr-danger-foreground: #ffffff;
 
-  /* Glassmorphism */
-  --jr-glass-bg: rgba(255, 255, 255, 0.08);
-  --jr-glass-border: rgba(255, 255, 255, 0.15);
-  --jr-glass-shadow: 0 8px 32px rgba(15, 45, 94, 0.12);
+  /* Cards e containers — modo claro */
+  --jr-glass-bg: #ffffff;
+  --jr-glass-border: #e5e7eb;
+  --jr-glass-shadow: 0 2px 8px rgba(15, 45, 94, 0.06);
 
   /* Gradientes */
   --jr-gradient-start: #0f2d5e;

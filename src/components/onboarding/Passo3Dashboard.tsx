@@ -35,7 +35,7 @@ export function Passo3Dashboard({ processosImportados }: Passo3Props) {
 
   async function handleIrDashboard() {
     await marcarConcluido();
-    router.push('/app/dashboard');
+    router.push('/dashboard');
   }
 
   async function handleTour() {
@@ -46,7 +46,7 @@ export function Passo3Dashboard({ processosImportados }: Passo3Props) {
   if (showTour) {
     return (
       <TourInterativo
-        onConcluir={() => router.push('/app/dashboard')}
+        onConcluir={() => router.push('/dashboard')}
       />
     );
   }

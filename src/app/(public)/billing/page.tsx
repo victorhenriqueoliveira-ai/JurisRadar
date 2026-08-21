@@ -48,7 +48,7 @@ export default function BillingPage() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        14 dias grátis. Cancele a qualquer momento.
+        7 dias grátis. Cancele a qualquer momento.
       </p>
     </main>
   )

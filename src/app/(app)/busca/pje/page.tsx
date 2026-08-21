@@ -122,21 +122,16 @@ function PjePageContent() {
   const isLoading = searchState.status === 'loading';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">PJe Nacional — DJEN</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Busque publicações no Diário da Justiça Nacional Eletrônico (DJEN/CNJ).
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <BuscaFavoritos fonte="pje" onAplicar={applyFavorito} />
 
       <div
         role="note"
-        className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800"
+        className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-1"
       >
-        O DJEN indexa publicações de tribunais de todo o Brasil via PJe. A cobertura varia por tribunal.
+        <p className="font-semibold">PJe Nacional — Processo Judicial Eletrônico</p>
+        <p><strong>Delay de 1 a 3 dias úteis</strong> — publicações são indexadas após processamento pelo CNJ.</p>
+        <p>Cobertura varia por tribunal. Busca publicações em todos os tribunais que usam o sistema PJe.</p>
       </div>
 
       <form

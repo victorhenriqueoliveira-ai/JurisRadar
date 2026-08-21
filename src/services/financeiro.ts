@@ -40,6 +40,14 @@ export interface HonorarioData {
   valor: number
   dataPrevista?: string
   descricao?: string
+  statusPagamento?: string
+}
+
+export interface HonorarioAvulsoData {
+  tipo: string
+  valor: number
+  dataPrevista?: string
+  descricao?: string
 }
 
 export interface PagamentoData {
@@ -224,7 +232,7 @@ export async function createOrUpdateHonorario(
       .from(pagamentos)
       .where(eq(pagamentos.honorarioId, existing.id))
 
-    const novoStatus = calcularStatusPagamento(data.valor, pgRows)
+    const novoStatus = data.statusPagamento ?? calcularStatusPagamento(data.valor, pgRows)
 
     const [updated] = await db
       .update(honorarios)
@@ -246,6 +254,29 @@ export async function createOrUpdateHonorario(
     .values({
       orgId: ctx.orgId,
       processoId: data.processoId,
+      tipo: data.tipo.trim(),
+      valor: String(data.valor),
+      dataPrevista: data.dataPrevista ?? null,
+      statusPagamento: 'pendente',
+    })
+    .returning()
+
+  return created
+}
+
+export async function createHonorarioAvulso(ctx: OrgContext, data: HonorarioAvulsoData) {
+  if (typeof data.valor !== 'number' || data.valor < 0) {
+    throw new ValidationError('valor deve ser um número não-negativo')
+  }
+  if (!data.tipo || data.tipo.trim().length === 0) {
+    throw new ValidationError('tipo é obrigatório')
+  }
+
+  const [created] = await db
+    .insert(honorarios)
+    .values({
+      orgId: ctx.orgId,
+      processoId: null,
       tipo: data.tipo.trim(),
       valor: String(data.valor),
       dataPrevista: data.dataPrevista ?? null,

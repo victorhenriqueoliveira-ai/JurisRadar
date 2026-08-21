@@ -48,7 +48,7 @@ export default function LandingPage() {
         position: 'sticky', top: 0, zIndex: 10,
         background: 'rgba(249,250,251,.95)', backdropFilter: 'blur(8px)',
         borderBottom: '1px solid #e5e7eb',
-        display: 'flex', alignItems: 'center', gap: 28, padding: '16px 40px',
+        display: 'flex', alignItems: 'center', gap: 28, padding: '16px 140px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 'auto' }}>
           <div style={{

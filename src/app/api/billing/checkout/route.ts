@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const checkoutSession = await (stripe.checkout.sessions as any).create({
     mode: 'subscription',
-    subscription_data: { trial_period_days: 14 },
+    subscription_data: { trial_period_days: 7 },
     customer_creation: 'always',
     line_items: [{ price: planPrice, quantity: 1 }],
     success_url: `${origin}/dashboard?checkout=success`,

@@ -193,51 +193,44 @@ export default function CrmPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <main style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.5rem' }}>
-      <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--jr-primary)' }}>
+    <div className="flex flex-col gap-4">
+      {/* Título */}
+      <h1
+        className="text-2xl font-extrabold text-[#0f2d5e]"
+        style={{ fontFamily: 'Manrope, sans-serif' }}
+      >
         CRM de Processos
         {state.total > 0 && (
-          <span style={{ marginLeft: '0.5rem', fontSize: '1rem', fontWeight: 400, opacity: 0.6 }}>
+          <span className="ml-2 text-base font-normal text-[#6b7280]">
             ({state.total} processos)
           </span>
         )}
       </h1>
 
+      {/* Filtros estilizados */}
       <ProcessoFilters filters={filters} onFilterChange={setFilters} />
 
-      {state.error && (
-        <div
-          role="alert"
-          style={{
-            padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'var(--jr-danger)',
-            color: 'var(--jr-danger-foreground)',
-            fontSize: '0.875rem',
-          }}
-        >
-          {state.error}
-        </div>
+      {/* Timestamp da última sync */}
+      {state.lastSync && (
+        <p className="text-xs text-[#6b7280] text-right">
+          Última sync {state.lastSync.toLocaleDateString('pt-BR')} às{' '}
+          {state.lastSync.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+        </p>
       )}
 
+      {/* Loading skeleton */}
       {state.loading ? (
-        <div data-testid="loading-skeleton" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div data-testid="loading-skeleton" className="flex flex-col gap-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              style={{
-                height: '2.5rem',
-                borderRadius: '0.375rem',
-                background: 'var(--jr-glass-bg)',
-                border: '1px solid var(--jr-glass-border)',
-                animation: 'jr-pulse 1.5s ease-in-out infinite',
-              }}
+              className="h-14 animate-pulse rounded-xl bg-white border border-[#e5e7eb]"
             />
           ))}
         </div>
       ) : (
         <>
-          {/* Desktop table — hidden on mobile */}
+          {/* Desktop table */}
           <ProcessoTable
             processos={state.processos}
             sort={sort}
@@ -246,17 +239,16 @@ export default function CrmPage() {
             onLoadMore={() => state.nextCursor && fetchProcessos(filters, sort, state.nextCursor)}
             hasMore={!!state.nextCursor}
             loadingMore={state.loadingMore}
-            lastSync={state.lastSync}
+            lastSync={null}
           />
 
-          {/* Mobile cards — hidden on desktop */}
+          {/* Mobile cards */}
           <div
             data-testid="mobile-cards"
-            className="block md:hidden"
-            style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+            className="flex flex-col gap-3 md:hidden"
           >
             {state.processos.length === 0 ? (
-              <p style={{ color: 'var(--jr-primary)', opacity: 0.6, textAlign: 'center', padding: '2rem 0' }}>
+              <p className="text-center text-[#6b7280] py-8 text-sm">
                 Nenhum processo encontrado.
               </p>
             ) : (
@@ -269,15 +261,7 @@ export default function CrmPage() {
                 type="button"
                 onClick={() => state.nextCursor && fetchProcessos(filters, sort, state.nextCursor)}
                 disabled={state.loadingMore}
-                style={{
-                  padding: '0.625rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid var(--jr-glass-border)',
-                  background: 'var(--jr-glass-bg)',
-                  color: 'var(--jr-primary)',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                }}
+                className="py-2.5 rounded-xl border border-[#e5e7eb] bg-white text-[#0f2d5e] text-sm hover:bg-gray-50 transition-colors"
               >
                 {state.loadingMore ? 'Carregando...' : 'Carregar mais'}
               </button>
@@ -293,6 +277,6 @@ export default function CrmPage() {
         onAddNota={handleAddNota}
         onDeleteNota={handleDeleteNota}
       />
-    </main>
+    </div>
   );
 }

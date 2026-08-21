@@ -7,6 +7,7 @@ export interface HonorarioFormData {
   tipo: string;
   valor: number;
   dataPrevista?: string;
+  statusPagamento?: string;
 }
 
 interface HonorarioFormProps {
@@ -15,6 +16,7 @@ interface HonorarioFormProps {
     tipo?: string;
     valor?: number | null;
     dataPrevista?: string | null;
+    status?: string | null;
   } | null;
   onSave?: (data: HonorarioFormData) => Promise<void>;
   onCancel?: () => void;
@@ -28,6 +30,23 @@ const TIPOS_HONORARIO = [
   'Mensal',
   'Outro',
 ];
+
+const STATUS_HONORARIO = [
+  { value: 'pendente', label: 'Pendente' },
+  { value: 'parcial', label: 'Parcialmente pago' },
+  { value: 'pago', label: 'Pago' },
+  { value: 'cancelado', label: 'Cancelado' },
+];
+
+function parseCurrencyInput(raw: string): number {
+  const digits = raw.replace(/\D/g, '');
+  return digits ? parseInt(digits, 10) / 100 : 0;
+}
+
+function formatCurrencyInput(value: number | null | undefined): string {
+  if (value == null || value === 0) return '';
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function formatCurrency(value: number | null | undefined) {
   if (value == null) return '';
@@ -49,11 +68,12 @@ export function HonorarioForm({
 }: HonorarioFormProps) {
   const [tipo, setTipo] = useState(initialData?.tipo ?? 'Contratual');
   const [valorStr, setValorStr] = useState(
-    initialData?.valor != null ? String(initialData.valor) : '',
+    initialData?.valor != null ? formatCurrencyInput(initialData.valor) : '',
   );
   const [dataPrevista, setDataPrevista] = useState(
     initialData?.dataPrevista ?? '',
   );
+  const [statusPagamento, setStatusPagamento] = useState(initialData?.status ?? 'pendente');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +81,7 @@ export function HonorarioForm({
     e.preventDefault();
     setError(null);
 
-    const valorNum = parseFloat(valorStr.replace(',', '.'));
+    const valorNum = parseCurrencyInput(valorStr);
     if (isNaN(valorNum) || valorNum < 0) {
       setError('Informe um valor válido (maior ou igual a 0).');
       return;
@@ -74,6 +94,7 @@ export function HonorarioForm({
         tipo,
         valor: valorNum,
         dataPrevista: dataPrevista || undefined,
+        statusPagamento,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar honorário.');
@@ -85,9 +106,9 @@ export function HonorarioForm({
   const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '0.5rem 0.75rem',
-    border: '1px solid var(--jr-glass-border)',
+    border: '1px solid #e5e7eb',
     borderRadius: '0.375rem',
-    background: 'var(--jr-glass-bg)',
+    background: '#ffffff',
     color: 'var(--jr-primary)',
     fontSize: '0.875rem',
   };
@@ -125,17 +146,42 @@ export function HonorarioForm({
         <label htmlFor="honorario-valor" style={labelStyle}>
           Valor (R$)
         </label>
-        <input
-          id="honorario-valor"
-          type="number"
-          min="0"
-          step="0.01"
-          value={valorStr}
-          onChange={(e) => setValorStr(e.target.value)}
-          placeholder="Ex: 5000.00"
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.875rem', color: 'var(--jr-primary)', opacity: 0.5, pointerEvents: 'none' }}>
+            R$
+          </span>
+          <input
+            id="honorario-valor"
+            type="text"
+            inputMode="numeric"
+            value={valorStr}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, '');
+              if (!digits) { setValorStr(''); return; }
+              const n = parseInt(digits, 10) / 100;
+              setValorStr(n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            }}
+            placeholder="0,00"
+            style={{ ...inputStyle, paddingLeft: '2.25rem' }}
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="honorario-status" style={labelStyle}>
+          Status
+        </label>
+        <select
+          id="honorario-status"
+          value={statusPagamento}
+          onChange={(e) => setStatusPagamento(e.target.value)}
           style={inputStyle}
-          required
-        />
+        >
+          {STATUS_HONORARIO.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
       </div>
 
       <div>
@@ -165,7 +211,7 @@ export function HonorarioForm({
             disabled={loading}
             style={{
               padding: '0.5rem 1rem',
-              border: '1px solid var(--jr-glass-border)',
+              border: '1px solid #e5e7eb',
               borderRadius: '0.375rem',
               background: 'transparent',
               color: 'var(--jr-primary)',

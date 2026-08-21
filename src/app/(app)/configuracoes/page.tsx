@@ -1,7 +1,46 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Building2, Bell, CreditCard, ChevronRight, Check, Loader2 } from 'lucide-react';
+import { User, Building2, Bell, CreditCard, ChevronRight, Check, Loader2, Eye, EyeOff } from 'lucide-react';
+
+function maskCpf(value: string) {
+  return value
+    .replace(/\D/g, '')
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+function PasswordInput({ value, onChange, placeholder, disabled }: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="w-full px-3.5 py-2.5 pr-10 border border-[#e5e7eb] rounded-xl text-sm text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/20 focus:border-[#0f2d5e] transition-colors placeholder-[#9ca3af] disabled:bg-[#f9fafb] disabled:text-[#9ca3af]"
+      />
+      <button
+        type="button"
+        onClick={() => setShow((v) => !v)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] transition-colors"
+        tabIndex={-1}
+        aria-label={show ? 'Ocultar senha' : 'Mostrar senha'}
+      >
+        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
 
 type Aba = 'perfil' | 'notificacoes' | 'assinatura';
 
@@ -182,7 +221,12 @@ function PerfilTab() {
         </div>
         <div>
           <FieldLabel>CPF</FieldLabel>
-          <Input value={fields.cpf} onChange={set('cpf')} placeholder="000.000.000-00" />
+          <Input
+            inputMode="numeric"
+            value={fields.cpf}
+            onChange={(e) => setFields((f) => ({ ...f, cpf: maskCpf(e.target.value) }))}
+            placeholder="000.000.000-00"
+          />
         </div>
         <div>
           <FieldLabel>OAB</FieldLabel>
@@ -205,11 +249,11 @@ function PerfilTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <FieldLabel>Senha atual</FieldLabel>
-            <Input type="password" value={fields.senhaAtual} onChange={set('senhaAtual')} placeholder="••••••••" />
+            <PasswordInput value={fields.senhaAtual} onChange={set('senhaAtual')} placeholder="••••••••" />
           </div>
           <div>
             <FieldLabel>Nova senha (mín. 8 caracteres)</FieldLabel>
-            <Input type="password" value={fields.novaSenha} onChange={set('novaSenha')} placeholder="••••••••" />
+            <PasswordInput value={fields.novaSenha} onChange={set('novaSenha')} placeholder="••••••••" />
           </div>
         </div>
       </div>
@@ -282,7 +326,7 @@ function NotificacoesTab() {
   }
 
   if (loading) {
-    return <div className="space-y-4 animate-pulse">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}</div>;
+    return <div className="animate-pulse">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}</div>;
   }
 
   return (
@@ -291,7 +335,7 @@ function NotificacoesTab() {
 
       {erro && <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{erro}</div>}
 
-      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-xl p-5">
+      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-xl">
         <p className="text-sm font-bold text-[#374151] mb-0.5" style={{ fontFamily: 'Manrope, sans-serif' }}>E-mail</p>
         <p className="text-xs text-[#9ca3af] mb-3">Configure quais alertas você quer receber por e-mail.</p>
         <Toggle
@@ -393,7 +437,7 @@ function AssinaturaTab() {
         </div>
       </div>
 
-      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-xl p-5">
+      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-xl">
         <p className="text-sm font-bold text-[#374151] mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>Portal de assinatura</p>
         <p className="text-xs text-[#9ca3af] mb-4">Gerencie sua assinatura, atualize o cartão ou cancele pelo portal do Stripe.</p>
         <button
@@ -421,7 +465,7 @@ export default function ConfiguracoesPage() {
   const [aba, setAba] = useState<Aba>('perfil');
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+    <div className="p-2 max-w-4xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Configurações

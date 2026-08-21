@@ -4,6 +4,16 @@ import { useState, FormEvent, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
+
+function maskCpf(value: string) {
+  return value
+    .replace(/\D/g, '')
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
 
 const UF_LIST = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
@@ -24,10 +34,15 @@ function RegisterForm() {
   });
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  function setCpf(e: React.ChangeEvent<HTMLInputElement>) {
+    setForm((f) => ({ ...f, cpf: maskCpf(e.target.value) }));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -71,7 +86,7 @@ function RegisterForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-10">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-2xl">
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="mb-6 text-center">
             <div className="inline-flex items-center gap-2 mb-3">
@@ -79,7 +94,7 @@ function RegisterForm() {
               <span className="font-extrabold text-lg text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>JurisRadar</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Crie sua conta</h1>
-            <p className="mt-1 text-sm text-gray-500">14 dias grátis, sem cartão de crédito.</p>
+            <p className="mt-1 text-sm text-gray-500">7 dias grátis, sem cartão de crédito.</p>
           </div>
 
           {erro && (
@@ -118,24 +133,36 @@ function RegisterForm() {
 
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Senha * (mín. 8 caracteres)</label>
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  value={form.password}
-                  onChange={set('password')}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30 focus:border-[#0f2d5e] disabled:opacity-50"
-                  disabled={carregando}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={form.password}
+                    onChange={set('password')}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30 focus:border-[#0f2d5e] disabled:opacity-50"
+                    disabled={carregando}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">CPF</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={form.cpf}
-                  onChange={set('cpf')}
+                  onChange={setCpf}
                   placeholder="000.000.000-00"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30 focus:border-[#0f2d5e] disabled:opacity-50"
                   disabled={carregando}

@@ -74,7 +74,7 @@ export function MembrosTable({ membros, currentUserId, onChangePapel, onRemover 
         <thead>
           <tr
             style={{
-              borderBottom: '1px solid var(--jr-glass-border)',
+              borderBottom: '1px solid #e5e7eb',
               color: 'var(--jr-primary)',
               opacity: 0.7,
             }}
@@ -95,7 +95,7 @@ export function MembrosTable({ membros, currentUserId, onChangePapel, onRemover 
               <tr
                 key={m.id}
                 style={{
-                  borderBottom: '1px solid var(--jr-glass-border)',
+                  borderBottom: '1px solid #e5e7eb',
                   opacity: isLoading ? 0.5 : 1,
                   transition: 'opacity 0.2s',
                 }}
@@ -109,10 +109,10 @@ export function MembrosTable({ membros, currentUserId, onChangePapel, onRemover 
                         fontSize: '0.7rem',
                         fontWeight: 600,
                         color: 'var(--jr-accent)',
-                        background: 'var(--jr-glass-bg)',
+                        background: '#ffffff',
                         borderRadius: '999px',
                         padding: '0.1rem 0.4rem',
-                        border: '1px solid var(--jr-glass-border)',
+                        border: '1px solid #e5e7eb',
                       }}
                     >
                       você
@@ -129,8 +129,8 @@ export function MembrosTable({ membros, currentUserId, onChangePapel, onRemover 
                     style={{
                       padding: '0.25rem 0.5rem',
                       borderRadius: '0.375rem',
-                      border: '1px solid var(--jr-glass-border)',
-                      background: 'var(--jr-glass-bg)',
+                      border: '1px solid #e5e7eb',
+                      background: '#ffffff',
                       color: 'var(--jr-primary)',
                       fontSize: '0.8rem',
                       cursor: isSelf ? 'not-allowed' : 'pointer',

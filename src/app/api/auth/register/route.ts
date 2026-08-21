@@ -107,9 +107,9 @@ export async function POST(req: NextRequest) {
       role: 'socio',
     });
 
-    // Criar assinatura em trial (14 dias)
+    // Criar assinatura em trial (7 dias)
     const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+    trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
     await db.insert(subscriptions).values({
       orgId: newOrg.id,

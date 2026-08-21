@@ -84,9 +84,9 @@ export function HonorarioTable() {
 
   const inputStyle: React.CSSProperties = {
     padding: '0.375rem 0.625rem',
-    border: '1px solid var(--jr-glass-border)',
+    border: '1px solid #e5e7eb',
     borderRadius: '0.375rem',
-    background: 'var(--jr-glass-bg)',
+    background: '#ffffff',
     color: 'var(--jr-primary)',
     fontSize: '0.8125rem',
   };
@@ -138,7 +138,7 @@ export function HonorarioTable() {
             }}
           >
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--jr-glass-border)' }}>
+              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                 {['Tipo', 'Valor', 'Vencimento', 'Status'].map((h) => (
                   <th
                     key={h}
@@ -174,7 +174,7 @@ export function HonorarioTable() {
                 rows.map((row) => (
                   <tr
                     key={row.id}
-                    style={{ borderBottom: '1px solid var(--jr-glass-border)' }}
+                    style={{ borderBottom: '1px solid #e5e7eb' }}
                   >
                     <td style={{ padding: '0.625rem 0.75rem' }}>{row.tipo}</td>
                     <td style={{ padding: '0.625rem 0.75rem', fontWeight: 600 }}>
@@ -210,7 +210,7 @@ export function HonorarioTable() {
           disabled={loading}
           style={{
             padding: '0.5rem 1rem',
-            border: '1px solid var(--jr-glass-border)',
+            border: '1px solid #e5e7eb',
             borderRadius: '0.375rem',
             background: 'transparent',
             color: 'var(--jr-primary)',

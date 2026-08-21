@@ -54,7 +54,7 @@ export function MovimentacaoTimeline({ movimentacoes }: MovimentacaoTimelineProp
                     width: '1px',
                     flex: 1,
                     minHeight: '1.5rem',
-                    background: 'var(--jr-glass-border)',
+                    background: '#e5e7eb',
                     marginTop: '0.25rem',
                   }}
                 />
@@ -79,8 +79,8 @@ export function MovimentacaoTimeline({ movimentacoes }: MovimentacaoTimelineProp
                     fontSize: '0.7rem',
                     padding: '0.125rem 0.5rem',
                     borderRadius: '9999px',
-                    background: 'var(--jr-glass-bg)',
-                    border: '1px solid var(--jr-glass-border)',
+                    background: '#ffffff',
+                    border: '1px solid #e5e7eb',
                     color: 'var(--jr-primary)',
                   }}
                 >

@@ -220,34 +220,28 @@ function DataJudSearchContent() {
   const isLoading = searchState.status === 'loading';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Buscar Processos — DataJud</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Busque processos da 1ª instância do TJSP via DataJud/CNJ.
-          </p>
-        </div>
-      </div>
-
+    <div className="space-y-6">
       <div
         role="note"
-        className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800"
+        className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-1"
       >
-        Use termos do vocabulário CNJ para melhores resultados:{' '}
-        {EXEMPLOS.map((ex, i) => (
-          <span key={ex}>
-            <button
-              type="button"
-              className="underline font-medium hover:text-blue-900"
-              onClick={() => setValue('keyword', ex)}
-            >
-              {ex}
-            </button>
-            {i < EXEMPLOS.length - 1 && ', '}
-          </span>
-        ))}
-        . Para pensão alimentícia, use <strong>Alimentos</strong>.
+        <p className="font-semibold">DataJud / CNJ — Base Nacional de Dados do Poder Judiciário</p>
+        <p><strong>Tempo quase real</strong> — processos são atualizados em até 24h pelos tribunais.</p>
+        <p>Use termos do vocabulário CNJ para melhores resultados:{' '}
+          {EXEMPLOS.map((ex, i) => (
+            <span key={ex}>
+              <button
+                type="button"
+                className="underline font-medium hover:text-blue-900"
+                onClick={() => setValue('keyword', ex)}
+              >
+                {ex}
+              </button>
+              {i < EXEMPLOS.length - 1 && ', '}
+            </span>
+          ))}
+          . Para pensão alimentícia, use <strong>Alimentos</strong>.
+        </p>
       </div>
 
       {/* Favoritos */}

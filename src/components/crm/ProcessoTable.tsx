@@ -3,7 +3,6 @@
 import React from 'react';
 import { EmptyStateIllustrated } from '@/components/ui-custom/EmptyStateIllustrated';
 import { PulsingBadge } from '@/components/ui-custom/PulsingBadge';
-import { Button } from '@/components/ui/button';
 
 export interface ProcessoRow {
   id: string;
@@ -105,28 +104,7 @@ export function ProcessoTable({
   };
 
   return (
-    <div
-      data-testid="processo-table-wrapper"
-      // Hidden on mobile (<768px) — ProcessoCard is shown instead
-      className="hidden md:block"
-    >
-      {/* Last sync indicator */}
-      {lastSync && (
-        <p
-          data-testid="last-sync"
-          style={{
-            fontSize: '0.75rem',
-            color: 'var(--jr-primary)',
-            opacity: 0.6,
-            margin: '0 0 0.5rem',
-            textAlign: 'right',
-          }}
-        >
-          Última sync {lastSync.toLocaleDateString('pt-BR')} às{' '}
-          {lastSync.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-        </p>
-      )}
-
+    <div data-testid="processo-table-wrapper" className="hidden md:block">
       {data.length === 0 ? (
         <EmptyStateIllustrated
           title="Nenhum processo encontrado"
@@ -134,34 +112,25 @@ export function ProcessoTable({
         />
       ) : (
         <>
-          <div style={{ overflowX: 'auto', borderRadius: '0.5rem', border: '1px solid var(--jr-glass-border)' }}>
+          <div className="overflow-x-auto rounded-[18px] border border-[#e5e7eb] bg-white">
             <table
               data-testid="processo-table"
-              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}
+              className="w-full text-sm border-collapse"
             >
               <thead>
-                <tr style={{ background: 'var(--jr-glass-bg)', borderBottom: '1px solid var(--jr-glass-border)' }}>
+                <tr className="border-b border-[#e5e7eb] bg-[#f9fafb]">
                   {COLUMNS.map((col) => (
                     <th
                       key={col.field}
                       onClick={() => handleSort(col.field)}
-                      style={{
-                        padding: '0.625rem 0.75rem',
-                        textAlign: 'left',
-                        fontWeight: 600,
-                        color: 'var(--jr-primary)',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        whiteSpace: 'nowrap',
-                        fontSize: '0.8125rem',
-                      }}
+                      className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[.06em] text-[#9ca3af] cursor-pointer select-none whitespace-nowrap hover:text-[#0f2d5e] transition-colors"
                       aria-sort={
                         sort.field === col.field
                           ? sort.direction === 'asc' ? 'ascending' : 'descending'
                           : 'none'
                       }
                     >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <span className="inline-flex items-center gap-1">
                         {col.label} {sortIcon(col.field)}
                       </span>
                     </th>
@@ -169,7 +138,7 @@ export function ProcessoTable({
                 </tr>
               </thead>
               <tbody>
-                {data.map((processo, i) => {
+                {data.map((processo) => {
                   const urgent = isUrgent(processo);
                   const statusColor = STATUS_COLORS[processo.status ?? ''] ?? '#6b7280';
 
@@ -178,81 +147,37 @@ export function ProcessoTable({
                       key={processo.id}
                       data-testid="processo-row"
                       onClick={() => onRowClick?.(processo)}
-                      style={{
-                        background: i % 2 === 0 ? 'transparent' : 'var(--jr-glass-bg)',
-                        cursor: onRowClick ? 'pointer' : 'default',
-                        borderBottom: '1px solid var(--jr-glass-border)',
-                        transition: 'background 0.1s',
-                      }}
+                      className="border-b border-[#f3f4f6] hover:bg-[#f9fafb] transition-colors cursor-pointer last:border-0"
                     >
-                      {/* Número CNJ */}
-                      <td style={{ padding: '0.625rem 0.75rem', whiteSpace: 'nowrap', color: 'var(--jr-primary)', fontWeight: 500 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+                      <td className="px-4 py-3 whitespace-nowrap text-[#0f2d5e] font-medium">
+                        <span className="inline-flex items-center gap-1.5">
                           {processo.numeroCnj}
                           {urgent && <PulsingBadge count={1} />}
                         </span>
                       </td>
-
-                      {/* Tribunal */}
-                      <td style={{ padding: '0.625rem 0.75rem', color: 'var(--jr-primary)', opacity: 0.8 }}>
-                        {processo.tribunal ?? '—'}
-                      </td>
-
-                      {/* Área */}
-                      <td style={{ padding: '0.625rem 0.75rem', color: 'var(--jr-primary)', opacity: 0.8 }}>
-                        {processo.areaDireito ?? '—'}
-                      </td>
-
-                      {/* Status */}
-                      <td style={{ padding: '0.625rem 0.75rem' }}>
+                      <td className="px-4 py-3 text-[#374151]">{processo.tribunal ?? '—'}</td>
+                      <td className="px-4 py-3 text-[#374151]">{processo.areaDireito ?? '—'}</td>
+                      <td className="px-4 py-3">
                         <span
+                          className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
                           style={{
-                            display: 'inline-block',
-                            padding: '0.125rem 0.5rem',
-                            borderRadius: '9999px',
-                            fontSize: '0.75rem',
-                            fontWeight: 500,
-                            background: `${statusColor}22`,
+                            background: `${statusColor}18`,
                             color: statusColor,
-                            border: `1px solid ${statusColor}44`,
+                            border: `1px solid ${statusColor}33`,
                           }}
                         >
                           {processo.status ?? '—'}
                         </span>
                       </td>
-
-                      {/* Última movimentação */}
-                      <td
-                        style={{
-                          padding: '0.625rem 0.75rem',
-                          color: 'var(--jr-primary)',
-                          opacity: 0.8,
-                          maxWidth: '12rem',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title={processo.ultimaMovimentacao ?? ''}
-                      >
+                      <td className="px-4 py-3 text-[#374151] max-w-[12rem] truncate" title={processo.ultimaMovimentacao ?? ''}>
                         {processo.ultimaMovimentacao ?? '—'}
                       </td>
-
-                      {/* Próximo prazo */}
                       <td
-                        style={{
-                          padding: '0.625rem 0.75rem',
-                          color: urgent ? 'var(--jr-danger)' : 'var(--jr-primary)',
-                          fontWeight: urgent ? 600 : 400,
-                          whiteSpace: 'nowrap',
-                        }}
+                        className={`px-4 py-3 whitespace-nowrap font-medium ${urgent ? 'text-[#dc2626]' : 'text-[#374151]'}`}
                       >
                         {formatDate(processo.proximoPrazo)}
                       </td>
-
-                      {/* Responsável */}
-                      <td style={{ padding: '0.625rem 0.75rem', color: 'var(--jr-primary)', opacity: 0.8 }}>
-                        {processo.responsavelNome ?? '—'}
-                      </td>
+                      <td className="px-4 py-3 text-[#374151]">{processo.responsavelNome ?? '—'}</td>
                     </tr>
                   );
                 })}
@@ -260,17 +185,17 @@ export function ProcessoTable({
             </table>
           </div>
 
-          {/* Load more */}
           {hasMore && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-              <Button
-                variant="outline"
+            <div className="flex justify-center mt-4">
+              <button
+                type="button"
                 onClick={onLoadMore}
                 disabled={loadingMore}
                 data-testid="load-more"
+                className="px-6 py-2 rounded-xl border border-[#e5e7eb] bg-white text-[#0f2d5e] text-sm font-medium hover:bg-[#f9fafb] transition-colors disabled:opacity-50"
               >
                 {loadingMore ? 'Carregando...' : 'Carregar mais'}
-              </Button>
+              </button>
             </div>
           )}
         </>

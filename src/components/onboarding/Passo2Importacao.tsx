@@ -10,7 +10,7 @@
  * - Botão "Pular" para ir direto ao Passo 3
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { ImportLoader } from '@/components/ui-custom/ImportLoader';
 
 const ESTADOS_BRASIL = [
@@ -32,45 +32,6 @@ export function Passo2Importacao({ onProximo, onPular }: Passo2Props) {
   const [status, setStatus] = useState<ImportStatus>('idle');
   const [processosEncontrados, setProcessosEncontrados] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollingCountRef = useRef(0);
-
-  // Limpar polling ao desmontar
-  useEffect(() => {
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, []);
-
-  async function iniciarPolling() {
-    pollingCountRef.current = 0;
-
-    pollingRef.current = setInterval(async () => {
-      pollingCountRef.current += 1;
-
-      try {
-        const res = await fetch('/api/processos?limit=1');
-        if (res.ok) {
-          const data = await res.json();
-          const total = data?.total ?? data?.data?.length ?? 0;
-          if (total > 0 || pollingCountRef.current >= 10) {
-            if (pollingRef.current) clearInterval(pollingRef.current);
-            setProcessosEncontrados(total);
-            setStatus('done');
-          }
-        }
-      } catch {
-        // Silencioso — continua tentando
-      }
-
-      // Timeout: 10 iterações × 3s = 30s
-      if (pollingCountRef.current >= 10) {
-        if (pollingRef.current) clearInterval(pollingRef.current);
-        setProcessosEncontrados(0);
-        setStatus('done');
-      }
-    }, 3000);
-  }
 
   async function handleImportar(e: React.FormEvent) {
     e.preventDefault();
@@ -78,16 +39,30 @@ export function Passo2Importacao({ onProximo, onPular }: Passo2Props) {
     setStatus('loading');
 
     try {
-      const res = await fetch('/api/processos/sync', { method: 'POST' });
+      // Salva OAB no perfil do usuário
+      await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oabNumero: oabNumero.trim(), oabEstado }),
+      });
 
-      if (!res.ok && res.status !== 202) {
-        setErro('Erro ao iniciar importação. Tente novamente.');
+      // Sync direto via DJEN — síncrono, retorna imediatamente
+      const res = await fetch('/api/processos/sync-djen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oabNumero: oabNumero.trim(), oabEstado }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setErro(data.error ?? 'Erro ao importar processos. Tente novamente.');
         setStatus('error');
         return;
       }
 
-      // Inicia polling após disparar sync
-      await iniciarPolling();
+      const data = await res.json() as { total?: number };
+      setProcessosEncontrados(data.total ?? 0);
+      setStatus('done');
     } catch {
       setErro('Erro de conexão. Verifique sua internet e tente novamente.');
       setStatus('error');
@@ -95,7 +70,6 @@ export function Passo2Importacao({ onProximo, onPular }: Passo2Props) {
   }
 
   function handlePular() {
-    if (pollingRef.current) clearInterval(pollingRef.current);
     onPular();
   }
 

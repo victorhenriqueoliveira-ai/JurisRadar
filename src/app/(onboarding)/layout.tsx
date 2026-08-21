@@ -14,10 +14,8 @@ export default function OnboardingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <body className="bg-background text-foreground antialiased">
-        {children}
-      </body>
-    </html>
+    <div className="bg-background text-foreground antialiased min-h-screen">
+      {children}
+    </div>
   );
 }

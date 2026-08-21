@@ -45,8 +45,8 @@ export function EmptyStateIllustrated({
           width="100"
           height="65"
           rx="6"
-          fill="var(--jr-glass-bg)"
-          stroke="var(--jr-glass-border)"
+          fill="#ffffff"
+          stroke="#e5e7eb"
           strokeWidth="2"
         />
         {/* Aba da pasta */}
@@ -72,7 +72,7 @@ export function EmptyStateIllustrated({
           y1="78"
           x2="75"
           y2="78"
-          stroke="var(--jr-glass-border)"
+          stroke="#e5e7eb"
           strokeWidth="2"
           strokeLinecap="round"
           opacity="0.7"
@@ -83,7 +83,7 @@ export function EmptyStateIllustrated({
           y1="91"
           x2="60"
           y2="91"
-          stroke="var(--jr-glass-border)"
+          stroke="#e5e7eb"
           strokeWidth="2"
           strokeLinecap="round"
           opacity="0.7"

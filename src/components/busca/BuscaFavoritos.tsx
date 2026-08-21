@@ -9,7 +9,7 @@ export interface Favorito {
 }
 
 export interface BuscaFavoritosProps {
-  fonte: 'datajud' | 'dje' | 'pje';
+  fonte: 'datajud' | 'dje' | 'pje' | 'djen';
   onAplicar: (params: Record<string, string>) => void;
 }
 

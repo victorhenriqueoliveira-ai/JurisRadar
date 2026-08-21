@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
 import { Bell, Sun, Moon, LogOut, User, Settings } from 'lucide-react';
@@ -76,78 +77,65 @@ export function AppHeader({ session, notificationCount: initialCount = 0 }: AppH
         onOpenChange={setSheetOpen}
         onCountUpdate={setNotificationCount}
       />
-      <header className="h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center px-4 gap-3 shrink-0">
-        {/* Botão hambúrguer — apenas mobile */}
+      <header className="flex items-center gap-4 px-8 py-[18px] bg-white border-b border-[#e5e7eb] shrink-0">
         <SidebarMobile />
 
-        {/* Nome do escritório */}
-        <span className="font-semibold text-sm truncate flex-1">
+        {/* Título da página / nome */}
+        <h4
+          className="m-0 mr-auto text-[#0f2d5e] font-extrabold text-base truncate"
+          style={{ fontFamily: 'Manrope, sans-serif' }}
+        >
           {userName}
-        </span>
+        </h4>
 
         {/* Sino de notificações */}
         <button
           type="button"
           aria-label={`Notificações${notificationCount > 0 ? `: ${notificationCount} não lidas` : ''}`}
           onClick={() => setSheetOpen(true)}
-          className="relative p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="relative w-[38px] h-[38px] rounded-xl bg-[#f3f4f6] flex items-center justify-center hover:bg-[#e5e7eb] transition-colors"
         >
-          <Bell className="w-5 h-5" aria-hidden="true" />
+          <Bell className="w-[18px] h-[18px] text-[#374151]" aria-hidden="true" />
           <span className="absolute -top-0.5 -right-0.5">
             <PulsingBadge count={notificationCount} />
           </span>
         </button>
 
-        {/* Dark mode toggle */}
-        <button
-          type="button"
-          aria-label="Alternar modo escuro"
-          onClick={toggleTheme}
-          className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          {theme === 'dark' ? (
-            <Sun className="w-5 h-5" aria-hidden="true" />
-          ) : (
-            <Moon className="w-5 h-5" aria-hidden="true" />
-          )}
-        </button>
-
-        {/* Avatar dropdown simples */}
-        <div className="relative group">
+        {/* Avatar com dropdown */}
+        <div className="relative bg-white group">
           <button
             type="button"
             aria-label="Menu do usuário"
-            className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
+            className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-[#0f2d5e] text-white text-[13px] font-bold hover:opacity-90 transition-opacity"
           >
             {initials}
           </button>
-          {/* Dropdown */}
           <div
             role="menu"
-            className="hidden group-focus-within:block absolute right-0 mt-1 w-44 rounded-lg border border-border bg-popover shadow-md p-1 z-50"
+            className="hidden group-focus-within:block absolute right-0 mt-1 w-44 rounded-xl border border-[#e5e7eb] bg-white shadow-lg p-1 z-50"
           >
-            <button
+            <Link
               role="menuitem"
-              type="button"
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors"
+              href="/configuracoes"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-[#f3f4f6] transition-colors text-[#374151]"
             >
               <User className="w-4 h-4" aria-hidden="true" />
               Perfil
-            </button>
-            <button
+            </Link>
+            <Link
               role="menuitem"
-              type="button"
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors"
+              href="/configuracoes"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-[#f3f4f6] transition-colors text-[#374151]"
             >
               <Settings className="w-4 h-4" aria-hidden="true" />
               Configurações
-            </button>
-            <hr className="my-1 border-border" />
+            </Link>
+            <hr className="my-1 border-[#f3f4f6]" />
             <button
               role="menuitem"
               type="button"
               onClick={() => signOut({ callbackUrl: '/login' })}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg text-red-600 hover:bg-red-50 transition-colors"
             >
               <LogOut className="w-4 h-4" aria-hidden="true" />
               Sair

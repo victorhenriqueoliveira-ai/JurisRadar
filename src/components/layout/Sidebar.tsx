@@ -4,76 +4,130 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  FileText,
+  Kanban,
+  Radar,
+  Database,
   Search,
-  Calendar,
+  Newspaper,
+  CalendarClock,
+  Wallet,
   Bell,
-  DollarSign,
   Settings,
 } from 'lucide-react';
-import { GlassCard } from '@/components/ui-custom/GlassCard';
 
-export const navItems = [
-  { href: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/app/crm', label: 'CRM', icon: FileText },
-  { href: '/app/busca', label: 'Busca', icon: Search },
-  { href: '/app/calendario', label: 'Calendário', icon: Calendar },
-  { href: '/app/notificacoes', label: 'Notificações', icon: Bell },
-  { href: '/app/financeiro', label: 'Financeiro', icon: DollarSign },
-  { href: '/app/configuracoes', label: 'Configurações', icon: Settings },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: 'Início',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: 'Processos',
+    items: [
+      { href: '/crm', label: 'CRM', icon: Kanban },
+    ],
+  },
+  {
+    title: 'Buscas de casos',
+    items: [
+      { href: '/busca/djen-nacional', label: 'DJEN Nacional', icon: Radar },
+      { href: '/busca/datajud', label: 'DataJud / CNJ', icon: Database },
+      { href: '/busca/dje', label: 'DJe TJSP', icon: Newspaper },
+      { href: '/busca/pje', label: 'PJe Nacional', icon: Search },
+    ],
+  },
+  {
+    title: 'Agenda',
+    items: [
+      { href: '/calendario', label: 'Calendário', icon: CalendarClock },
+    ],
+  },
+  {
+    title: 'Financeiro',
+    items: [
+      { href: '/financeiro', label: 'Honorários', icon: Wallet },
+    ],
+  },
+  {
+    title: 'Sistema',
+    items: [
+      { href: '/notificacoes', label: 'Notificações', icon: Bell },
+      { href: '/configuracoes', label: 'Configurações', icon: Settings },
+    ],
+  },
 ];
 
-export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarContent({ onNavigate, showLabels = false }: { onNavigate?: () => void; showLabels?: boolean }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Navegação principal" className="flex flex-col gap-1 p-2">
-      {navItems.map(({ href, label, icon: Icon }) => {
-        const isActive = pathname === href || pathname.startsWith(href + '/');
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            aria-current={isActive ? 'page' : undefined}
-            className={`
-              flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-              ${
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              }
-            `}
+    <nav className="flex flex-col gap-0.5 px-3.5 py-3 flex-1 overflow-y-auto">
+      {NAV_SECTIONS.map((section) => (
+        <div key={section.title}>
+          <p
+            className={`px-2.5 pb-1.5 text-[11px] font-bold tracking-[.06em] uppercase text-gray-400 select-none ${showLabels ? '' : 'hidden xl:block'}`}
+            style={{ paddingTop: section.title === 'Início' ? '12px' : '16px' }}
           >
-            <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
-            <span className="hidden xl:block">{label}</span>
-          </Link>
-        );
-      })}
+            {section.title}
+          </p>
+
+          {section.items.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href || pathname.startsWith(href + '/');
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={onNavigate}
+                aria-current={isActive ? 'page' : undefined}
+                title={label}
+                className={`
+                  flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-colors mb-0.5
+                  ${isActive
+                    ? 'bg-[#0f2d5e] text-white font-semibold'
+                    : 'text-[#374151] font-medium hover:bg-gray-100'
+                  }
+                `}
+              >
+                <Icon className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
+                <span className={showLabels ? 'truncate' : 'hidden xl:block truncate'}>{label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
 
-/**
- * Sidebar — fixa em desktop (≥1280px) com ícone + label.
- * Em tablet (768–1279px): ícones apenas (label oculto via CSS).
- * Em mobile (<768px): oculta — usar SidebarMobile via AppHeader.
- */
 export function Sidebar() {
   return (
     <aside
-      className="hidden md:flex flex-col w-16 xl:w-64 shrink-0 border-r border-border"
+      className="hidden md:flex flex-col w-14 xl:w-[248px] shrink-0 border-r border-[#e5e7eb] bg-white h-full"
       aria-label="Sidebar de navegação"
     >
-      <GlassCard className="flex flex-col flex-1 !p-0 !rounded-none h-full">
-        {/* Logo */}
-        <div className="flex items-center justify-center xl:justify-start gap-2 px-3 py-5 border-b border-border xl:px-4">
-          <span className="font-bold text-lg hidden xl:block">JurisRadar</span>
-          <span className="font-bold text-lg xl:hidden">JR</span>
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-5 py-5">
+        <div className="w-8 h-8 rounded-[9px] bg-[#0f2d5e] flex items-center justify-center shrink-0">
+          <span className="text-white font-extrabold text-[13px]" style={{ fontFamily: 'Manrope, sans-serif' }}>JR</span>
         </div>
+        <span className="font-extrabold text-[16px] text-[#0f2d5e] hidden xl:block" style={{ fontFamily: 'Manrope, sans-serif' }}>JurisRadar</span>
+      </div>
 
-        <SidebarContent />
-      </GlassCard>
+      <SidebarContent />
     </aside>
   );
 }
+
+export const navItems = NAV_SECTIONS.flatMap((s) => s.items);

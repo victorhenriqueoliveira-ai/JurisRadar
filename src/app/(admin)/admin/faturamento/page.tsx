@@ -128,7 +128,7 @@ export default function FaturamentoPage() {
               detail: `${stats.organizacoes.ativas} clientes`,
             },
             {
-              label: 'Em trial (14 dias, sem cobrança agora)',
+              label: 'Em trial (7 dias, sem cobrança agora)',
               value: brl(stats.organizacoes.emTrial * 157),
               detail: `${stats.organizacoes.emTrial} clientes · receita potencial`,
               muted: true,

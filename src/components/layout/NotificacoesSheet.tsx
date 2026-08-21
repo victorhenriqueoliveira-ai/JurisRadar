@@ -124,7 +124,7 @@ export function NotificacoesSheet({
     // Navegar para o processo no CRM
     if (n.processoId) {
       onOpenChange(false);
-      router.push(`/app/crm?processo=${n.processoId}`);
+      router.push(`/crm?processo=${n.processoId}`);
     }
   }
 
@@ -145,7 +145,12 @@ export function NotificacoesSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex flex-col w-full sm:max-w-md p-0">
+      <SheetContent
+        side="right"
+        className="flex flex-col w-full sm:max-w-md p-0 bg-white"
+        showCloseButton={false}
+        style={{ top: '75px', height: 'calc(100vh - 75px)' }}
+      >
         <SheetHeader className="border-b border-border px-4 py-3 shrink-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2 text-base">

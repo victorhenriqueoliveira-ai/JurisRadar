@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Dashboard analítico: API de métricas e UI com gráficos
 type: frontend
 complexity: high
@@ -39,13 +39,13 @@ Constrói o dashboard analítico completo: endpoint de agregação de métricas 
 
 ## Subtasks
 
-- [ ] 13.1 Criar `GET /api/dashboard`, `GET /api/dashboard/prazos` e `GET /api/dashboard/movimentacoes-recentes`
-- [ ] 13.2 Criar `src/services/dashboard.ts` com queries de agregação Drizzle
-- [ ] 13.3 Criar componente `DashboardKpis` com 4 cards `GlassCard` e dados reais
-- [ ] 13.4 Criar componente `GraficoDistribuicaoStatus` (rosca) e `GraficoAreaDireito` (barras) com Recharts
-- [ ] 13.5 Criar componente `GraficoEvolucaoMensal` (linha) com últimos 6 meses
-- [ ] 13.6 Criar componentes `ListaPrazosUrgentes` e `TimelineMovimentacoes`
-- [ ] 13.7 Integrar todos no `src/app/(app)/dashboard/page.tsx` com Skeleton durante carregamento
+- [x] 13.1 Criar `GET /api/dashboard`, `GET /api/dashboard/prazos` e `GET /api/dashboard/movimentacoes-recentes`
+- [x] 13.2 Criar `src/services/dashboard.ts` com queries de agregação Drizzle
+- [x] 13.3 Criar componente `DashboardKpis` com 4 cards `GlassCard` e dados reais
+- [x] 13.4 Criar componente `GraficoDistribuicaoStatus` (rosca) e `GraficoAreaDireito` (barras) com Recharts
+- [x] 13.5 Criar componente `GraficoEvolucaoMensal` (linha) com últimos 6 meses
+- [x] 13.6 Criar componentes `ListaPrazosUrgentes` e `TimelineMovimentacoes`
+- [x] 13.7 Integrar todos no `src/app/(app)/dashboard/page.tsx` com Skeleton durante carregamento
 
 ## Implementation Details
 
@@ -90,14 +90,14 @@ Nenhum — o dashboard é folha na árvore de dependências de UI.
 ## Tests
 
 - Testes unitários:
-  - [ ] `aggregateDashboard({ orgId: 'A' })` retorna `totalAtivos`, `urgenciaAlta`, `prazos7Dias`, `intimacoesNaoLidas` como numbers
-  - [ ] `aggregateDashboard({ orgId: 'A', scope: 'escritorio' })` inclui processos de todos os membros do org A
-  - [ ] `aggregateDashboard({ orgId: 'A', scope: 'pessoal', userId: 'U1' })` retorna apenas processos onde `responsavel_id = 'U1'`
-  - [ ] `GraficoDistribuicaoStatus` com dados vazios renderiza gráfico de rosca vazio sem erro
+  - [x] `aggregateDashboard({ orgId: 'A' })` retorna `totalAtivos`, `urgenciaAlta`, `prazos7Dias`, `intimacoesNaoLidas` como numbers
+  - [x] `aggregateDashboard({ orgId: 'A', scope: 'escritorio' })` inclui processos de todos os membros do org A
+  - [x] `aggregateDashboard({ orgId: 'A', scope: 'pessoal', userId: 'U1' })` retorna apenas processos onde `responsavel_id = 'U1'`
+  - [x] `GraficoDistribuicaoStatus` com dados vazios renderiza gráfico de rosca vazio sem erro
 - Testes de integração:
-  - [ ] `GET /api/dashboard` sem autenticação retorna 401
-  - [ ] `GET /api/dashboard?scope=escritorio` com papel `estagiario` retorna 403
-  - [ ] `GET /api/dashboard` com org sem processos retorna zeros em todos os campos
+  - [x] `GET /api/dashboard` sem autenticação retorna 401
+  - [x] `GET /api/dashboard?scope=escritorio` com papel `estagiario` retorna 403
+  - [x] `GET /api/dashboard` com org sem processos retorna zeros em todos os campos
 - Meta de cobertura de testes: ≥80%
 - Todos os testes devem passar
 

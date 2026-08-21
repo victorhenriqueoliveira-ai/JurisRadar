@@ -155,8 +155,8 @@ export default function EscritorioPage() {
           style={{
             height: '2rem',
             borderRadius: '0.375rem',
-            background: 'var(--jr-glass-bg)',
-            border: '1px solid var(--jr-glass-border)',
+            background: '#ffffff',
+            border: '1px solid #e5e7eb',
             marginBottom: '1rem',
             animation: 'jr-pulse 1.5s ease-in-out infinite',
           }}
@@ -165,8 +165,8 @@ export default function EscritorioPage() {
           style={{
             height: '8rem',
             borderRadius: '0.375rem',
-            background: 'var(--jr-glass-bg)',
-            border: '1px solid var(--jr-glass-border)',
+            background: '#ffffff',
+            border: '1px solid #e5e7eb',
             animation: 'jr-pulse 1.5s ease-in-out infinite',
           }}
         />
@@ -202,8 +202,8 @@ export default function EscritorioPage() {
       {/* ── Dados do escritório ─────────────────────────────────────────────── */}
       <section
         style={{
-          background: 'var(--jr-glass-bg)',
-          border: '1px solid var(--jr-glass-border)',
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
           borderRadius: '0.75rem',
           padding: '1.5rem',
         }}
@@ -252,8 +252,8 @@ export default function EscritorioPage() {
                   width: '100%',
                   padding: '0.5rem 0.75rem',
                   borderRadius: '0.375rem',
-                  border: '1px solid var(--jr-glass-border)',
-                  background: 'var(--jr-glass-bg)',
+                  border: '1px solid #e5e7eb',
+                  background: '#ffffff',
                   color: 'var(--jr-primary)',
                   fontSize: '0.875rem',
                   boxSizing: 'border-box',
@@ -285,8 +285,8 @@ export default function EscritorioPage() {
                   width: '100%',
                   padding: '0.5rem 0.75rem',
                   borderRadius: '0.375rem',
-                  border: '1px solid var(--jr-glass-border)',
-                  background: 'var(--jr-glass-bg)',
+                  border: '1px solid #e5e7eb',
+                  background: '#ffffff',
                   color: 'var(--jr-primary)',
                   fontSize: '0.875rem',
                   boxSizing: 'border-box',
@@ -318,8 +318,8 @@ export default function EscritorioPage() {
                   width: '100%',
                   padding: '0.5rem 0.75rem',
                   borderRadius: '0.375rem',
-                  border: '1px solid var(--jr-glass-border)',
-                  background: 'var(--jr-glass-bg)',
+                  border: '1px solid #e5e7eb',
+                  background: '#ffffff',
                   color: 'var(--jr-primary)',
                   fontSize: '0.875rem',
                   boxSizing: 'border-box',
@@ -378,8 +378,8 @@ export default function EscritorioPage() {
       {/* ── Membros ─────────────────────────────────────────────────────────── */}
       <section
         style={{
-          background: 'var(--jr-glass-bg)',
-          border: '1px solid var(--jr-glass-border)',
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
           borderRadius: '0.75rem',
           padding: '1.5rem',
         }}

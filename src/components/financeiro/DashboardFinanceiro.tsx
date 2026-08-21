@@ -69,9 +69,9 @@ export function DashboardFinanceiro({ inicioPeriodo, fimPeriodo }: DashboardFina
 
   const inputStyle: React.CSSProperties = {
     padding: '0.375rem 0.625rem',
-    border: '1px solid var(--jr-glass-border)',
+    border: '1px solid #e5e7eb',
     borderRadius: '0.375rem',
-    background: 'var(--jr-glass-bg)',
+    background: '#ffffff',
     color: 'var(--jr-primary)',
     fontSize: '0.8125rem',
   };
@@ -115,13 +115,13 @@ export function DashboardFinanceiro({ inicioPeriodo, fimPeriodo }: DashboardFina
               style={{
                 padding: '1.25rem',
                 borderRadius: '0.75rem',
-                border: '1px solid var(--jr-glass-border)',
-                background: 'var(--jr-glass-bg)',
+                border: '1px solid #e5e7eb',
+                background: '#ffffff',
                 opacity: 0.5,
               }}
             >
-              <div style={{ height: '1rem', width: '60%', background: 'var(--jr-glass-border)', borderRadius: '0.25rem', marginBottom: '0.5rem' }} />
-              <div style={{ height: '1.5rem', width: '80%', background: 'var(--jr-glass-border)', borderRadius: '0.25rem' }} />
+              <div style={{ height: '1rem', width: '60%', background: '#e5e7eb', borderRadius: '0.25rem', marginBottom: '0.5rem' }} />
+              <div style={{ height: '1.5rem', width: '80%', background: '#e5e7eb', borderRadius: '0.25rem' }} />
             </div>
           ))}
         </div>
@@ -141,8 +141,8 @@ export function DashboardFinanceiro({ inicioPeriodo, fimPeriodo }: DashboardFina
               style={{
                 padding: '1.25rem',
                 borderRadius: '0.75rem',
-                border: '1px solid var(--jr-glass-border)',
-                background: 'var(--jr-glass-bg)',
+                border: '1px solid #e5e7eb',
+                background: '#ffffff',
                 backdropFilter: 'blur(12px)',
               }}
             >

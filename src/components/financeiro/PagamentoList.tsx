@@ -114,9 +114,9 @@ export function PagamentoList({
   const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '0.375rem 0.625rem',
-    border: '1px solid var(--jr-glass-border)',
+    border: '1px solid #e5e7eb',
     borderRadius: '0.375rem',
-    background: 'var(--jr-glass-bg)',
+    background: '#ffffff',
     color: 'var(--jr-primary)',
     fontSize: '0.8125rem',
   };
@@ -131,8 +131,8 @@ export function PagamentoList({
           justifyContent: 'space-between',
           padding: '0.5rem 0.75rem',
           borderRadius: '0.375rem',
-          background: 'var(--jr-glass-bg)',
-          border: '1px solid var(--jr-glass-border)',
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
         }}
       >
         <span
@@ -167,8 +167,8 @@ export function PagamentoList({
                 justifyContent: 'space-between',
                 padding: '0.5rem 0.75rem',
                 borderRadius: '0.375rem',
-                border: '1px solid var(--jr-glass-border)',
-                background: 'var(--jr-glass-bg)',
+                border: '1px solid #e5e7eb',
+                background: '#ffffff',
               }}
             >
               <div>
@@ -217,7 +217,7 @@ export function PagamentoList({
               onClick={() => setShowForm(true)}
               style={{
                 padding: '0.5rem 1rem',
-                border: '1px dashed var(--jr-glass-border)',
+                border: '1px dashed #e5e7eb',
                 borderRadius: '0.375rem',
                 background: 'transparent',
                 color: 'var(--jr-primary)',
@@ -236,9 +236,9 @@ export function PagamentoList({
                 flexDirection: 'column',
                 gap: '0.5rem',
                 padding: '0.75rem',
-                border: '1px solid var(--jr-glass-border)',
+                border: '1px solid #e5e7eb',
                 borderRadius: '0.375rem',
-                background: 'var(--jr-glass-bg)',
+                background: '#ffffff',
               }}
             >
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -292,7 +292,7 @@ export function PagamentoList({
                   disabled={loading}
                   style={{
                     padding: '0.375rem 0.75rem',
-                    border: '1px solid var(--jr-glass-border)',
+                    border: '1px solid #e5e7eb',
                     borderRadius: '0.375rem',
                     background: 'transparent',
                     color: 'var(--jr-primary)',

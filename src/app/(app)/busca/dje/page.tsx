@@ -138,21 +138,18 @@ function DjePageContent() {
   const isLoading = searchState.status === 'loading';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Publicações DJe TJSP</h1>
-        <p className="mt-1 text-sm text-gray-500">Pesquise publicações do Diário da Justiça Eletrônico do TJSP.</p>
-      </div>
-
+    <div className="space-y-6">
       {/* Favoritos */}
       <BuscaFavoritos fonte="dje" onAplicar={applyFavorito} />
 
       <div
         role="note"
-        className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800"
+        className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 space-y-1"
         data-testid="coverage-notice"
       >
-        Resultados provenientes do DJE/TJSP — Cadernos 2 e 3 (Capital). Interior e outros tribunais não cobertos.
+        <p className="font-semibold">DJe TJSP — Diário da Justiça Eletrônico do Tribunal de Justiça de SP</p>
+        <p><strong>Delay de 1 a 2 dias úteis</strong> — publicações são indexadas após a disponibilização no portal do TJSP.</p>
+        <p>Cobertura: Cadernos 2 e 3 (Capital). Interior e outros tribunais não cobertos.</p>
       </div>
 
       <form

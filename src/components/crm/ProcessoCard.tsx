@@ -40,8 +40,8 @@ export function ProcessoCard({ processo, onClick }: ProcessoCardProps) {
       style={{
         padding: '1rem',
         borderRadius: '0.625rem',
-        background: 'var(--jr-glass-bg)',
-        border: '1px solid var(--jr-glass-border)',
+        background: '#ffffff',
+        border: '1px solid #e5e7eb',
         cursor: onClick ? 'pointer' : 'default',
         display: 'flex',
         flexDirection: 'column',

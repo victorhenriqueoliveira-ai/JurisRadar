@@ -1,162 +1,172 @@
 import { Suspense } from 'react'
-import { GlassCard } from '@/components/ui-custom/GlassCard'
-import { DashboardKpis } from '@/components/dashboard/DashboardKpis'
+import { aggregateDashboard, getPrazosUrgentes, getMovimentacoesRecentes } from '@/services/dashboard'
 import { GraficoDistribuicaoStatus } from '@/components/dashboard/GraficoDistribuicaoStatus'
 import { GraficoAreaDireito } from '@/components/dashboard/GraficoAreaDireito'
 import { GraficoEvolucaoMensal } from '@/components/dashboard/GraficoEvolucaoMensal'
 import { ListaPrazosUrgentes } from '@/components/dashboard/ListaPrazosUrgentes'
 import { TimelineMovimentacoes } from '@/components/dashboard/TimelineMovimentacoes'
 import { requireOrgContext } from '@/lib/org-context'
-import { aggregateDashboard, getPrazosUrgentes, getMovimentacoesRecentes } from '@/services/dashboard'
 import type { DashboardData, PrazoUrgente, MovimentacaoRecente } from '@/services/dashboard'
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
+// ── Card base ─────────────────────────────────────────────────────────────────
+
+function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`bg-white rounded-[18px] border border-[#e5e7eb] p-6 ${className}`}
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function CardTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-bold uppercase tracking-[.06em] text-[#9ca3af] mb-4">
+      {children}
+    </p>
+  )
+}
+
+// ── KPI Cards ─────────────────────────────────────────────────────────────────
+
+const KPI_CONFIG = [
+  {
+    key: 'totalAtivos' as const,
+    label: 'Processos Ativos',
+    description: 'Total de processos em andamento',
+    color: '#0f2d5e',
+  },
+  {
+    key: 'urgenciaAlta' as const,
+    label: 'Urgência Alta',
+    description: 'Prazos vencendo em 2 dias',
+    color: '#dc2626',
+  },
+  {
+    key: 'prazos7Dias' as const,
+    label: 'Prazos em 7 dias',
+    description: 'Compromissos na próxima semana',
+    color: '#d97706',
+  },
+  {
+    key: 'intimacoesNaoLidas' as const,
+    label: 'Intimações não lidas',
+    description: 'Notificações pendentes de leitura',
+    color: '#0f2d5e',
+  },
+]
+
+function KpiCards({ data }: { data: Pick<DashboardData, 'totalAtivos' | 'urgenciaAlta' | 'prazos7Dias' | 'intimacoesNaoLidas'> }) {
+  return (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="dashboard-kpis">
+      {KPI_CONFIG.map(({ key, label, description, color }) => (
+        <Card key={key} className="flex flex-col gap-2">
+          <p className="text-sm text-[#6b7280]">{label}</p>
+          <p className="text-4xl font-bold tabular-nums" style={{ color }}>
+            {data[key]}
+          </p>
+          <p className="text-xs text-[#9ca3af]">{description}</p>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+// ── Skeletons ─────────────────────────────────────────────────────────────────
 
 function KpiSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-28 animate-pulse rounded-xl"
-          style={{ background: 'var(--jr-glass-bg, rgba(255,255,255,0.05))' }}
-        />
+        <div key={i} className="h-28 animate-pulse rounded-[18px] bg-white border border-[#e5e7eb]" />
       ))}
     </div>
   )
 }
 
-function ChartSkeleton() {
+function ChartSkeleton({ className = '' }: { className?: string }) {
   return (
-    <div
-      className="h-56 animate-pulse rounded-xl"
-      style={{ background: 'var(--jr-glass-bg, rgba(255,255,255,0.05))' }}
-    />
+    <div className={`h-56 animate-pulse rounded-[18px] bg-white border border-[#e5e7eb] ${className}`} />
   )
 }
 
-function ListSkeleton() {
-  return (
-    <div className="flex flex-col gap-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-14 animate-pulse rounded-lg"
-          style={{ background: 'var(--jr-glass-bg, rgba(255,255,255,0.05))' }}
-        />
-      ))}
-    </div>
-  )
-}
-
-// ── Componentes de dados ───────────────────────────────────────────────────────
+// ── Async data component ───────────────────────────────────────────────────────
 
 async function DashboardContent() {
-  const ctx = await requireOrgContext()
+  let dashData: DashboardData
+  let prazos: PrazoUrgente[]
+  let movimentacoes: MovimentacaoRecente[]
 
-  const [dashData, prazos, movimentacoes] = await Promise.all([
-    aggregateDashboard(ctx, 'pessoal'),
-    getPrazosUrgentes(ctx),
-    getMovimentacoesRecentes(ctx),
-  ])
+  try {
+    const ctx = await requireOrgContext()
+    ;[dashData, prazos, movimentacoes] = await Promise.all([
+      aggregateDashboard(ctx, 'pessoal'),
+      getPrazosUrgentes(ctx),
+      getMovimentacoesRecentes(ctx),
+    ])
+  } catch {
+    // DB not connected or no org context — render empty state
+    dashData = {
+      totalAtivos: 0,
+      urgenciaAlta: 0,
+      prazos7Dias: 0,
+      intimacoesNaoLidas: 0,
+      distribuicaoStatus: [],
+      distribuicaoArea: [],
+      evolucaoMensal: [],
+    }
+    prazos = []
+    movimentacoes = []
+  }
 
-  return <DashboardInner data={dashData} prazos={prazos} movimentacoes={movimentacoes} />
-}
-
-function DashboardInner({
-  data,
-  prazos,
-  movimentacoes,
-}: {
-  data: DashboardData
-  prazos: PrazoUrgente[]
-  movimentacoes: MovimentacaoRecente[]
-}) {
   return (
     <div className="flex flex-col gap-6">
-      {/* KPIs */}
-      <DashboardKpis data={data} />
+      <KpiCards data={dashData} />
 
-      {/* Gráficos — linha 1 */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <GlassCard>
-          <h2
-            className="mb-4 text-sm font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--jr-text-secondary, #6b7280)' }}
-          >
-            Distribuição por Status
-          </h2>
-          <GraficoDistribuicaoStatus data={data.distribuicaoStatus} />
-        </GlassCard>
-
-        <GlassCard>
-          <h2
-            className="mb-4 text-sm font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--jr-text-secondary, #6b7280)' }}
-          >
-            Por Área do Direito
-          </h2>
-          <GraficoAreaDireito data={data.distribuicaoArea} />
-        </GlassCard>
+        <Card>
+          <CardTitle>Distribuição por Status</CardTitle>
+          <GraficoDistribuicaoStatus data={dashData.distribuicaoStatus} />
+        </Card>
+        <Card>
+          <CardTitle>Por Área do Direito</CardTitle>
+          <GraficoAreaDireito data={dashData.distribuicaoArea} />
+        </Card>
       </div>
 
-      {/* Gráfico evolução mensal */}
-      <GlassCard>
-        <h2
-          className="mb-4 text-sm font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--jr-text-secondary, #6b7280)' }}
-        >
-          Evolução Mensal (últimos 6 meses)
-        </h2>
-        <GraficoEvolucaoMensal data={data.evolucaoMensal} />
-      </GlassCard>
+      <Card>
+        <CardTitle>Evolução Mensal (Últimos 6 Meses)</CardTitle>
+        <GraficoEvolucaoMensal data={dashData.evolucaoMensal} />
+      </Card>
 
-      {/* Prazos urgentes + Timeline */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <GlassCard>
-          <h2
-            className="mb-4 text-sm font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--jr-text-secondary, #6b7280)' }}
-          >
-            Prazos Críticos
-          </h2>
+        <Card>
+          <CardTitle>Prazos Críticos</CardTitle>
           <ListaPrazosUrgentes prazos={prazos} />
-        </GlassCard>
-
-        <GlassCard>
-          <h2
-            className="mb-4 text-sm font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--jr-text-secondary, #6b7280)' }}
-          >
-            Movimentações Recentes
-          </h2>
+        </Card>
+        <Card>
+          <CardTitle>Movimentações Recentes</CardTitle>
           <TimelineMovimentacoes movimentacoes={movimentacoes} />
-        </GlassCard>
+        </Card>
       </div>
     </div>
   )
 }
 
-// ── Página ─────────────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   return (
-    <main className="flex flex-col gap-6 p-4 md:p-6">
-      <div>
-        <h1
-          className="text-2xl font-bold"
-          style={{ color: 'var(--jr-text-primary, #f9fafb)' }}
-        >
-          Dashboard
-        </h1>
-        <p
-          className="mt-1 text-sm"
-          style={{ color: 'var(--jr-text-secondary, #6b7280)' }}
-        >
-          Visão geral dos seus processos e prazos
-        </p>
-      </div>
-
+    <div className="flex flex-col gap-6">
+      <h1
+        className="text-2xl font-extrabold text-[#0f2d5e]"
+        style={{ fontFamily: 'Manrope, sans-serif' }}
+      >
+        Dashboard
+      </h1>
+      <p className="text-sm text-[#6b7280]">Visão geral dos seus processos e prazos</p>
       <Suspense
         fallback={
           <div className="flex flex-col gap-6">
@@ -167,14 +177,14 @@ export default function DashboardPage() {
             </div>
             <ChartSkeleton />
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <ListSkeleton />
-              <ListSkeleton />
+              <ChartSkeleton />
+              <ChartSkeleton />
             </div>
           </div>
         }
       >
         <DashboardContent />
       </Suspense>
-    </main>
+    </div>
   )
 }

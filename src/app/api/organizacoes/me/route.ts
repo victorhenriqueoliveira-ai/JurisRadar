@@ -35,7 +35,11 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const updateData: Record<string, unknown> = {
+    const updateData: {
+      name: string;
+      cnpj?: string | null;
+      areaAtuacao?: string | null;
+    } = {
       name: name.trim(),
     };
 
@@ -49,7 +53,7 @@ export async function PATCH(req: NextRequest) {
 
     await db
       .update(organizations)
-      .set(updateData as Parameters<typeof db.update>[0])
+      .set(updateData)
       .where(eq(organizations.id, ctx.orgId));
 
     return NextResponse.json({ ok: true });

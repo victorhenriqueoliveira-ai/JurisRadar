@@ -36,6 +36,13 @@ export default auth((req: NextRequest & { auth: { user?: { id?: string; orgId?: 
       return NextResponse.next();
     }
 
+    // Admin acessando rotas do app → redireciona para painel admin
+    if (token?.systemRole === 'admin') {
+      if (pathname === '/dashboard' || pathname === '/onboarding') {
+        return NextResponse.redirect(new URL('/admin', nextUrl.origin));
+      }
+    }
+
     // Sem orgId → usuário não completou onboarding
     if (!token?.orgId) {
       if (pathname !== '/onboarding') {

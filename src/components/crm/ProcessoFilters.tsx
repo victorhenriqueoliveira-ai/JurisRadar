@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { Search, ChevronDown } from 'lucide-react';
 
 export interface FilterValues {
   status?: string;
@@ -46,24 +47,10 @@ const TRIBUNAL_OPTIONS = [
   { value: 'STF', label: 'STF' },
 ];
 
-const selectStyle: React.CSSProperties = {
-  height: '2rem',
-  paddingLeft: '0.5rem',
-  paddingRight: '0.5rem',
-  borderRadius: '0.375rem',
-  border: '1px solid var(--jr-glass-border)',
-  background: 'var(--jr-glass-bg)',
-  color: 'var(--jr-primary)',
-  fontSize: '0.875rem',
-  outline: 'none',
-  cursor: 'pointer',
-};
-
 export function ProcessoFilters({ filters, onFilterChange }: ProcessoFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.q ?? '');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep local search input in sync when filters.q resets externally
   useEffect(() => {
     setSearchInput(filters.q ?? '');
   }, [filters.q]);
@@ -71,7 +58,6 @@ export function ProcessoFilters({ filters, onFilterChange }: ProcessoFiltersProp
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchInput(value);
-
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       onFilterChange({ ...filters, q: value || undefined });
@@ -86,93 +72,90 @@ export function ProcessoFilters({ filters, onFilterChange }: ProcessoFiltersProp
     onFilterChange({ ...filters, urgencia: !filters.urgencia });
   };
 
+  const selectClass = `
+    appearance-none h-9 pl-3 pr-7 rounded-lg border text-sm cursor-pointer outline-none transition-colors
+    bg-white text-[#374151]
+    ${filters.urgencia ? '' : ''}
+  `;
+
   return (
     <div
       data-testid="processo-filters"
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '0.5rem',
-        alignItems: 'center',
-        padding: '0.75rem 1rem',
-        background: 'var(--jr-glass-bg)',
-        border: '1px solid var(--jr-glass-border)',
-        borderRadius: '0.5rem',
-      }}
+      className="flex flex-wrap gap-2 items-center p-3 bg-white rounded-xl border border-[#e5e7eb]"
     >
       {/* Busca textual */}
-      <input
-        type="search"
-        data-testid="filter-search"
-        value={searchInput}
-        onChange={handleSearchChange}
-        placeholder="Buscar processo..."
-        aria-label="Buscar processo"
-        style={{
-          ...selectStyle,
-          minWidth: '12rem',
-          flex: '1 1 12rem',
-          paddingRight: '0.5rem',
-        }}
-      />
+      <div className="relative flex-1 min-w-[180px]">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af] pointer-events-none" />
+        <input
+          type="search"
+          data-testid="filter-search"
+          value={searchInput}
+          onChange={handleSearchChange}
+          placeholder="Buscar processo..."
+          aria-label="Buscar processo"
+          className="w-full h-9 pl-9 pr-3 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] text-sm text-[#111827] placeholder-[#9ca3af] outline-none focus:border-[#0f2d5e] focus:bg-white transition-colors"
+        />
+      </div>
 
       {/* Status */}
-      <select
-        data-testid="filter-status"
-        value={filters.status ?? ''}
-        onChange={handleSelectChange('status')}
-        aria-label="Filtrar por status"
-        style={selectStyle}
-      >
-        {STATUS_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          data-testid="filter-status"
+          value={filters.status ?? ''}
+          onChange={handleSelectChange('status')}
+          aria-label="Filtrar por status"
+          className="appearance-none h-9 pl-3 pr-8 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] text-sm text-[#374151] cursor-pointer outline-none focus:border-[#0f2d5e] focus:bg-white transition-colors"
+        >
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b7280] pointer-events-none" />
+      </div>
 
       {/* Área */}
-      <select
-        data-testid="filter-area"
-        value={filters.area ?? ''}
-        onChange={handleSelectChange('area')}
-        aria-label="Filtrar por área"
-        style={selectStyle}
-      >
-        {AREA_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          data-testid="filter-area"
+          value={filters.area ?? ''}
+          onChange={handleSelectChange('area')}
+          aria-label="Filtrar por área"
+          className="appearance-none h-9 pl-3 pr-8 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] text-sm text-[#374151] cursor-pointer outline-none focus:border-[#0f2d5e] focus:bg-white transition-colors"
+        >
+          {AREA_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b7280] pointer-events-none" />
+      </div>
 
       {/* Tribunal */}
-      <select
-        data-testid="filter-tribunal"
-        value={filters.tribunal ?? ''}
-        onChange={handleSelectChange('tribunal')}
-        aria-label="Filtrar por tribunal"
-        style={selectStyle}
-      >
-        {TRIBUNAL_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          data-testid="filter-tribunal"
+          value={filters.tribunal ?? ''}
+          onChange={handleSelectChange('tribunal')}
+          aria-label="Filtrar por tribunal"
+          className="appearance-none h-9 pl-3 pr-8 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] text-sm text-[#374151] cursor-pointer outline-none focus:border-[#0f2d5e] focus:bg-white transition-colors"
+        >
+          {TRIBUNAL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b7280] pointer-events-none" />
+      </div>
 
-      {/* Urgência toggle */}
+      {/* Urgência */}
       <button
         type="button"
         data-testid="filter-urgencia"
         onClick={handleUrgenciaToggle}
         aria-pressed={!!filters.urgencia}
-        style={{
-          height: '2rem',
-          padding: '0 0.75rem',
-          borderRadius: '0.375rem',
-          border: `1px solid ${filters.urgencia ? 'var(--jr-danger)' : 'var(--jr-glass-border)'}`,
-          background: filters.urgencia ? 'var(--jr-danger)' : 'var(--jr-glass-bg)',
-          color: filters.urgencia ? 'var(--jr-danger-foreground)' : 'var(--jr-primary)',
-          fontSize: '0.875rem',
-          cursor: 'pointer',
-          fontWeight: filters.urgencia ? 600 : 400,
-          transition: 'background 0.15s, border-color 0.15s',
-        }}
+        className={`h-9 px-4 rounded-lg border text-sm font-medium transition-colors ${
+          filters.urgencia
+            ? 'border-[#dc2626] bg-[#dc2626] text-white'
+            : 'border-[#e5e7eb] bg-[#f9fafb] text-[#374151] hover:border-[#dc2626] hover:text-[#dc2626]'
+        }`}
       >
         Urgentes
       </button>

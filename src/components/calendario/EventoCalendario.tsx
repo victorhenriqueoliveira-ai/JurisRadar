@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { resolverCorEvento, type TipoEvento } from '@/services/calendario';
+import { resolverCorEvento, type TipoEvento } from '@/lib/calendario-utils';
 
 export interface EventoCalendarioProps {
   event: {

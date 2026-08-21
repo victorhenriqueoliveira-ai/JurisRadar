@@ -14,6 +14,11 @@ import { type Movimentacao } from './MovimentacaoTimeline';
 import { HonorarioForm, type HonorarioFormData } from '@/components/financeiro/HonorarioForm';
 import { PagamentoList, type Pagamento } from '@/components/financeiro/PagamentoList';
 
+export interface Parte {
+  polo: string;
+  nome: string;
+}
+
 export interface ProcessoDetalhe {
   id: string;
   numeroCnj: string;
@@ -26,6 +31,7 @@ export interface ProcessoDetalhe {
   ultimaMovimentacao?: string | null;
   movimentacoes?: Movimentacao[];
   notas?: Nota[];
+  partes?: Parte[] | null;
   honorario?: {
     id: string;
     valor?: number | null;
@@ -35,7 +41,7 @@ export interface ProcessoDetalhe {
   } | null;
 }
 
-interface ProcessoSheetProps {
+export interface ProcessoSheetProps {
   processo: ProcessoDetalhe | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +70,9 @@ export function ProcessoSheet({
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
   const [honorarioLocal, setHonorarioLocal] = useState(processo?.honorario ?? null);
+  const [movimentacoesLocal, setMovimentacoesLocal] = useState<Movimentacao[]>(processo?.movimentacoes ?? []);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Reset tab and state when a different processo is opened
   useEffect(() => {
@@ -72,8 +81,34 @@ export function ProcessoSheet({
       setEditingHonorario(false);
       setPagamentos([]);
       setHonorarioLocal(processo?.honorario ?? null);
+      setMovimentacoesLocal(processo?.movimentacoes ?? []);
+      setSyncError(null);
     }
   }, [open, processo?.id]);
+
+  // Keep movimentacoesLocal in sync with processo prop when it updates
+  useEffect(() => {
+    setMovimentacoesLocal(processo?.movimentacoes ?? []);
+  }, [processo?.movimentacoes]);
+
+  async function handleSync() {
+    if (!processo?.id) return;
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const res = await fetch(`/api/processos/${processo.id}/sync`, { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) {
+        setSyncError(json.error ?? 'Erro ao sincronizar');
+      } else {
+        setMovimentacoesLocal(json.movimentacoes ?? []);
+      }
+    } catch {
+      setSyncError('Erro de conexão ao sincronizar');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // Sync honorario when processo changes
   useEffect(() => {
@@ -115,11 +150,30 @@ export function ProcessoSheet({
     fontWeight: activeTab === tab ? 600 : 400,
   });
 
+  async function handleQuickStatusChange(novoStatus: string) {
+    if (!honorarioLocal || !processo?.id) return;
+    const res = await fetch('/api/financeiro/honorarios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        processoId: processo.id,
+        tipo: honorarioLocal.tipo ?? 'Contratual',
+        valor: honorarioLocal.valor ?? 0,
+        dataPrevista: honorarioLocal.dataPrevista ?? undefined,
+        statusPagamento: novoStatus,
+      }),
+    });
+    if (res.ok) {
+      const saved = await res.json();
+      setHonorarioLocal((prev) => prev ? { ...prev, status: saved.statusPagamento } : prev);
+    }
+  }
+
   async function handleSaveHonorario(data: HonorarioFormData) {
     const res = await fetch('/api/financeiro/honorarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, statusPagamento: data.statusPagamento }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -180,7 +234,16 @@ export function ProcessoSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" data-testid="processo-sheet">
+      <SheetContent
+        side="right"
+        data-testid="processo-sheet"
+        style={{
+          top: '75px',
+          height: 'calc(100vh - 75px)',
+          maxWidth: '520px',
+          overflow: 'hidden',
+        }}
+      >
         {!processo ? (
           <div style={{ padding: '1rem', color: 'var(--jr-primary)', opacity: 0.6 }}>
             Nenhum processo selecionado.
@@ -194,6 +257,25 @@ export function ProcessoSheet({
                   .filter(Boolean)
                   .join(' · ')}
               </SheetDescription>
+              {processo.partes && processo.partes.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', marginTop: '0.25rem' }}>
+                  {['ativo', 'passivo'].map((polo) => {
+                    const names = processo.partes!
+                      .filter((p) => p.polo === polo)
+                      .map((p) => p.nome)
+                      .join(', ');
+                    if (!names) return null;
+                    return (
+                      <p key={polo} style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--jr-primary)' }}>
+                        <span style={{ opacity: 0.5, fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                          {polo === 'ativo' ? 'Autor' : 'Réu'}
+                        </span>{' '}
+                        {names}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
               {processo.responsavelNome && (
                 <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--jr-primary)', opacity: 0.7 }}>
                   Responsável: {processo.responsavelNome}
@@ -212,7 +294,7 @@ export function ProcessoSheet({
                 display: 'flex',
                 gap: '0.25rem',
                 padding: '0 1rem',
-                borderBottom: '1px solid var(--jr-glass-border)',
+                borderBottom: '1px solid #e5e7eb',
                 paddingBottom: '0.5rem',
               }}
             >
@@ -230,7 +312,31 @@ export function ProcessoSheet({
             {/* Content */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
               {activeTab === 'movimentacoes' && (
-                <MovimentacaoTimeline movimentacoes={processo.movimentacoes ?? []} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleSync}
+                      disabled={syncing}
+                      style={{
+                        background: 'none',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.375rem',
+                        padding: '0.25rem 0.625rem',
+                        fontSize: '0.75rem',
+                        color: 'var(--jr-primary)',
+                        cursor: syncing ? 'not-allowed' : 'pointer',
+                        opacity: syncing ? 0.5 : 0.8,
+                      }}
+                    >
+                      {syncing ? 'Sincronizando…' : 'Sincronizar DataJud'}
+                    </button>
+                  </div>
+                  {syncError && (
+                    <p style={{ color: 'var(--jr-danger)', fontSize: '0.75rem', margin: 0 }}>{syncError}</p>
+                  )}
+                  <MovimentacaoTimeline movimentacoes={movimentacoesLocal} />
+                </div>
               )}
 
               {activeTab === 'notas' && (
@@ -256,7 +362,7 @@ export function ProcessoSheet({
                           onClick={() => setEditingHonorario(true)}
                           style={{
                             background: 'none',
-                            border: '1px solid var(--jr-glass-border)',
+                            border: '1px solid #e5e7eb',
                             borderRadius: '0.375rem',
                             padding: '0.25rem 0.625rem',
                             fontSize: '0.75rem',
@@ -277,6 +383,7 @@ export function ProcessoSheet({
                           tipo: honorarioLocal.tipo ?? undefined,
                           valor: honorarioLocal.valor,
                           dataPrevista: honorarioLocal.dataPrevista ?? undefined,
+                          status: honorarioLocal.status ?? undefined,
                         } : null}
                         onSave={handleSaveHonorario}
                         onCancel={() => setEditingHonorario(false)}
@@ -294,6 +401,33 @@ export function ProcessoSheet({
                             <dt style={{ fontSize: '0.75rem', color: 'var(--jr-primary)', opacity: 0.6 }}>Valor</dt>
                             <dd style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: 'var(--jr-primary)' }}>
                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(honorarioLocal.valor)}
+                            </dd>
+                          </div>
+                        )}
+                        {honorarioLocal.status && (
+                          <div>
+                            <dt style={{ fontSize: '0.75rem', color: 'var(--jr-primary)', opacity: 0.6, marginBottom: '0.25rem' }}>Status</dt>
+                            <dd style={{ margin: 0 }}>
+                              <select
+                                value={honorarioLocal.status}
+                                onChange={(e) => handleQuickStatusChange(e.target.value)}
+                                style={{
+                                  fontSize: '0.75rem',
+                                  padding: '0.125rem 0.5rem',
+                                  borderRadius: '0.375rem',
+                                  border: '1px solid #e5e7eb',
+                                  background: honorarioLocal.status === 'pago' ? '#dcfce7' : honorarioLocal.status === 'parcial' ? '#fef9c3' : honorarioLocal.status === 'cancelado' ? '#f3f4f6' : '#fee2e2',
+                                  color: honorarioLocal.status === 'pago' ? '#166534' : honorarioLocal.status === 'parcial' ? '#854d0e' : honorarioLocal.status === 'cancelado' ? '#6b7280' : '#991b1b',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  paddingRight: '1.5rem',
+                                }}
+                              >
+                                <option value="pendente">Pendente</option>
+                                <option value="parcial">Parcialmente pago</option>
+                                <option value="pago">Pago</option>
+                                <option value="cancelado">Cancelado</option>
+                              </select>
                             </dd>
                           </div>
                         )}

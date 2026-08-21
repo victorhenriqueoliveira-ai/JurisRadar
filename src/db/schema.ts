@@ -283,6 +283,27 @@ export const eventosCalendario = pgTable(
   }),
 );
 
+/** Eventos de agenda pessoal — não vinculados a processos */
+export const eventosAgenda = pgTable(
+  'eventos_agenda',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    titulo: text('titulo').notNull(),
+    descricao: text('descricao'),
+    data: date('data').notNull(),
+    horaInicio: text('hora_inicio'),
+    horaFim: text('hora_fim'),
+    tipo: text('tipo').notNull().default('pessoal'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    orgIdDataIdx: index('eventos_agenda_org_id_data_idx').on(t.orgId, t.data),
+  }),
+);
+
 // ── Tabelas de busca (com org_id adicionado para multi-tenant) ────────────────
 
 /** Tabela de buscas federadas */
