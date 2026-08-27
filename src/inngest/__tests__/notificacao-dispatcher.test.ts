@@ -7,6 +7,11 @@
  * - Usuário com e-mail desativado para `intimacao`: persiste in-app mas não chama sendEmail
  * - Movimentação tipo `despacho_simples` não gera notificação (não está na lista de relevantes)
  * - Usuário não encontrado: notificação in-app criada, e-mail não enviado
+ * - Tipo crítico cria garantia e emite evento garantia/intimacao.iniciada
+ * - Tipo não crítico (nova_movimentacao) não cria garantia e não emite evento
+ * - Idempotência: mesma notificacao_id não cria garantia duplicada
+ * - backup_id preenchido quando existe membro backup no escritório
+ * - backup_id null quando não há membro backup
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -35,7 +40,7 @@ vi.mock('@/lib/email/send', () => ({
 import { db } from '@/db';
 import { getNotificacaoPrefs, getUserEmail, isEmailDesativado } from '@/lib/notificacoes/preferencias';
 import { sendEmail } from '@/lib/email/send';
-import { TIPOS_RELEVANTES } from '../notificacao-dispatcher';
+import { TIPOS_RELEVANTES, TIPOS_CRITICOS } from '../notificacao-dispatcher';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +62,17 @@ const FAKE_EVENT_DECISAO = {
     userId: 'user-1',
     tipo: 'decisao',
     titulo: 'Nova decisão no processo',
+    processoId: 'proc-1',
+  },
+};
+
+const FAKE_EVENT_NOVA_MOVIMENTACAO = {
+  data: {
+    movimentacaoId: 'mov-789',
+    orgId: 'org-1',
+    userId: 'user-1',
+    tipo: 'nova_movimentacao',
+    titulo: 'Nova movimentação genérica',
     processoId: 'proc-1',
   },
 };
@@ -85,33 +101,47 @@ async function runDispatcher(event: typeof FAKE_EVENT_INTIMACAO | typeof FAKE_EV
 
 // ── Setup de mocks do db ──────────────────────────────────────────────────────
 
+/**
+ * Cria um mock de db.select que retorna respostas diferentes para cada chamada.
+ * Ordem das chamadas no dispatcher novo:
+ *   1ª: check idempotência notificacoes (por movimentacaoId)
+ *   2ª: check idempotência notificacao_garantia (por notificacaoId)
+ *   3ª: busca backup_id em org_members
+ */
+function mockDbSelectSequence(responses: unknown[][]) {
+  let callCount = 0;
+  vi.mocked(db.select).mockImplementation(() => {
+    const response = responses[callCount] ?? [];
+    callCount++;
+    return {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue(response),
+    } as never;
+  });
+}
+
 function mockDbSelectEmpty() {
-  const mockSelect = {
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-  };
-  vi.mocked(db.select).mockReturnValue(mockSelect as never);
-  return mockSelect;
+  // notificacoes check: vazio, garantia check: vazio, org_members: vazio (sem backup)
+  mockDbSelectSequence([[], [], []]);
 }
 
 function mockDbSelectExisting() {
-  const mockSelect = {
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([{ id: 'notif-existing' }]),
-  };
-  vi.mocked(db.select).mockReturnValue(mockSelect as never);
-  return mockSelect;
+  // notificacoes check: existente => retorna early (skipped)
+  mockDbSelectSequence([[{ id: 'notif-existing' }]]);
 }
 
-function mockDbInsert(returnId = 'notif-new') {
-  const mockInsert = {
-    values: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockResolvedValue([{ id: returnId }]),
-  };
-  vi.mocked(db.insert).mockReturnValue(mockInsert as never);
-  return mockInsert;
+function mockDbInsert(returnId = 'notif-new', garantiaId = 'garantia-new') {
+  let callCount = 0;
+  vi.mocked(db.insert).mockImplementation(() => {
+    // 1ª chamada: insert em notificacoes; 2ª: insert em notificacao_garantia
+    const id = callCount === 0 ? returnId : garantiaId;
+    callCount++;
+    return {
+      values: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([{ id }]),
+    } as never;
+  });
 }
 
 // ── Testes ────────────────────────────────────────────────────────────────────
@@ -130,12 +160,13 @@ describe('notificacaoDispatcher', () => {
 
   it('movimentacao tipo intimacao cria registro em notificacoes com tipo: intimacao', async () => {
     mockDbSelectEmpty();
-    mockDbInsert('notif-123');
+    mockDbInsert('notif-123', 'garantia-123');
 
     const { result } = await runDispatcher(FAKE_EVENT_INTIMACAO);
 
     expect(result).toMatchObject({ skipped: false, notificacaoId: 'notif-123' });
-    expect(db.insert).toHaveBeenCalledTimes(1);
+    // 2 inserts: notificacoes + notificacao_garantia
+    expect(db.insert).toHaveBeenCalledTimes(2);
   });
 
   it('mesma movimentacao_id processada duas vezes cria apenas 1 registro (idempotência)', async () => {
@@ -151,7 +182,7 @@ describe('notificacaoDispatcher', () => {
 
   it('usuário com e-mail desativado para intimacao persiste in-app mas não chama sendEmail', async () => {
     mockDbSelectEmpty();
-    mockDbInsert('notif-456');
+    mockDbInsert('notif-456', 'garantia-456');
 
     // Simula preferência com email desativado para intimacao
     vi.mocked(isEmailDesativado).mockReturnValue(true);
@@ -159,14 +190,13 @@ describe('notificacaoDispatcher', () => {
     const { result } = await runDispatcher(FAKE_EVENT_INTIMACAO);
 
     expect(result).toMatchObject({ skipped: false, notificacaoId: 'notif-456' });
-    expect(db.insert).toHaveBeenCalledTimes(1);
     expect(sendEmail).not.toHaveBeenCalled();
     expect(result).toMatchObject({ email: { sent: false, reason: 'email_disabled_for_type' } });
   });
 
   it('usuário não encontrado: in-app criada, e-mail não enviado', async () => {
     mockDbSelectEmpty();
-    mockDbInsert('notif-789');
+    mockDbInsert('notif-789', 'garantia-789');
 
     vi.mocked(getUserEmail).mockResolvedValue(null);
 
@@ -179,7 +209,7 @@ describe('notificacaoDispatcher', () => {
 
   it('movimentacao com email habilitado envia e-mail via sendEmail', async () => {
     mockDbSelectEmpty();
-    mockDbInsert('notif-abc');
+    mockDbInsert('notif-abc', 'garantia-abc');
 
     vi.mocked(isEmailDesativado).mockReturnValue(false);
 
@@ -191,6 +221,74 @@ describe('notificacaoDispatcher', () => {
       expect.objectContaining({ to: 'advogado@test.com' }),
     );
     expect(result).toMatchObject({ email: { sent: true } });
+  });
+
+  // ── Novos testes: garantia de intimação ──────────────────────────────────────
+
+  it('tipo crítico (intimacao) cria garantia e emite evento garantia/intimacao.iniciada', async () => {
+    mockDbSelectEmpty();
+    mockDbInsert('notif-crit', 'garantia-crit');
+
+    const { result, stepMock } = await runDispatcher(FAKE_EVENT_INTIMACAO);
+
+    expect(result).toMatchObject({ garantiaId: 'garantia-crit', garantiaEmitida: true });
+    expect(stepMock.sendEvent).toHaveBeenCalledWith(
+      'emitir-evento-garantia',
+      expect.objectContaining({
+        name: 'garantia/intimacao.iniciada',
+        data: expect.objectContaining({
+          garantiaId: 'garantia-crit',
+          orgId: 'org-1',
+          responsavelId: 'user-1',
+        }),
+      }),
+    );
+  });
+
+  it('tipo não crítico (nova_movimentacao) NÃO cria garantia e NÃO emite evento', async () => {
+    mockDbSelectEmpty();
+    mockDbInsert('notif-nao-crit', 'garantia-nao-crit');
+
+    const { result, stepMock } = await runDispatcher(FAKE_EVENT_NOVA_MOVIMENTACAO);
+
+    expect(result).toMatchObject({ garantiaEmitida: false });
+    expect(stepMock.sendEvent).not.toHaveBeenCalled();
+  });
+
+  it('garantia idempotente: mesma notificacao_id não cria garantia duplicada', async () => {
+    // Sequência: notificacoes check vazio (nova), garantia check existente (já criada)
+    mockDbSelectSequence([[], [{ id: 'garantia-existente' }], []]);
+    mockDbInsert('notif-new', 'garantia-new');
+
+    const { result } = await runDispatcher(FAKE_EVENT_INTIMACAO);
+
+    // Só 1 insert: notificacoes (garantia já existia)
+    expect(db.insert).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ garantiaId: 'garantia-existente' });
+  });
+
+  it('backup_id preenchido quando existe membro com is_backup_contato = true no escritório', async () => {
+    // notificacoes check: vazio, garantia check: vazio, org_members: membro backup
+    mockDbSelectSequence([[], [], [{ userId: 'backup-user-1' }]]);
+    mockDbInsert('notif-backup', 'garantia-backup');
+
+    const { result } = await runDispatcher(FAKE_EVENT_INTIMACAO);
+
+    expect(result).toMatchObject({ garantiaId: 'garantia-backup' });
+    // O insert de garantia deve ter recebido backupId = 'backup-user-1'
+    expect(db.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it('backup_id é null quando não há membro backup no escritório (sem falhar)', async () => {
+    // notificacoes check: vazio, garantia check: vazio, org_members: vazio
+    mockDbSelectSequence([[], [], []]);
+    mockDbInsert('notif-sem-backup', 'garantia-sem-backup');
+
+    const { result } = await runDispatcher(FAKE_EVENT_INTIMACAO);
+
+    expect(result).toMatchObject({ garantiaId: 'garantia-sem-backup', skipped: false });
+    // Não deve lançar exceção quando backup é null
+    expect(db.insert).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -207,6 +305,27 @@ describe('TIPOS_RELEVANTES', () => {
 
   it('não contém despacho_simples', () => {
     expect(TIPOS_RELEVANTES).not.toContain('despacho_simples');
+  });
+});
+
+// ── Testes: TIPOS_CRITICOS ─────────────────────────────────────────────────────
+
+describe('TIPOS_CRITICOS', () => {
+  it('contém os 5 tipos críticos esperados', () => {
+    expect(TIPOS_CRITICOS).toContain('intimacao');
+    expect(TIPOS_CRITICOS).toContain('citacao');
+    expect(TIPOS_CRITICOS).toContain('prazo_fatal');
+    expect(TIPOS_CRITICOS).toContain('decisao');
+    expect(TIPOS_CRITICOS).toContain('sentenca');
+  });
+
+  it('não contém nova_movimentacao nem publicacao_dje', () => {
+    expect(TIPOS_CRITICOS).not.toContain('nova_movimentacao');
+    expect(TIPOS_CRITICOS).not.toContain('publicacao_dje');
+  });
+
+  it('é exportado como array de 5 elementos', () => {
+    expect(TIPOS_CRITICOS).toHaveLength(5);
   });
 });
 

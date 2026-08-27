@@ -19,10 +19,10 @@
  */
 
 import React from 'react';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { inngest } from './client';
 import { db } from '@/db';
-import { notificacoes } from '@/db/schema';
+import { notificacoes, notificacaoGarantia, orgMembers } from '@/db/schema';
 import { getNotificacaoPrefs, getUserEmail, isEmailDesativado } from '@/lib/notificacoes/preferencias';
 import { sendEmail } from '@/lib/email/send';
 import { NotificacaoIntimacao } from '@/lib/email/templates/NotificacaoIntimacao';
@@ -38,6 +38,16 @@ export const TIPOS_RELEVANTES = [
 ] as const;
 
 export type TipoNotificacao = (typeof TIPOS_RELEVANTES)[number];
+
+// ── Tipos críticos — disparam garantia de intimação ───────────────────────────
+
+export const TIPOS_CRITICOS = [
+  'intimacao',
+  'citacao',
+  'prazo_fatal',
+  'decisao',
+  'sentenca',
+] as const;
 
 // ── Payload do evento ─────────────────────────────────────────────────────────
 
@@ -182,10 +192,82 @@ export const notificacaoDispatcher = inngest.createFunction(
       return { sent: true, to: userEmail };
     });
 
+    // Step 4: criar registro em notificacao_garantia (idempotente)
+    const garantiaId = await step.run('criar-garantia', async () => {
+      // Verificar idempotência — se já existe garantia para esta notificacao_id, retornar o id existente
+      const existingGarantia = await db
+        .select({ id: notificacaoGarantia.id })
+        .from(notificacaoGarantia)
+        .where(eq(notificacaoGarantia.notificacaoId, notificacaoId))
+        .limit(1);
+
+      if (existingGarantia.length > 0) {
+        console.log(
+          `[notificacao-dispatcher] garantia já existe para notificacaoId=${notificacaoId} — pulando criação`,
+        );
+        return existingGarantia[0].id;
+      }
+
+      // Buscar backup_id: membro com is_backup_contato = true no escritório
+      const backupMember = await db
+        .select({ userId: orgMembers.userId })
+        .from(orgMembers)
+        .where(and(eq(orgMembers.orgId, orgId), eq(orgMembers.isBackupContato, true)))
+        .limit(1);
+
+      const backupId = backupMember.length > 0 ? backupMember[0].userId : null;
+
+      const correlationId = `garantia-${notificacaoId}`;
+
+      const inserted = await db
+        .insert(notificacaoGarantia)
+        .values({
+          notificacaoId,
+          orgId,
+          responsavelId: userId,
+          backupId,
+          step: 'email_enviado',
+          inngestCorrelationId: correlationId,
+        })
+        .returning({ id: notificacaoGarantia.id });
+
+      console.log(
+        `[notificacao-dispatcher] garantia criada id=${inserted[0].id} backupId=${backupId ?? 'nenhum'}`,
+      );
+
+      return inserted[0].id;
+    });
+
+    // Step 5: emitir evento de garantia apenas para tipos críticos
+    const isCritico = (TIPOS_CRITICOS as readonly string[]).includes(tipo);
+
+    if (isCritico) {
+      await step.sendEvent('emitir-evento-garantia', {
+        name: 'garantia/intimacao.iniciada',
+        data: {
+          garantiaId,
+          orgId,
+          responsavelId: userId,
+          processoNumero: payload.numeroCnj ?? payload.processoId,
+          link: payload.linkCrm ?? `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.jurisradar.com.br'}/processos/${processoId}`,
+        },
+      });
+
+      console.log(
+        `[notificacao-dispatcher] evento garantia/intimacao.iniciada emitido para tipo=${tipo} garantiaId=${garantiaId}`,
+      );
+    } else {
+      console.log(
+        `[notificacao-dispatcher] tipo=${tipo} não é crítico — evento de garantia não emitido`,
+      );
+    }
+
     return {
       skipped: false,
       notificacaoId,
       email: emailResult,
+      garantiaId,
+      garantiaEmitida: isCritico,
     };
   },
 );
