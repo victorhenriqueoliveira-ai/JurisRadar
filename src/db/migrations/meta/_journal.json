@@ -57,6 +57,13 @@
       "when": 1787900000000,
       "tag": "0006_admin_system_role",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787798892789,
+      "tag": "0008_adorable_stick",
+      "breakpoints": true
     }
   ]
 }

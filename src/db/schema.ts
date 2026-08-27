@@ -10,6 +10,7 @@ import {
   unique,
   boolean,
   numeric,
+  smallint,
 } from 'drizzle-orm/pg-core';
 
 // ── Tipos auxiliares ──────────────────────────────────────────────────────────
@@ -69,6 +70,9 @@ export const users = pgTable('users', {
   // Token para aceitar convite de membro
   inviteToken: text('invite_token'),
   inviteTokenExpiresAt: timestamp('invite_token_expires_at'),
+  // Contato para notificação multi-canal (CRM jurídico)
+  whatsappNumero: text('whatsapp_numero'),
+  smsNumero: text('sms_numero'),
 });
 
 // ── Tabelas SaaS multi-tenant ─────────────────────────────────────────────────
@@ -99,6 +103,8 @@ export const orgMembers = pgTable(
       .$type<'socio' | 'associado' | 'estagiario'>()
       .notNull()
       .default('associado'),
+    // Contato de backup para escalação de garantia de intimação
+    isBackupContato: boolean('is_backup_contato').notNull().default(false),
   },
   (t) => ({
     uniqueOrgUser: unique('org_members_org_id_user_id_unique').on(t.orgId, t.userId),
@@ -197,6 +203,9 @@ export const notificacoes = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     // Referência à movimentação que originou a notificação (task_11)
     movimentacaoId: uuid('movimentacao_id').references(() => movimentacoes.id),
+    // Vínculo com state machine de garantia de intimação (CRM jurídico)
+    garantiaId: uuid('garantia_id'),
+    confirmadoEm: timestamp('confirmado_em', { withTimezone: true }),
   },
   (t) => ({
     userIdLidaCreatedAtIdx: index('notificacoes_user_id_lida_created_at_idx').on(
@@ -223,6 +232,8 @@ export const honorarios = pgTable(
     valor: numeric('valor', { precision: 12, scale: 2 }),
     dataPrevista: date('data_prevista'),
     statusPagamento: text('status_pagamento').notNull().default('pendente'),
+    // Vínculo com Asaas para parcelamento recorrente
+    asaasSubscriptionId: text('asaas_subscription_id'),
   },
   (t) => ({
     orgIdStatusPagamentoIdx: index('honorarios_org_id_status_pagamento_idx').on(
@@ -439,5 +450,130 @@ export const djeSearches = pgTable(
   },
   (t) => ({
     userIdIdx: index('dje_searches_user_id_idx').on(t.userId, t.createdAt),
+  }),
+);
+
+// ── Tabelas CRM Jurídico ──────────────────────────────────────────────────────
+
+/**
+ * State machine de garantia de intimação.
+ * Rastreia o protocolo de escalação multi-canal para intimações críticas.
+ * step: email_enviado | sms_whatsapp_enviado | backup_notificado | confirmado
+ */
+export const notificacaoGarantia = pgTable(
+  'notificacao_garantia',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    notificacaoId: uuid('notificacao_id')
+      .notNull()
+      .references(() => notificacoes.id, { onDelete: 'cascade' }),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    responsavelId: uuid('responsavel_id')
+      .notNull()
+      .references(() => users.id),
+    backupId: uuid('backup_id').references(() => users.id),
+    step: text('step').notNull().default('email_enviado'),
+    confirmadoEm: timestamp('confirmado_em', { withTimezone: true }),
+    emailEnviadoEm: timestamp('email_enviado_em', { withTimezone: true }).defaultNow().notNull(),
+    smsEnviadoEm: timestamp('sms_enviado_em', { withTimezone: true }),
+    whatsappEnviadoEm: timestamp('whatsapp_enviado_em', { withTimezone: true }),
+    backupNotificadoEm: timestamp('backup_notificado_em', { withTimezone: true }),
+    inngestCorrelationId: text('inngest_correlation_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgIdx: index('idx_notificacao_garantia_org').on(t.orgId),
+    // Índice parcial para cron de fallback — apenas registros não confirmados
+    stepEmailEnviadoEmIdx: index('idx_notificacao_garantia_step').on(t.step, t.emailEnviadoEm),
+  }),
+);
+
+/**
+ * Sub-contas Asaas por escritório.
+ * Cada escritório tem uma sub-conta Asaas para cobranças diretas de seus clientes.
+ * api_key_encrypted: AES-256-GCM com chave em ASAAS_ENCRYPTION_KEY.
+ * status: pending | active | suspended
+ */
+export const asaasAccounts = pgTable('asaas_accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .unique()
+    .references(() => organizations.id),
+  asaasAccountId: text('asaas_account_id').notNull(),
+  apiKeyEncrypted: text('api_key_encrypted').notNull(),
+  status: text('status').notNull().default('pending'),
+  onboardingUrl: text('onboarding_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  activatedAt: timestamp('activated_at', { withTimezone: true }),
+});
+
+/**
+ * Cobranças geradas via Asaas.
+ * Representa boletos, Pix e parcelas de assinaturas recorrentes.
+ * status: pending | received | overdue | refunded | cancelled
+ * tipo: unica | recorrente
+ */
+export const cobrancas = pgTable(
+  'cobrancas',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    honorarioId: uuid('honorario_id')
+      .notNull()
+      .references(() => honorarios.id),
+    asaasPaymentId: text('asaas_payment_id').unique(),
+    asaasSubscriptionId: text('asaas_subscription_id'),
+    tipo: text('tipo').notNull(),
+    valor: numeric('valor', { precision: 12, scale: 2 }).notNull(),
+    vencimento: date('vencimento'),
+    status: text('status').notNull().default('pending'),
+    linkBoleto: text('link_boleto'),
+    linkPix: text('link_pix'),
+    qrCodePix: text('qr_code_pix'),
+    clienteEmail: text('cliente_email').notNull(),
+    clienteNome: text('cliente_nome').notNull(),
+    clienteCpfCnpj: text('cliente_cpf_cnpj').notNull(),
+    parcelaNumero: smallint('parcela_numero'),
+    parcelaTotal: smallint('parcela_total'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgStatusIdx: index('idx_cobrancas_org_status').on(t.orgId, t.status),
+    honorarioIdx: index('idx_cobrancas_honorario').on(t.honorarioId),
+    asaasEventIdx: index('idx_cobrancas_asaas_event').on(t.asaasPaymentId),
+  }),
+);
+
+/**
+ * Anexos de processos — referências a arquivos no Vercel Blob.
+ * Limite por arquivo: 10 MB. Quota por escritório: 500 MB.
+ */
+export const anexos = pgTable(
+  'anexos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    processoId: uuid('processo_id')
+      .notNull()
+      .references(() => processos.id, { onDelete: 'cascade' }),
+    nome: text('nome').notNull(),
+    url: text('url').notNull(),
+    tamanho: integer('tamanho').notNull(),
+    mimeType: text('mime_type').notNull(),
+    uploadedBy: uuid('uploaded_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    processoIdx: index('idx_anexos_processo').on(t.processoId),
   }),
 );
