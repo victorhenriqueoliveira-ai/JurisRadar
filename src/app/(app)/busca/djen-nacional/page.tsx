@@ -128,6 +128,154 @@ function contarPorChave(items: DjenItem[], fn: (i: DjenItem) => string): [string
   return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6);
 }
 
+function ontem(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
+function extrairReu(item: DjenItem): Parte | null {
+  if (!item.partes.length) return null;
+  return (
+    item.partes.find((p) => /réu|devedor|executado|requerido|intimado/i.test(p.polo ?? '')) ??
+    item.partes[0]
+  );
+}
+
+function extrairCredorItem(item: DjenItem): string {
+  const haystack = stripHtml(item.texto ?? '').toLowerCase();
+  for (const c of CREDORES) {
+    if (haystack.includes(c.toLowerCase())) return c;
+  }
+  return '';
+}
+
+function gerarScript(nome: string, credor: string, processo: string): string {
+  const primeiro = nome.split(' ')[0] ?? nome;
+  const banco = credor || 'uma instituição financeira';
+  return (
+    `Olá ${primeiro}! Tudo bem?\n\n` +
+    `Sou advogado especialista em direito bancário e identifiquei que o ${banco} entrou com um ` +
+    `pedido de busca e apreensão do seu bem` +
+    (processo ? ` (processo ${processo})` : '') +
+    `.\n\n` +
+    `Você tem prazo muito curto para se defender e evitar perder o bem. ` +
+    `Posso te ajudar a reverter essa situação.\n\n` +
+    `Podemos conversar?`
+  );
+}
+
+// ─── Lead Card ───────────────────────────────────────────────────────────────
+
+function LeadCard({
+  item,
+  onAbrirCrm,
+}: {
+  item: DjenItem;
+  onAbrirCrm: (item: DjenItem) => void;
+}) {
+  const [copiado, setCopiado] = useState(false);
+  const reu = extrairReu(item);
+  const credor = extrairCredorItem(item);
+
+  function copiarScript() {
+    if (!reu?.nome) return;
+    const texto = gerarScript(reu.nome, credor, item.numeroProcesso);
+    navigator.clipboard.writeText(texto).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    });
+  }
+
+  return (
+    <div className="bg-white border border-orange-200 rounded-lg p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full shrink-0">
+              Lead
+            </span>
+            <span className="text-xs text-gray-400">{formatDate(item.data)}</span>
+          </div>
+          <p className="text-base font-bold text-gray-900 truncate">
+            {reu?.nome ?? 'Réu não identificado'}
+          </p>
+          {credor ? (
+            <p className="text-xs text-gray-500 mt-0.5">
+              Ação movida por{' '}
+              <span className="font-semibold text-gray-700">{credor}</span>
+            </p>
+          ) : (
+            <p className="text-xs text-gray-400 mt-0.5">Credor não identificado no texto</p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1.5 shrink-0">
+          {reu?.nome && (
+            <button
+              type="button"
+              onClick={copiarScript}
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap ${
+                copiado
+                  ? 'bg-green-100 text-green-700 border border-green-200'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {copiado ? '✓ Copiado!' : 'Copiar script'}
+            </button>
+          )}
+          {item.numeroProcesso && (
+            <button
+              type="button"
+              onClick={() => onAbrirCrm(item)}
+              className="text-xs px-2.5 py-1 rounded-md font-medium border transition-colors bg-[#0f2d5e]/5 text-[#0f2d5e] border-[#0f2d5e]/20 hover:bg-[#0f2d5e] hover:text-white"
+            >
+              + CRM
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+        {item.numeroProcesso && (
+          <span className="font-mono text-gray-700">{item.numeroProcesso}</span>
+        )}
+        {item.tribunal && item.orgao && (
+          <span>
+            <span className="font-medium">{item.tribunal}</span> · {item.orgao}
+          </span>
+        )}
+        {!item.tribunal && item.orgao && <span>{item.orgao}</span>}
+        {item.classe && <span className="italic">{item.classe}</span>}
+      </div>
+
+      {item.partes.length > 1 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+          {item.partes.map((p, i) => (
+            <span key={i} className="text-xs text-gray-600">
+              {p.polo && (
+                <span className="text-gray-400 uppercase mr-1 font-medium text-[10px]">{p.polo}</span>
+              )}
+              {p.nome}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {item.link && (
+        <a
+          href={item.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block text-xs text-blue-600 hover:underline"
+        >
+          Ver publicação ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
 // ─── CRM Modal ───────────────────────────────────────────────────────────────
 
 function CrmModal({ item, onClose }: { item: DjenItem; onClose: () => void }) {
@@ -507,6 +655,7 @@ function DjenNacionalBuscaContent() {
   const [favoritoSalvo, setFavoritoSalvo] = useState(false);
   const [crmItem, setCrmItem] = useState<DjenItem | null>(null);
   const [lastSearch, setLastSearch] = useState<FormValues | null>(null);
+  const [leadsMode, setLeadsMode] = useState(false);
 
   const { register, handleSubmit, getValues, watch, setValue } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -551,6 +700,23 @@ function DjenNacionalBuscaContent() {
       throw new Error(err?.error ?? `Erro ${res.status}`);
     }
     return res.json() as Promise<{ items?: unknown[]; count?: number }>;
+  }
+
+  function ativarModoLeads() {
+    setLeadsMode(true);
+    const bairro = getValues('texto')?.trim();
+    const valores: FormValues = {
+      numeroProcesso: '',
+      texto: bairro || '',
+      nomeParte: 'busca e apreensão',
+      data: ontem(),
+      tipoComunicacao: 'Citação',
+    };
+    setValue('numeroProcesso', '');
+    setValue('nomeParte', 'busca e apreensão');
+    setValue('data', ontem());
+    setValue('tipoComunicacao', 'Citação');
+    void search(valores, 1);
   }
 
   async function search(values: FormValues, page = 1) {
@@ -722,9 +888,22 @@ function DjenNacionalBuscaContent() {
             <button
               type="submit"
               disabled={isLoading}
+              onClick={() => setLeadsMode(false)}
               className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors"
             >
-              {isLoading ? 'Buscando…' : 'Buscar no DJEN'}
+              {isLoading && !leadsMode ? 'Buscando…' : 'Buscar no DJEN'}
+            </button>
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={ativarModoLeads}
+              className={`px-4 py-2 text-sm font-medium rounded-md border transition-colors whitespace-nowrap disabled:opacity-50 ${
+                leadsMode
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'
+              }`}
+            >
+              {isLoading && leadsMode ? 'Buscando…' : '⚡ Leads de hoje'}
             </button>
             {state.status === 'success' && (
               <button
@@ -732,7 +911,7 @@ function DjenNacionalBuscaContent() {
                 onClick={handleSalvarFavorito}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap"
               >
-                {favoritoSalvo ? '✓ Salvo!' : '★ Salvar busca'}
+                {favoritoSalvo ? '✓ Salvo!' : '★ Salvar'}
               </button>
             )}
           </div>
@@ -744,7 +923,19 @@ function DjenNacionalBuscaContent() {
           </div>
         )}
 
-        {state.status === 'success' && isTextSearch && lastSearch && (
+        {leadsMode && state.status === 'success' && (
+          <div className="rounded-md bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800 flex items-center gap-3">
+            <span className="text-lg">⚡</span>
+            <div>
+              <p className="font-semibold">Modo Leads ativo — citações de ontem ({ontem().split('-').reverse().join('/')})</p>
+              <p className="text-xs text-orange-600 mt-0.5">
+                Esses são réus recém-citados em ações de busca e apreensão. Use &quot;Copiar script&quot; para abordar cada um.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {state.status === 'success' && isTextSearch && lastSearch && !leadsMode && (
           <RadarCard
             key={[lastSearch.texto, lastSearch.nomeParte, lastSearch.tipoComunicacao].join('|')}
             values={lastSearch}
@@ -761,14 +952,22 @@ function DjenNacionalBuscaContent() {
             </p>
 
             <div className="space-y-3">
-              {state.items.map((item, idx) => (
-                <PublicacaoCard
-                  key={item.id ?? idx}
-                  item={item}
-                  searchTerms={state.searchTerms}
-                  onAbrirCrm={setCrmItem}
-                />
-              ))}
+              {state.items.map((item, idx) =>
+                leadsMode ? (
+                  <LeadCard
+                    key={item.id ?? idx}
+                    item={item}
+                    onAbrirCrm={setCrmItem}
+                  />
+                ) : (
+                  <PublicacaoCard
+                    key={item.id ?? idx}
+                    item={item}
+                    searchTerms={state.searchTerms}
+                    onAbrirCrm={setCrmItem}
+                  />
+                )
+              )}
             </div>
 
             {state.totalPages > 1 && (
