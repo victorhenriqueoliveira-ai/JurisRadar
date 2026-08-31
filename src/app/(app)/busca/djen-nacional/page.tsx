@@ -850,6 +850,26 @@ function DjenNacionalBuscaContent() {
               disabled={isLoading || byNumero}
               className={inputCls}
             />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { label: 'Veículo', valor: 'veículo' },
+                { label: 'Imóvel', valor: 'imóvel' },
+                { label: 'Equipamento', valor: 'equipamento' },
+                { label: 'Busca e apreensão', valor: 'busca e apreensão' },
+                { label: 'Alimentos', valor: 'alimentos' },
+                { label: 'Execução fiscal', valor: 'execução fiscal' },
+              ].map((chip) => (
+                <button
+                  key={chip.valor}
+                  type="button"
+                  disabled={isLoading || byNumero}
+                  onClick={() => setValue('nomeParte', chip.valor)}
+                  className="px-2.5 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
