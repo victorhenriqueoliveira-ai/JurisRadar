@@ -244,7 +244,7 @@ function DjenNacionalBuscaContent() {
     }
     if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
 
-    const res = await fetch(`/api/djen/searches?${params}`);
+    const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as Record<string, string>;
       throw new Error(err?.error ?? `Erro ${res.status}`);
