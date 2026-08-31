@@ -44,10 +44,9 @@ const LIMIT = 20;
 
 const TIPOS = [
   { value: '', label: 'Todos os tipos' },
-  { value: 'D', label: 'Despacho' },
-  { value: 'S', label: 'Sentença' },
-  { value: 'A', label: 'Acórdão' },
-  { value: 'I', label: 'Intimação' },
+  { value: 'Intimação', label: 'Intimação' },
+  { value: 'Citação', label: 'Citação' },
+  { value: 'Edital', label: 'Edital' },
 ];
 
 const inputCls =
@@ -229,17 +228,15 @@ function DjenNacionalBuscaContent() {
 
   async function fetchPage(values: FormValues, offset: number, loteSize = LIMIT) {
     const params = new URLSearchParams({
-      siglaTribunal: 'TJSP',
       limit: String(loteSize),
       offset: String(offset),
     });
-    if (values.numeroProcesso?.trim()) params.set('numeroProcesso', values.numeroProcesso);
-    else {
-      if (values.texto || values.nomeParte) {
-        // Combina os termos na query para aproveitar o índice full-text da API
-        const partes = [values.texto, values.nomeParte].filter(Boolean);
-        params.set('texto', partes.join(' '));
-      }
+    if (values.numeroProcesso?.trim()) {
+      params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-/]/g, ''));
+    } else {
+      // Combina busca principal + filtro adicional em uma única query full-text
+      const termoCombinado = [values.texto, values.nomeParte].filter(Boolean).join(' ');
+      if (termoCombinado) params.set('texto', termoCombinado);
       if (values.data) params.set('dataDisponibilizacao', values.data);
     }
     if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
@@ -255,38 +252,11 @@ function DjenNacionalBuscaContent() {
   async function search(values: FormValues, page = 1) {
     setState({ status: 'loading' });
     try {
-      const termoPrincipal = values.texto?.trim().toLowerCase();
-      const filtroAdicional = values.nomeParte?.trim().toLowerCase();
-      const temFiltroAdicional = !values.numeroProcesso?.trim() && !!filtroAdicional;
-      let items: DjenItem[];
-      let total: number;
-
+      const offset = (page - 1) * LIMIT;
+      const data = await fetchPage(values, offset);
+      const total = data.count ?? 0;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      function passaFiltros(r: any): boolean {
-        const plain = stripHtml(String(r.texto ?? '')).toLowerCase();
-        const orgao = String(r.nomeOrgao ?? '').toLowerCase();
-        // termo principal: aceita se aparece no texto OU no orgao (comarca)
-        const passaPrincipal = termoPrincipal
-          ? plain.includes(termoPrincipal) || orgao.includes(termoPrincipal)
-          : true;
-        const passaAdicional = filtroAdicional ? plain.includes(filtroAdicional) : true;
-        return passaPrincipal && passaAdicional;
-      }
-
-      if (temFiltroAdicional) {
-        const lotes = await Promise.all([0, 100, 200, 300, 400].map((off) => fetchPage(values, off, 100)));
-        total = (lotes[0] as { count?: number }).count ?? 0;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw = lotes.flatMap((d: any) => d.items ?? []);
-        items = raw.filter(passaFiltros).map(mapItem);
-      } else {
-        const offset = (page - 1) * LIMIT;
-        const data = await fetchPage(values, offset);
-        total = data.count ?? 0;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        items = (data.items ?? [] as any[]).filter(passaFiltros).map(mapItem);
-      }
-
+      const items = (data.items ?? [] as any[]).map(mapItem);
       const totalPages = Math.max(1, Math.ceil(total / LIMIT));
       const searchTerms = [values.texto, values.nomeParte].filter(Boolean) as string[];
       setState({ status: 'success', items, total, page, totalPages, searchTerms });
@@ -335,7 +305,7 @@ function DjenNacionalBuscaContent() {
       <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-1">
         <p className="font-semibold">DJEN Nacional — Diário da Justiça Eletrônico Nacional</p>
         <p>Publicações de todos os tribunais do Brasil. <strong>Delay de 1 dia útil</strong> — publicações aparecem no dia seguinte à disponibilização.</p>
-        <p>Use termos específicos: nome da parte, número do processo, bairro, endereço.</p>
+        <p>Combine termos para refinar: bairro + tipo de ação (ex: &quot;capão redondo busca e apreensão&quot;). A busca é feita em todos os tribunais do Brasil.</p>
       </div>
 
       <BuscaFavoritos fonte="djen" onAplicar={applyFavorito} />
@@ -377,7 +347,7 @@ function DjenNacionalBuscaContent() {
             disabled={isLoading || byNumero}
             className={inputCls}
           />
-          <p className="mt-1 text-xs text-gray-500">Use o termo mais específico aqui — bairro, nome, endereço.</p>
+          <p className="mt-1 text-xs text-gray-500">Ex: &quot;capão redondo&quot;, &quot;banco bradesco&quot;, &quot;avenida paulista&quot;</p>
         </div>
 
         <div>
