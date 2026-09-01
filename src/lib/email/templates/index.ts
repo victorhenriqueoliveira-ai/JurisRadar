@@ -15,3 +15,6 @@ export type { AlertaPrazoProps } from './AlertaPrazo'
 
 export { ResumoDiario } from './ResumoDiario'
 export type { ResumoDiarioProps, Movimentacao, PrazoProximo } from './ResumoDiario'
+
+export { ReenvioCobranca } from './ReenvioCobranca'
+export type { ReenvioCobrancaProps } from './ReenvioCobranca'
