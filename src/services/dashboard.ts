@@ -7,7 +7,7 @@
 
 import { db } from '@/db'
 import { processos, movimentacoes, notificacoes, eventosCalendario } from '@/db/schema'
-import { eq, and, isNull, desc, sql, gte, lt, lte, count } from 'drizzle-orm'
+import { eq, and, isNull, desc, sql, gte, lt, lte, count, inArray } from 'drizzle-orm'
 import type { OrgContext } from '@/types/domain'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
@@ -78,44 +78,82 @@ export async function aggregateDashboard(
     .from(processos)
     .where(ativos)
 
-  // 2. Urgência alta — processos com status 'urgente' ou campo urgencia = 'alta'
-  // Usamos status diferente de 'ativo'/'arquivado' como proxy; ou contamos eventos próximos
-  // Para urgência alta: eventos_calendario com data <= 2 dias
+  // 2. Urgência alta — intimações/citações recebidas nas últimas 48h OU eventos futuros em ≤2 dias
   const em2Dias = addDays(now, 2)
+  const ha2Dias = addDays(now, -2)
 
-  // Contar processos com prazos nos próximos 2 dias (alta urgência)
-  const urgentesIds = await db
-    .selectDistinct({ processoId: eventosCalendario.processoId })
-    .from(eventosCalendario)
-    .innerJoin(processos, eq(eventosCalendario.processoId, processos.id))
-    .where(
-      and(
-        eq(processos.orgId, ctx.orgId),
-        isNull(processos.arquivadoAt),
-        gte(eventosCalendario.data, now.toISOString().split('T')[0]),
-        lte(eventosCalendario.data, em2Dias.toISOString().split('T')[0]),
-        scope === 'pessoal' ? eq(processos.responsavelId, ctx.userId) : undefined,
+  const [urgentesEventos, urgentesMovs] = await Promise.all([
+    db
+      .selectDistinct({ processoId: eventosCalendario.processoId })
+      .from(eventosCalendario)
+      .innerJoin(processos, eq(eventosCalendario.processoId, processos.id))
+      .where(
+        and(
+          eq(processos.orgId, ctx.orgId),
+          isNull(processos.arquivadoAt),
+          gte(eventosCalendario.data, now.toISOString().split('T')[0]),
+          lte(eventosCalendario.data, em2Dias.toISOString().split('T')[0]),
+          scope === 'pessoal' ? eq(processos.responsavelId, ctx.userId) : undefined,
+        ),
       ),
-    )
-
-  const urgenciaAlta = urgentesIds.length
-
-  // 3. Prazos nos próximos 7 dias
-  const prazosIds = await db
-    .selectDistinct({ processoId: eventosCalendario.processoId })
-    .from(eventosCalendario)
-    .innerJoin(processos, eq(eventosCalendario.processoId, processos.id))
-    .where(
-      and(
-        eq(processos.orgId, ctx.orgId),
-        isNull(processos.arquivadoAt),
-        gte(eventosCalendario.data, now.toISOString().split('T')[0]),
-        lte(eventosCalendario.data, em7Dias.toISOString().split('T')[0]),
-        scope === 'pessoal' ? eq(processos.responsavelId, ctx.userId) : undefined,
+    db
+      .selectDistinct({ processoId: movimentacoes.processoId })
+      .from(movimentacoes)
+      .innerJoin(processos, eq(movimentacoes.processoId, processos.id))
+      .where(
+        and(
+          eq(processos.orgId, ctx.orgId),
+          isNull(processos.arquivadoAt),
+          gte(movimentacoes.data, ha2Dias),
+          inArray(movimentacoes.tipo, ['intimacao', 'citacao']),
+          scope === 'pessoal' ? eq(processos.responsavelId, ctx.userId) : undefined,
+        ),
       ),
-    )
+  ])
 
-  const prazos7Dias = prazosIds.length
+  const urgentesSet = new Set([
+    ...urgentesEventos.map((r) => r.processoId),
+    ...urgentesMovs.map((r) => r.processoId),
+  ])
+  const urgenciaAlta = urgentesSet.size
+
+  // 3. Prazos nos próximos 7 dias OU movimentações relevantes nos últimos 7 dias
+  const ha7Dias = addDays(now, -7)
+
+  const [prazosEventos, prazosMovs] = await Promise.all([
+    db
+      .selectDistinct({ processoId: eventosCalendario.processoId })
+      .from(eventosCalendario)
+      .innerJoin(processos, eq(eventosCalendario.processoId, processos.id))
+      .where(
+        and(
+          eq(processos.orgId, ctx.orgId),
+          isNull(processos.arquivadoAt),
+          gte(eventosCalendario.data, now.toISOString().split('T')[0]),
+          lte(eventosCalendario.data, em7Dias.toISOString().split('T')[0]),
+          scope === 'pessoal' ? eq(processos.responsavelId, ctx.userId) : undefined,
+        ),
+      ),
+    db
+      .selectDistinct({ processoId: movimentacoes.processoId })
+      .from(movimentacoes)
+      .innerJoin(processos, eq(movimentacoes.processoId, processos.id))
+      .where(
+        and(
+          eq(processos.orgId, ctx.orgId),
+          isNull(processos.arquivadoAt),
+          gte(movimentacoes.data, ha7Dias),
+          inArray(movimentacoes.tipo, ['intimacao', 'citacao', 'publicacao_dje']),
+          scope === 'pessoal' ? eq(processos.responsavelId, ctx.userId) : undefined,
+        ),
+      ),
+  ])
+
+  const prazosSet = new Set([
+    ...prazosEventos.map((r) => r.processoId),
+    ...prazosMovs.map((r) => r.processoId),
+  ])
+  const prazos7Dias = prazosSet.size
 
   // 4. Intimações não lidas (notificações não lidas do usuário na org)
   const intimacoesResult = await db
@@ -222,8 +260,11 @@ export async function aggregateDashboard(
  */
 export async function getPrazosUrgentes(ctx: OrgContext): Promise<PrazoUrgente[]> {
   const hoje = new Date().toISOString().split('T')[0]
+  const ha30Dias = addDays(new Date(), -30)
+  const now = new Date()
 
-  const rows = await db
+  // Eventos futuros do calendário
+  const eventoRows = await db
     .select({
       processoId: eventosCalendario.processoId,
       numeroCnj: processos.numeroCnj,
@@ -242,21 +283,65 @@ export async function getPrazosUrgentes(ctx: OrgContext): Promise<PrazoUrgente[]
     .orderBy(eventosCalendario.data)
     .limit(5)
 
-  const now = new Date()
+  // Movimentações relevantes dos últimos 30 dias (intimações/citações sem evento futuro)
+  const movRows = await db
+    .select({
+      processoId: movimentacoes.processoId,
+      numeroCnj: processos.numeroCnj,
+      tribunal: processos.tribunal,
+      prazoAt: sql<string>`to_char(${movimentacoes.data}, 'YYYY-MM-DD')`,
+    })
+    .from(movimentacoes)
+    .innerJoin(processos, eq(movimentacoes.processoId, processos.id))
+    .where(
+      and(
+        eq(processos.orgId, ctx.orgId),
+        isNull(processos.arquivadoAt),
+        gte(movimentacoes.data, ha30Dias),
+        inArray(movimentacoes.tipo, ['intimacao', 'citacao']),
+      ),
+    )
+    .orderBy(desc(movimentacoes.data))
+    .limit(10)
 
-  return rows.map((row) => {
+  const eventoProcessoIds = new Set(eventoRows.map((r) => r.processoId))
+
+  const eventosPrazos: PrazoUrgente[] = eventoRows.map((row) => {
     const prazo = new Date(row.prazoAt)
     const diffMs = prazo.getTime() - now.getTime()
-    const diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-
     return {
       processoId: row.processoId,
       numeroCnj: row.numeroCnj,
       tribunal: row.tribunal,
       prazoAt: row.prazoAt,
-      diasRestantes,
+      diasRestantes: Math.ceil(diffMs / (1000 * 60 * 60 * 24)),
     }
   })
+
+  // Movimentações de processos que não têm evento futuro (para completar até 5 itens)
+  const movPrazos: PrazoUrgente[] = movRows
+    .filter((r) => !eventoProcessoIds.has(r.processoId))
+    .map((row) => {
+      const prazo = new Date(row.prazoAt + 'T00:00:00')
+      const diffMs = prazo.getTime() - now.getTime()
+      return {
+        processoId: row.processoId,
+        numeroCnj: row.numeroCnj,
+        tribunal: row.tribunal,
+        prazoAt: row.prazoAt,
+        diasRestantes: Math.ceil(diffMs / (1000 * 60 * 60 * 24)),
+      }
+    })
+
+  // Deduplica por processoId, prioriza eventos futuros
+  const vistos = new Set<string>()
+  return [...eventosPrazos, ...movPrazos]
+    .filter((r) => {
+      if (vistos.has(r.processoId)) return false
+      vistos.add(r.processoId)
+      return true
+    })
+    .slice(0, 5)
 }
 
 /**

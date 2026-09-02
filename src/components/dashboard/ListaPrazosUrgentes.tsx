@@ -8,6 +8,7 @@ interface ListaPrazosUrgentesProps {
 }
 
 function diasColor(dias: number): string {
+  if (dias < 0) return '#7c3aed' // passado recente (intimação/citação)
   if (dias <= 1) return 'var(--jr-danger, #ef4444)'
   if (dias <= 3) return 'var(--jr-warning, #f59e0b)'
   return 'var(--jr-success, #10b981)'
@@ -26,7 +27,7 @@ export function ListaPrazosUrgentes({ prazos }: ListaPrazosUrgentesProps) {
         style={{ color: 'var(--jr-text-secondary, #6b7280)' }}
         data-testid="lista-prazos-vazia"
       >
-        Nenhum prazo urgente nos próximos dias.
+        Nenhuma movimentação urgente recente.
       </p>
     )
   }
@@ -66,11 +67,13 @@ export function ListaPrazosUrgentes({ prazos }: ListaPrazosUrgentesProps) {
             className="shrink-0 rounded-full px-2 py-1 text-xs font-bold text-white"
             style={{ background: diasColor(prazo.diasRestantes) }}
           >
-            {prazo.diasRestantes === 0
-              ? 'Hoje'
-              : prazo.diasRestantes === 1
-                ? '1 dia'
-                : `${prazo.diasRestantes} dias`}
+            {prazo.diasRestantes < 0
+              ? 'Recente'
+              : prazo.diasRestantes === 0
+                ? 'Hoje'
+                : prazo.diasRestantes === 1
+                  ? '1 dia'
+                  : `${prazo.diasRestantes} dias`}
           </span>
         </li>
       ))}

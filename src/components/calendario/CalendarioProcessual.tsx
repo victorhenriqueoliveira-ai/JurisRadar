@@ -215,6 +215,26 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
   const [eventosAgendaList, setEventosAgendaList] = useState<EventoAgenda[]>([]);
   const [novoEventoDialog, setNovoEventoDialog] = useState(false);
   const [novoEventoData, setNovoEventoData] = useState<string | undefined>();
+  const [processEventos, setProcessEventos] = useState<EventoCalendarioItem[]>(eventos);
+
+  const fetchEventosForDate = useCallback(async (d: Date) => {
+    const ano = d.getFullYear();
+    const mes = d.getMonth();
+    const de = new Date(ano, mes, 1).toISOString().slice(0, 10);
+    const ate = new Date(ano, mes + 1, 0).toISOString().slice(0, 10);
+    try {
+      const res = await fetch(`/api/calendario?de=${de}&ate=${ate}`);
+      if (res.ok) {
+        const json = await res.json();
+        setProcessEventos(json.data ?? []);
+      }
+    } catch {}
+  }, []);
+
+  const handleNavigate = useCallback((newDate: Date) => {
+    setDate(newDate);
+    fetchEventosForDate(newDate);
+  }, [fetchEventosForDate]);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   // Swipe horizontal para mobile
@@ -235,7 +255,7 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
   }, []);
 
   const eventosCalendario = [
-    ...mapEventos(eventos),
+    ...mapEventos(processEventos),
     ...mapEventosAgenda(eventosAgendaList),
   ];
 
@@ -307,12 +327,12 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
 
       if (deltaX < 0) {
         // Swipe para esquerda → avançar
-        if (view === Views.MONTH) setDate((d) => addMonths(d, 1));
-        else setDate((d) => addWeeks(d, 1));
+        const next = view === Views.MONTH ? addMonths(date, 1) : addWeeks(date, 1);
+        handleNavigate(next);
       } else {
         // Swipe para direita → recuar
-        if (view === Views.MONTH) setDate((d) => subMonths(d, 1));
-        else setDate((d) => subWeeks(d, 1));
+        const prev = view === Views.MONTH ? subMonths(date, 1) : subWeeks(date, 1);
+        handleNavigate(prev);
       }
 
       touchStartX.current = null;
@@ -364,7 +384,7 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
           view={view}
           onView={(v) => setView(v)}
           date={date}
-          onNavigate={(d) => setDate(d)}
+          onNavigate={handleNavigate}
           messages={messages}
           culture="pt-BR"
           style={{ height: '100%' }}
