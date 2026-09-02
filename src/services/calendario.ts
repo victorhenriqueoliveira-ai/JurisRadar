@@ -6,8 +6,8 @@
  */
 
 import { db } from '@/db'
-import { eventosCalendario, processos } from '@/db/schema'
-import { eq, and, gte, lte } from 'drizzle-orm'
+import { eventosCalendario, processos, movimentacoes } from '@/db/schema'
+import { eq, and, gte, lte, sql } from 'drizzle-orm'
 import type { OrgContext } from '@/types/domain'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
@@ -62,7 +62,8 @@ export async function getEventosByPeriod(
   de: string,
   ate: string,
 ): Promise<EventoCalendarioItem[]> {
-  const rows = await db
+  // 1. Eventos explícitos da tabela eventos_calendario
+  const eventoRows = await db
     .select({
       id: eventosCalendario.id,
       processoId: eventosCalendario.processoId,
@@ -83,7 +84,46 @@ export async function getEventosByPeriod(
     )
     .orderBy(eventosCalendario.data)
 
-  return rows.map((r) => ({
+  // 2. Movimentações processuais do período como eventos de agenda
+  const movRows = await db
+    .select({
+      id: movimentacoes.id,
+      processoId: movimentacoes.processoId,
+      tipo: movimentacoes.tipo,
+      descricao: movimentacoes.descricao,
+      data: sql<string>`to_char(${movimentacoes.data}, 'YYYY-MM-DD')`,
+      numeroCnj: processos.numeroCnj,
+      tribunal: processos.tribunal,
+    })
+    .from(movimentacoes)
+    .innerJoin(processos, eq(movimentacoes.processoId, processos.id))
+    .where(
+      and(
+        eq(movimentacoes.orgId, ctx.orgId),
+        gte(movimentacoes.data, new Date(de + 'T00:00:00')),
+        lte(movimentacoes.data, new Date(ate + 'T23:59:59')),
+      ),
+    )
+    .orderBy(movimentacoes.data)
+    .limit(200)
+
+  const eventoIds = new Set(eventoRows.map((r) => r.processoId + ':' + r.data))
+
+  const movEventos: EventoCalendarioItem[] = movRows
+    .filter((r) => !eventoIds.has(r.processoId + ':' + r.data))
+    .map((r) => ({
+      id: r.id,
+      processoId: r.processoId,
+      numeroCnj: r.numeroCnj,
+      tribunal: r.tribunal,
+      tipo: r.tipo ?? 'movimentacao',
+      titulo: r.tipo
+        ? `${r.tipo}: ${r.descricao.slice(0, 60)}`
+        : r.descricao.slice(0, 80),
+      data: r.data,
+    }))
+
+  const eventosExplicitos: EventoCalendarioItem[] = eventoRows.map((r) => ({
     id: r.id,
     processoId: r.processoId,
     numeroCnj: r.numeroCnj,
@@ -92,6 +132,8 @@ export async function getEventosByPeriod(
     titulo: r.titulo,
     data: r.data,
   }))
+
+  return [...eventosExplicitos, ...movEventos].sort((a, b) => a.data.localeCompare(b.data))
 }
 
 // ── Geração iCal RFC 5545 ──────────────────────────────────────────────────────
