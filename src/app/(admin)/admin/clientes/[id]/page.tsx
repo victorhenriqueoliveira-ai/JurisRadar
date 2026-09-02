@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Search, Activity, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Users, Search, Activity, RefreshCw, CheckCircle, XCircle, Clock, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 
 interface ClienteDetail {
@@ -25,6 +25,7 @@ interface ClienteDetail {
   membros: {
     id: string;
     role: string;
+    userId: string;
     name: string | null;
     email: string;
     oabNumero: string | null;
@@ -56,6 +57,36 @@ export default function ClienteDetailPage() {
   const [trialDate, setTrialDate] = useState('');
   const [newPlan, setNewPlan] = useState('monthly');
   const [newStatus, setNewStatus] = useState('active');
+
+  // Reset de senha
+  const [resetSenhaUserId, setResetSenhaUserId] = useState<string | null>(null);
+  const [novaSenha, setNovaSenha] = useState('');
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
+
+  async function resetarSenha(userId: string) {
+    if (!novaSenha || novaSenha.length < 8) {
+      setFeedback('A nova senha deve ter ao menos 8 caracteres.');
+      return;
+    }
+    setSalvandoSenha(true);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/usuarios/${userId}/senha`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ novaSenha }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setFeedback(d.error ?? 'Erro ao redefinir senha.'); return; }
+      setFeedback(`Senha de ${d.email} redefinida com sucesso.`);
+      setResetSenhaUserId(null);
+      setNovaSenha('');
+    } catch {
+      setFeedback('Erro ao redefinir senha.');
+    } finally {
+      setSalvandoSenha(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -271,18 +302,62 @@ export default function ClienteDetailPage() {
               <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-[.04em] text-[#9ca3af]">E-mail</th>
               <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-[.04em] text-[#9ca3af]">OAB</th>
               <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-[.04em] text-[#9ca3af]">Papel</th>
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-[.04em] text-[#9ca3af]">Ações</th>
             </tr>
           </thead>
           <tbody>
             {membros.map((m) => (
-              <tr key={m.id} className="border-b border-[#f3f4f6] hover:bg-[#f9fafb]">
-                <td className="px-4 py-3 font-medium text-[#111827]">{m.name ?? '—'}</td>
-                <td className="px-4 py-3 text-[#6b7280]">{m.email}</td>
-                <td className="px-4 py-3 text-[#6b7280]">
-                  {m.oabNumero ? `${m.oabEstado} ${m.oabNumero}` : '—'}
-                </td>
-                <td className="px-4 py-3 capitalize text-[#374151]">{m.role}</td>
-              </tr>
+              <>
+                <tr key={m.id} className="border-b border-[#f3f4f6] hover:bg-[#f9fafb]">
+                  <td className="px-4 py-3 font-medium text-[#111827]">{m.name ?? '—'}</td>
+                  <td className="px-4 py-3 text-[#6b7280]">{m.email}</td>
+                  <td className="px-4 py-3 text-[#6b7280]">
+                    {m.oabNumero ? `${m.oabEstado} ${m.oabNumero}` : '—'}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-[#374151]">{m.role}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => { setResetSenhaUserId(resetSenhaUserId === m.userId ? null : m.userId); setNovaSenha(''); }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-[#6b7280] border border-[#e5e7eb] rounded-lg hover:bg-[#f3f4f6] transition-colors"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      Senha
+                    </button>
+                  </td>
+                </tr>
+                {resetSenhaUserId === m.userId && (
+                  <tr key={`${m.id}-senha`} className="bg-[#fafafa] border-b border-[#f3f4f6]">
+                    <td colSpan={5} className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="password"
+                          placeholder="Nova senha (mín. 8 caracteres)"
+                          value={novaSenha}
+                          onChange={(e) => setNovaSenha(e.target.value)}
+                          className="flex-1 px-3 py-1.5 border border-[#e5e7eb] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/20"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          disabled={salvandoSenha || novaSenha.length < 8}
+                          onClick={() => resetarSenha(m.userId)}
+                          className="px-3 py-1.5 bg-[#0f2d5e] text-white text-xs font-semibold rounded-lg hover:bg-[#1a4a8a] disabled:opacity-50 transition-colors"
+                        >
+                          {salvandoSenha ? 'Salvando…' : 'Confirmar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setResetSenhaUserId(null); setNovaSenha(''); }}
+                          className="px-3 py-1.5 text-xs text-[#9ca3af] hover:text-[#374151] transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
           </tbody>
         </table>
