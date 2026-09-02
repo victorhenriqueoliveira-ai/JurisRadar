@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Search, Activity, RefreshCw, CheckCircle, XCircle, Clock, KeyRound } from 'lucide-react';
+import { ArrowLeft, Users, Search, Activity, RefreshCw, CheckCircle, XCircle, Clock, KeyRound, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface ClienteDetail {
@@ -62,6 +62,21 @@ export default function ClienteDetailPage() {
   const [resetSenhaUserId, setResetSenhaUserId] = useState<string | null>(null);
   const [novaSenha, setNovaSenha] = useState('');
   const [salvandoSenha, setSalvandoSenha] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+
+  async function excluirCliente() {
+    if (!confirm(`Excluir permanentemente "${data?.org.name}"?\n\nIsso apagará todos os processos, buscas, membros e dados da organização. Esta ação é irreversível.`)) return;
+    setExcluindo(true);
+    try {
+      const res = await fetch(`/api/admin/clientes/${id}`, { method: 'DELETE' });
+      const d = await res.json();
+      if (!res.ok) { setFeedback(d.error ?? 'Erro ao excluir.'); setExcluindo(false); return; }
+      router.push('/admin/clientes');
+    } catch {
+      setFeedback('Erro ao excluir cliente.');
+      setExcluindo(false);
+    }
+  }
 
   async function resetarSenha(userId: string) {
     if (!novaSenha || novaSenha.length < 8) {
@@ -160,9 +175,20 @@ export default function ClienteDetailPage() {
           </h1>
           <p className="text-sm text-[#9ca3af]">slug: {org.slug} · criado em {fmt(org.createdAt)}</p>
         </div>
-        <span className={`ml-auto px-3 py-1 text-xs font-bold rounded-full ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-500'}`}>
-          {STATUS_LABELS[status] ?? status}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className={`px-3 py-1 text-xs font-bold rounded-full ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-500'}`}>
+            {STATUS_LABELS[status] ?? status}
+          </span>
+          <button
+            type="button"
+            disabled={excluindo}
+            onClick={excluirCliente}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 text-xs font-semibold rounded-lg border border-red-200 hover:bg-red-100 disabled:opacity-50 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {excluindo ? 'Excluindo…' : 'Excluir cliente'}
+          </button>
+        </div>
       </div>
 
       {feedback && (
