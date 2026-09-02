@@ -9,7 +9,6 @@ import { db } from '@/db'
 import { processos, movimentacoes, notificacoes, eventosCalendario } from '@/db/schema'
 import { eq, and, isNull, desc, sql, gte, lt, lte, count } from 'drizzle-orm'
 import type { OrgContext } from '@/types/domain'
-import { ForbiddenError } from '@/lib/errors'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -61,11 +60,6 @@ export async function aggregateDashboard(
   ctx: OrgContext,
   scope: 'pessoal' | 'escritorio' = 'pessoal',
 ): Promise<DashboardData> {
-  // Restrição de papel: apenas sócios podem ver scope=escritorio
-  if (scope === 'escritorio' && ctx.role !== 'socio') {
-    throw new ForbiddenError('Apenas sócios podem visualizar dados do escritório inteiro')
-  }
-
   const now = new Date()
   const em7Dias = addDays(now, 7)
 
