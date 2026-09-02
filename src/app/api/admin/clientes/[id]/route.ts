@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, isNextResponse } from '@/lib/admin-guard';
 import { db } from '@/db';
 import { organizations, subscriptions, orgMembers, users, processos, searches } from '@/db/schema';
-import { eq, count, desc } from 'drizzle-orm';
+import { eq, count, inArray } from 'drizzle-orm';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const guard = await requireAdmin();
@@ -121,4 +121,51 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 });
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = await requireAdmin();
+  if (isNextResponse(guard)) return guard;
+
+  const { id } = params;
+
+  const [org] = await db
+    .select({ id: organizations.id, name: organizations.name })
+    .from(organizations)
+    .where(eq(organizations.id, id))
+    .limit(1);
+
+  if (!org) {
+    return NextResponse.json({ error: 'Organização não encontrada.' }, { status: 404 });
+  }
+
+  // Coleta os userIds dos membros antes do cascade apagar orgMembers
+  const membros = await db
+    .select({ userId: orgMembers.userId })
+    .from(orgMembers)
+    .where(eq(orgMembers.orgId, id));
+
+  const userIds = membros.map((m) => m.userId);
+
+  // Apaga a organização — cascade remove: subscriptions, orgMembers, processos,
+  // searches, movimentacoes, eventosCalendario, asaasAccounts, etc.
+  await db.delete(organizations).where(eq(organizations.id, id));
+
+  // Remove os usuários que eram membros exclusivos desta organização
+  if (userIds.length > 0) {
+    // Só apaga se o usuário não for membro de nenhuma outra org
+    const aindaMembros = await db
+      .select({ userId: orgMembers.userId })
+      .from(orgMembers)
+      .where(inArray(orgMembers.userId, userIds));
+
+    const idsAindaMembros = new Set(aindaMembros.map((m) => m.userId));
+    const idsParaApagar = userIds.filter((uid) => !idsAindaMembros.has(uid));
+
+    if (idsParaApagar.length > 0) {
+      await db.delete(users).where(inArray(users.id, idsParaApagar));
+    }
+  }
+
+  return NextResponse.json({ ok: true, deleted: org.name });
 }
