@@ -158,7 +158,6 @@ export default function CalendarioPage() {
       </div>
 
       <Suspense fallback={<CalendarioSkeleton />}>
-        {/* @ts-expect-error — Server Component assíncrono */}
         <CalendarioComEventos />
       </Suspense>
     </main>

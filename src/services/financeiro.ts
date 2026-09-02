@@ -93,7 +93,10 @@ export async function getDashboardFinanceiro(
     ? `${periodo.inicio}-01`
     : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
   const fimDate = periodo.fim
-    ? `${periodo.fim}-31`
+    ? (() => {
+        const [ano, mes] = periodo.fim.split('-').map(Number)
+        return new Date(ano, mes, 0).toISOString().split('T')[0]
+      })()
     : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
 
   // Total a receber: soma dos valores de honorários pendentes/parciais no período
@@ -161,7 +164,8 @@ export async function listHonorarios(
   }
 
   if (filters.fim) {
-    conditions.push(lte(honorarios.dataPrevista, `${filters.fim}-31`))
+    const [ano, mes] = filters.fim.split('-').map(Number)
+    conditions.push(lte(honorarios.dataPrevista, new Date(ano, mes, 0).toISOString().split('T')[0]))
   }
 
   if (filters.cursor) {
