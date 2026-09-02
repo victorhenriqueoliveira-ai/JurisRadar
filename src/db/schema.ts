@@ -114,7 +114,7 @@ export const orgMembers = pgTable(
   }),
 );
 
-/** Assinaturas Stripe por organização */
+/** Assinaturas por organização */
 export const subscriptions = pgTable('subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
@@ -128,6 +128,10 @@ export const subscriptions = pgTable('subscriptions', {
   trialEndsAt: timestamp('trial_ends_at'),
   currentPeriodEnd: timestamp('current_period_end'),
   stripeEventId: text('stripe_event_id').unique(),
+  // Asaas billing
+  asaasCustomerId: text('asaas_customer_id'),
+  asaasSubscriptionId: text('asaas_subscription_id'),
+  asaasEventId: text('asaas_event_id'),
 });
 
 /** Processos judiciais monitorados por organização */

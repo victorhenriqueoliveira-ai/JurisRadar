@@ -1,139 +1,77 @@
 import { db } from '@/db'
 import { subscriptions } from '@/db/schema'
-import { stripe } from '@/lib/stripe'
 import { eq } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 
 export const runtime = 'nodejs'
 
-async function handleCheckoutSessionCompleted(event: Stripe.Event) {
-  const session = event.data.object as Stripe.Checkout.Session
+interface AsaasPayment {
+  id: string
+  subscription?: string
+  externalReference?: string
+  status: string
+  value: number
+}
 
-  const orgId = session.metadata?.orgId
-  if (!orgId) return
+interface AsaasSubscription {
+  id: string
+  externalReference?: string
+  status: string
+}
 
-  const customerId =
-    typeof session.customer === 'string' ? session.customer : session.customer?.id ?? ''
+interface AsaasWebhookPayload {
+  event: string
+  payment?: AsaasPayment
+  subscription?: AsaasSubscription
+}
 
-  const subscriptionId =
-    typeof session.subscription === 'string'
-      ? session.subscription
-      : session.subscription?.id ?? null
-
-  // Upsert subscription record
-  const existing = await db
-    .select()
-    .from(subscriptions)
+async function updateStatus(orgId: string, status: string, eventId: string) {
+  await db
+    .update(subscriptions)
+    .set({ status, asaasEventId: eventId })
     .where(eq(subscriptions.orgId, orgId))
-    .limit(1)
-
-  if (existing.length > 0) {
-    await db
-      .update(subscriptions)
-      .set({
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subscriptionId,
-        status: 'trialing',
-        stripeEventId: event.id,
-      })
-      .where(eq(subscriptions.orgId, orgId))
-  } else {
-    await db.insert(subscriptions).values({
-      orgId,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscriptionId,
-      status: 'trialing',
-      plan: 'monthly',
-      stripeEventId: event.id,
-    })
-  }
-}
-
-async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const invoice = event.data.object as any
-
-  const subscriptionId =
-    typeof invoice.subscription === 'string'
-      ? invoice.subscription
-      : invoice.subscription?.id ?? null
-
-  if (!subscriptionId) return
-
-  await db
-    .update(subscriptions)
-    .set({ status: 'active', stripeEventId: event.id })
-    .where(eq(subscriptions.stripeSubscriptionId, subscriptionId))
-}
-
-async function handleInvoicePaymentFailed(event: Stripe.Event) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const invoice = event.data.object as any
-
-  const subscriptionId =
-    typeof invoice.subscription === 'string'
-      ? invoice.subscription
-      : invoice.subscription?.id ?? null
-
-  if (!subscriptionId) return
-
-  await db
-    .update(subscriptions)
-    .set({ status: 'past_due', stripeEventId: event.id })
-    .where(eq(subscriptions.stripeSubscriptionId, subscriptionId))
-}
-
-async function handleSubscriptionDeleted(event: Stripe.Event) {
-  const subscription = event.data.object as Stripe.Subscription
-
-  await db
-    .update(subscriptions)
-    .set({ status: 'canceled', stripeEventId: event.id })
-    .where(eq(subscriptions.stripeSubscriptionId, subscription.id))
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.text()
-  const sig = req.headers.get('stripe-signature')
-
-  if (!sig) {
-    return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 })
+  const token = req.headers.get('asaas-access-token')
+  if (!token || token !== process.env.ASAAS_WEBHOOK_TOKEN) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let event: Stripe.Event
-  try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
-  } catch {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+  const body = await req.json() as AsaasWebhookPayload
+  const { event } = body
+
+  const orgId = body.payment?.externalReference ?? body.subscription?.externalReference
+  const eventId = body.payment?.id ?? body.subscription?.id ?? ''
+
+  if (!orgId || !eventId) {
+    return NextResponse.json({ received: true, skipped: 'no orgId or eventId' })
   }
 
-  // Idempotency: check if event already processed
-  const alreadyProcessed = await db
+  // Idempotency: skip if this event was already processed
+  const [already] = await db
     .select({ id: subscriptions.id })
     .from(subscriptions)
-    .where(eq(subscriptions.stripeEventId, event.id))
+    .where(eq(subscriptions.asaasEventId, eventId))
     .limit(1)
 
-  if (alreadyProcessed.length > 0) {
+  if (already) {
     return NextResponse.json({ received: true, idempotent: true })
   }
 
-  switch (event.type) {
-    case 'checkout.session.completed':
-      await handleCheckoutSessionCompleted(event)
+  switch (event) {
+    case 'PAYMENT_RECEIVED':
+    case 'PAYMENT_CONFIRMED':
+      await updateStatus(orgId, 'active', eventId)
       break
-    case 'invoice.payment_succeeded':
-      await handleInvoicePaymentSucceeded(event)
+    case 'PAYMENT_OVERDUE':
+      await updateStatus(orgId, 'past_due', eventId)
       break
-    case 'invoice.payment_failed':
-      await handleInvoicePaymentFailed(event)
-      break
-    case 'customer.subscription.deleted':
-      await handleSubscriptionDeleted(event)
+    case 'SUBSCRIPTION_DELETED':
+      await updateStatus(orgId, 'canceled', eventId)
       break
     default:
-      // Unhandled event type — return 200 to acknowledge receipt
+      // Unhandled events — acknowledge receipt
       break
   }
 
