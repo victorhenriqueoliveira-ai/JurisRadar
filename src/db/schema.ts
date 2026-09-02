@@ -73,6 +73,9 @@ export const users = pgTable('users', {
   // Contato para notificação multi-canal (CRM jurídico)
   whatsappNumero: text('whatsapp_numero'),
   smsNumero: text('sms_numero'),
+  // Token de redefinição de senha
+  passwordResetToken: text('password_reset_token'),
+  passwordResetExpiresAt: timestamp('password_reset_expires_at'),
 });
 
 // ── Tabelas SaaS multi-tenant ─────────────────────────────────────────────────

@@ -12,6 +12,8 @@ export default auth((req: NextRequest & { auth: { user?: { id?: string; orgId?: 
     pathname === '/' ||
     pathname === '/login' ||
     pathname === '/register' ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
     pathname.startsWith('/convite') ||
     pathname === '/billing' ||
     pathname.startsWith('/api/auth') ||
