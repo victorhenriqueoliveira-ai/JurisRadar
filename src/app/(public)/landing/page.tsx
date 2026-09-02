@@ -37,6 +37,124 @@ const FAQS = [
   { q: 'Como funciona o plano anual?', a: 'Cobrança única anual equivalente a R$ 127/mês, 19% mais barato que o plano mensal.' },
 ];
 
+function DashboardMockup() {
+  const bar = [45, 62, 38, 80, 55, 70];
+  const meses = ['Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago'];
+  const processos = [
+    { cnj: '0012345-67.2024.8.26.0100', tribunal: 'TJSP', mov: 'Intimação', urgente: true },
+    { cnj: '0001234-89.2023.5.15.0001', tribunal: 'TRT15', mov: 'Edital', urgente: false },
+    { cnj: '0098765-43.2025.8.26.0050', tribunal: 'TJSP', mov: 'Citação', urgente: true },
+  ];
+
+  return (
+    <div
+      className="w-full rounded-2xl overflow-hidden select-none"
+      style={{
+        boxShadow: '0 1px 2px rgba(15,23,42,.04),0 24px 48px -12px rgba(15,45,94,.18)',
+        border: '1px solid #e5e7eb',
+      }}
+    >
+      {/* Barra de título estilo browser */}
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#f3f4f6] border-b border-[#e5e7eb]">
+        <span className="w-2.5 h-2.5 rounded-full bg-[#fc5353]" />
+        <span className="w-2.5 h-2.5 rounded-full bg-[#fdbc40]" />
+        <span className="w-2.5 h-2.5 rounded-full bg-[#34c84a]" />
+        <span className="ml-2 text-[10px] text-[#9ca3af] bg-white border border-[#e5e7eb] rounded px-2 py-0.5 flex-1 max-w-[180px]">
+          jurisradaroficial.com.br/dashboard
+        </span>
+      </div>
+
+      {/* Conteúdo do dashboard */}
+      <div className="bg-[#f4f6fb] p-3 space-y-2.5">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-extrabold text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>Dashboard</p>
+            <p className="text-[8px] text-[#9ca3af]">Visão geral dos seus processos e prazos</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-5 h-5 rounded-full bg-[#0f2d5e] flex items-center justify-center text-white text-[7px] font-bold">JR</span>
+          </div>
+        </div>
+
+        {/* KPI cards */}
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { label: 'Processos Ativos', value: '892', color: '#0f2d5e' },
+            { label: 'Urgência Alta', value: '7', color: '#dc2626' },
+            { label: 'Atividade 7d', value: '43', color: '#d97706' },
+            { label: 'Não lidas', value: '12', color: '#0f2d5e' },
+          ].map((k) => (
+            <div key={k.label} className="bg-white rounded-xl p-2 border border-[#e5e7eb]">
+              <p className="text-[7px] text-[#9ca3af] leading-tight mb-0.5">{k.label}</p>
+              <p className="text-base font-extrabold leading-none" style={{ color: k.color, fontFamily: 'Manrope, sans-serif' }}>{k.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Charts row */}
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* Bar chart */}
+          <div className="bg-white rounded-xl p-2.5 border border-[#e5e7eb]">
+            <p className="text-[7px] font-bold text-[#9ca3af] uppercase tracking-wide mb-2">Evolução mensal</p>
+            <div className="flex items-end gap-1 h-12">
+              {bar.map((h, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div
+                    className="w-full rounded-sm"
+                    style={{ height: `${h}%`, background: i === bar.length - 1 ? '#0f2d5e' : '#c7d5ea' }}
+                  />
+                  <span className="text-[6px] text-[#9ca3af]">{meses[i]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Donut fake */}
+          <div className="bg-white rounded-xl p-2.5 border border-[#e5e7eb] flex flex-col items-center justify-center">
+            <p className="text-[7px] font-bold text-[#9ca3af] uppercase tracking-wide mb-1.5">Por status</p>
+            <div className="relative w-12 h-12">
+              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                <circle cx="18" cy="18" r="14" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                <circle cx="18" cy="18" r="14" fill="none" stroke="#0f2d5e" strokeWidth="5"
+                  strokeDasharray="72 88" strokeLinecap="round" />
+                <circle cx="18" cy="18" r="14" fill="none" stroke="#c9a84c" strokeWidth="5"
+                  strokeDasharray="18 88" strokeDashoffset="-72" strokeLinecap="round" />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold text-[#0f2d5e]">892</span>
+            </div>
+            <div className="flex gap-2 mt-1.5">
+              <span className="flex items-center gap-0.5 text-[6px] text-[#6b7280]"><span className="w-1.5 h-1.5 rounded-full bg-[#0f2d5e]" />Ativo</span>
+              <span className="flex items-center gap-0.5 text-[6px] text-[#6b7280]"><span className="w-1.5 h-1.5 rounded-full bg-[#c9a84c]" />Suspenso</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Processo list */}
+        <div className="bg-white rounded-xl border border-[#e5e7eb] overflow-hidden">
+          <div className="px-2.5 py-1.5 border-b border-[#f3f4f6] flex items-center justify-between">
+            <p className="text-[7px] font-bold text-[#9ca3af] uppercase tracking-wide">Movimentações recentes</p>
+            <span className="text-[7px] text-[#0f2d5e] font-semibold">Ver todos →</span>
+          </div>
+          {processos.map((p) => (
+            <div key={p.cnj} className="flex items-center gap-2 px-2.5 py-1.5 border-b border-[#f9fafb] last:border-0">
+              <div className="flex-1 min-w-0">
+                <p className="text-[8px] font-semibold text-[#0f2d5e] truncate">{p.cnj}</p>
+                <p className="text-[7px] text-[#9ca3af]">{p.tribunal}</p>
+              </div>
+              <span className={`text-[6.5px] font-bold px-1.5 py-0.5 rounded-full ${p.urgente ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                {p.mov}
+              </span>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#f9fafb] text-[#111827]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -76,15 +194,7 @@ export default function LandingPage() {
               <Link href="#como-funciona" className="text-base font-semibold text-[#0f2d5e] px-7 py-4 rounded-[14px] border border-[#e5e7eb] bg-white no-underline text-center hover:bg-[#f9fafb]">Como funciona</Link>
             </div>
           </div>
-          <div
-            className="rounded-2xl border border-[#e5e7eb] h-60 md:h-[380px] flex items-end p-4"
-            style={{
-              background: 'repeating-linear-gradient(135deg,#eef2f7 0px,#eef2f7 1px,#f6f8fb 1px,#f6f8fb 16px)',
-              boxShadow: '0 1px 2px rgba(15,23,42,.04),0 24px 48px -12px rgba(15,45,94,.14)',
-            }}
-          >
-            <span className="font-mono text-xs bg-white text-[#6b7280] px-3 py-1.5 rounded-full border border-[#e5e7eb]">[ Dashboard JurisRadar ]</span>
-          </div>
+          <DashboardMockup />
         </div>
       </section>
 
