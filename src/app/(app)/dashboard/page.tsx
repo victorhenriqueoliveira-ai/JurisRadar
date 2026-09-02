@@ -102,7 +102,7 @@ async function DashboardContent() {
   try {
     const ctx = await requireOrgContext()
     ;[dashData, prazos, movimentacoes] = await Promise.all([
-      aggregateDashboard(ctx, 'pessoal'),
+      aggregateDashboard(ctx, 'escritorio'),
       getPrazosUrgentes(ctx),
       getMovimentacoesRecentes(ctx),
     ])
