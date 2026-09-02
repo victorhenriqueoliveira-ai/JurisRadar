@@ -143,6 +143,12 @@ export const djeIndexer = inngest.createFunction(
       console.log(`[dje-indexer] step completed: index-caderno-3 date=${today}`);
     });
 
+    // Step 5: disparar matcher DJE → CRM para notificar processos com publicação
+    await step.sendEvent('disparar-matcher-crm', {
+      name: 'dje/dia.indexado',
+      data: { date: today },
+    });
+
     return {
       date: today,
       message: 'Pipeline DJE concluído',
