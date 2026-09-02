@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ConfirmarCienciaButton } from '@/components/notificacoes/ConfirmarCienciaButton';
 import { GarantiaStatusIndicator } from '@/components/notificacoes/GarantiaStatusIndicator';
-import { TIPOS_CRITICOS } from '@/inngest/notificacao-dispatcher';
+import { TIPOS_CRITICOS } from '@/inngest/tipos';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 

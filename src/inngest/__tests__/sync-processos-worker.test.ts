@@ -26,6 +26,11 @@ vi.mock('@/lib/processos/upsert', () => ({
   insertMovimentacoesIdempotente: vi.fn(),
 }));
 
+vi.mock('@/inngest/notificacao-dispatcher', () => ({
+  TIPOS_RELEVANTES: ['nova_movimentacao', 'prazo_critico'],
+  novaNotificacao: vi.fn(),
+}));
+
 // ── Imports após mocks ────────────────────────────────────────────────────────
 
 import { queryTribunal } from '@/lib/datajud/client';

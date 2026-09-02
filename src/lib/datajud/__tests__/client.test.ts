@@ -28,29 +28,31 @@ function makeFetchResponse(
   } as unknown as Response;
 }
 
+/**
+ * Monta resposta DataJud v2 usando a estrutura real da API (campos na raiz do _source,
+ * sem dadosBasicos). Atualizado após fix(datajud): corrigir campos da API DataJud v2.
+ */
 function makeDataJudResponse(numeros: string[]) {
   return {
     hits: {
       total: { value: numeros.length },
       hits: numeros.map((numero) => ({
         _source: {
-          dadosBasicos: {
-            numero,
-            siglaTribunal: 'TJSP',
-            grau: 'G1',
-            classe: { descricao: 'Ação Civil' },
-            assunto: [{ descricao: 'Pensão Alimentícia' }],
-            dataAjuizamento: '2025-01-15',
-            orgaoJulgador: { nomeOrgao: '1ª Vara de Família' },
-            polo: [
-              { polo: 'AT', nome: 'João Silva', cpf: '123.456.789-00' },
-              { polo: 'PA', nome: 'Maria Santos', documento: '987654321' },
-            ],
-          },
+          numeroProcesso: numero,
+          tribunal: 'TJSP',
+          grau: 'G1',
+          classe: { nome: 'Ação Civil' },
+          assuntos: [{ nome: 'Pensão Alimentícia' }],
+          dataAjuizamento: '2025-01-15',
+          orgaoJulgador: { nome: '1ª Vara de Família' },
+          partes: [
+            { polo: 'ativo', nome: 'João Silva' },
+            { polo: 'passivo', nome: 'Maria Santos' },
+          ],
           movimentos: [
             {
               dataHora: '2025-06-01T10:00:00Z',
-              movimentoNacional: { descricao: 'Sentença publicada' },
+              nome: 'Sentença publicada',
             },
           ],
         },
@@ -76,14 +78,31 @@ describe('queryTribunal', () => {
   });
 
   it('descarta CPF e documentos das partes (LGPD)', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
-      makeFetchResponse(200, makeDataJudResponse(['0001234-56.2025.8.26.0001'])),
-    );
+    const responseComCpf = {
+      hits: {
+        total: { value: 1 },
+        hits: [{
+          _source: {
+            numeroProcesso: '0001234-56.2025.8.26.0001',
+            tribunal: 'TJSP',
+            grau: 'G1',
+            partes: [
+              { polo: 'ativo', nome: 'João Silva', cpf: '123.456.789-00' } as unknown,
+              { polo: 'passivo', nome: 'Maria Santos', documento: '987654321' } as unknown,
+            ],
+            movimentos: [],
+          },
+        }],
+      },
+    };
+
+    vi.spyOn(global, 'fetch').mockResolvedValue(makeFetchResponse(200, responseComCpf));
 
     const { queryTribunal } = await import('../client');
     const result = await queryTribunal('api_publica_tjsp', { grau: ['G1'] });
 
     const partes = result.hits[0].partes ?? [];
+    expect(partes).toHaveLength(2);
     for (const parte of partes) {
       expect(parte).not.toHaveProperty('cpf');
       expect(parte).not.toHaveProperty('documento');
@@ -100,11 +119,9 @@ describe('queryTribunal', () => {
         hits: [
           {
             _source: {
-              dadosBasicos: {
-                numero: '0009999-11.2025.8.26.0002',
-                siglaTribunal: 'TJSP',
-                grau: 'G1',
-              },
+              numeroProcesso: '0009999-11.2025.8.26.0002',
+              tribunal: 'TJSP',
+              grau: 'G1',
             },
           },
         ],
@@ -124,7 +141,6 @@ describe('queryTribunal', () => {
   });
 
   it('com resposta 429 e Retry-After aguarda antes de retentar', async () => {
-    // Mockar setTimeout para não esperar tempo real
     const setTimeoutSpy = vi
       .spyOn(global, 'setTimeout')
       .mockImplementation((fn: TimerHandler) => {
@@ -144,12 +160,10 @@ describe('queryTribunal', () => {
     const result = await queryTribunal('api_publica_tjsp', { grau: ['G1'] });
 
     expect(result.hits[0].numero).toBe('0001111-22.2025.8.26.0001');
-    // Verifica que houve chamada de sleep (setTimeout)
     expect(setTimeoutSpy).toHaveBeenCalled();
   });
 
   it('com resposta 503 retenta 3x com backoff e lança DataJudUnavailableError', async () => {
-    // Mockar setTimeout para não esperar tempo real
     vi.spyOn(global, 'setTimeout').mockImplementation((fn: TimerHandler) => {
       if (typeof fn === 'function') fn();
       return 0 as unknown as ReturnType<typeof setTimeout>;
@@ -182,7 +196,6 @@ describe('queryTribunal', () => {
   });
 
   it('lança DataJudRateLimitError após múltiplos 429 e esgotamento de retries', async () => {
-    // Mockar setTimeout para não esperar tempo real
     vi.spyOn(global, 'setTimeout').mockImplementation((fn: TimerHandler) => {
       if (typeof fn === 'function') fn();
       return 0 as unknown as ReturnType<typeof setTimeout>;
@@ -221,15 +234,13 @@ describe('queryTribunal', () => {
   it('trata total numérico simples (não object) na resposta DataJud', async () => {
     const response = {
       hits: {
-        total: 5, // total como número direto, não objeto
+        total: 5,
         hits: [
           {
             _source: {
-              dadosBasicos: {
-                numero: '0007777-77.2025.8.26.0001',
-                siglaTribunal: 'TJMG',
-                grau: 'G2',
-              },
+              numeroProcesso: '0007777-77.2025.8.26.0001',
+              tribunal: 'TJMG',
+              grau: 'G2',
             },
           },
         ],
@@ -280,14 +291,12 @@ describe('queryTribunal', () => {
         hits: [
           {
             _source: {
-              dadosBasicos: {
-                numero: '0005555-55.2025.8.26.0001',
-                siglaTribunal: 'TJSP',
-                grau: 'G1',
-                polo: [
-                  { polo: 'passivo', nome: 'Empresa XYZ Ltda', cnpj: '12.345.678/0001-99' },
-                ],
-              },
+              numeroProcesso: '0005555-55.2025.8.26.0001',
+              tribunal: 'TJSP',
+              grau: 'G1',
+              partes: [
+                { polo: 'passivo', nome: 'Empresa XYZ Ltda' },
+              ],
             },
           },
         ],
@@ -303,11 +312,11 @@ describe('queryTribunal', () => {
     expect(result.hits[0].partes?.[0]).not.toHaveProperty('cnpj');
   });
 
-  it('retorna hits vazio quando DataJud retorna hits sem _source.dadosBasicos.numero', async () => {
+  it('retorna hits vazio quando DataJud retorna hits sem numeroProcesso', async () => {
     const response = {
       hits: {
         total: { value: 1 },
-        hits: [{ _source: { dadosBasicos: { siglaTribunal: 'TJSP' } } }],
+        hits: [{ _source: { tribunal: 'TJSP', grau: 'G1' } }],
       },
     };
 
@@ -319,18 +328,16 @@ describe('queryTribunal', () => {
     expect(result.hits).toHaveLength(0);
   });
 
-  it('ultima movimentação usa complementosTabelados quando movimentoNacional não existe', async () => {
+  it('ultima movimentação usa complementosTabelados quando nome não existe', async () => {
     const response = {
       hits: {
         total: { value: 1 },
         hits: [
           {
             _source: {
-              dadosBasicos: {
-                numero: '0006666-66.2025.8.26.0001',
-                siglaTribunal: 'TJSP',
-                grau: 'G1',
-              },
+              numeroProcesso: '0006666-66.2025.8.26.0001',
+              tribunal: 'TJSP',
+              grau: 'G1',
               movimentos: [
                 {
                   dataHora: '2025-07-01T08:00:00Z',

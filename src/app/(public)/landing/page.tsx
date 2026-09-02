@@ -8,8 +8,6 @@ import {
   LayoutDashboard,
   CalendarClock,
   Wallet,
-  Check,
-  X,
 } from 'lucide-react';
 
 const FEATURES = [
@@ -41,138 +39,96 @@ const FAQS = [
 
 export default function LandingPage() {
   return (
-    <div style={{ background: '#f9fafb', color: '#111827', minHeight: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="min-h-screen bg-[#f9fafb] text-[#111827]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
 
       {/* ── Nav ── */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 10,
-        background: 'rgba(249,250,251,.95)', backdropFilter: 'blur(8px)',
-        borderBottom: '1px solid #e5e7eb',
-        display: 'flex', alignItems: 'center', gap: 28, padding: '16px 140px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 'auto' }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: '#0f2d5e', color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 14,
-          }}>JR</div>
-          <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 18, color: '#0f2d5e' }}>JurisRadar</span>
+      <header className="sticky top-0 z-10 flex items-center gap-5 px-5 md:px-14 xl:px-[140px] py-4 bg-white/95 backdrop-blur border-b border-[#e5e7eb]">
+        <div className="flex items-center gap-2.5 mr-auto">
+          <div className="w-[34px] h-[34px] rounded-[10px] bg-[#0f2d5e] text-white flex items-center justify-center text-[14px] font-extrabold shrink-0" style={{ fontFamily: 'Manrope, sans-serif' }}>JR</div>
+          <span className="font-extrabold text-[18px] text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>JurisRadar</span>
         </div>
-        <a href="#como-funciona" style={{ fontSize: 14, color: '#374151', fontWeight: 500, textDecoration: 'none' }}>Como funciona</a>
-        <a href="#funcionalidades" style={{ fontSize: 14, color: '#374151', fontWeight: 500, textDecoration: 'none' }}>Funcionalidades</a>
-        <a href="#planos" style={{ fontSize: 14, color: '#374151', fontWeight: 500, textDecoration: 'none' }}>Planos</a>
-        <a href="#faq" style={{ fontSize: 14, color: '#374151', fontWeight: 500, textDecoration: 'none' }}>FAQ</a>
-        <Link href="/login" style={{
-          fontSize: 14, color: '#0f2d5e', fontWeight: 600,
-          padding: '9px 18px', borderRadius: 999, border: '1px solid #e5e7eb',
-          textDecoration: 'none', background: '#fff',
-        }}>Entrar</Link>
-        <Link href="#planos" style={{
-          fontSize: 14, color: '#fff', fontWeight: 600,
-          padding: '10px 20px', borderRadius: 999, background: '#0f2d5e',
-          textDecoration: 'none',
-        }}>Ver planos</Link>
+        <nav className="hidden md:flex items-center gap-6">
+          <a href="#como-funciona" className="text-sm text-[#374151] font-medium no-underline hover:text-[#0f2d5e]">Como funciona</a>
+          <a href="#funcionalidades" className="text-sm text-[#374151] font-medium no-underline hover:text-[#0f2d5e]">Funcionalidades</a>
+          <a href="#planos" className="text-sm text-[#374151] font-medium no-underline hover:text-[#0f2d5e]">Planos</a>
+          <a href="#faq" className="text-sm text-[#374151] font-medium no-underline hover:text-[#0f2d5e]">FAQ</a>
+        </nav>
+        <Link href="/login" className="hidden sm:block text-sm font-semibold text-[#0f2d5e] px-4 py-2 rounded-full border border-[#e5e7eb] bg-white no-underline hover:bg-[#f9fafb]">Entrar</Link>
+        <Link href="#planos" className="text-sm font-semibold text-white px-4 py-2 rounded-full bg-[#0f2d5e] no-underline hover:opacity-90">Ver planos</Link>
       </header>
 
       {/* ── Hero ── */}
-      <section style={{ padding: '88px 40px 72px' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', display: 'grid', gridTemplateColumns: '1.05fr 1fr', gap: 56, alignItems: 'center' }}>
+      <section className="px-5 md:px-10 py-16 md:py-[88px]">
+        <div className="max-w-[1180px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-14 items-center">
           <div>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: '#fbf3e1', color: '#9a7c2c',
-              fontSize: 13, fontWeight: 600, padding: '6px 14px', borderRadius: 999,
-              marginBottom: 20,
-            }}>
-              <Radar style={{ width: 14, height: 14 }} />
+            <div className="inline-flex items-center gap-1.5 bg-[#fbf3e1] text-[#9a7c2c] text-[13px] font-semibold px-3.5 py-1.5 rounded-full mb-5">
+              <Radar className="w-3.5 h-3.5" />
               Radar jurídico em tempo real
             </div>
-            <h1 style={{
-              fontFamily: 'Manrope, sans-serif', fontWeight: 800,
-              fontSize: 48, lineHeight: 1.12, letterSpacing: '-0.01em',
-              color: '#0f2d5e', maxWidth: 600, margin: '0 0 20px',
-            }}>
+            <h1 className="font-extrabold text-4xl md:text-5xl leading-[1.12] tracking-[-0.01em] text-[#0f2d5e] max-w-[600px] mb-5" style={{ fontFamily: 'Manrope, sans-serif' }}>
               Encontre o próximo caso antes do seu concorrente.
             </h1>
-            <p style={{ fontSize: 18, lineHeight: 1.6, color: '#6b7280', maxWidth: 540, margin: '0 0 32px' }}>
+            <p className="text-base md:text-lg leading-relaxed text-[#6b7280] max-w-[540px] mb-8">
               JurisRadar varre DJEN Nacional, DataJud/CNJ, PJe Nacional e DJe TJSP em tempo real e organiza seus processos ativos em um único CRM — com alertas automáticos de prazo e intimação.
             </p>
-            <div style={{ display: 'flex', gap: 14 }}>
-              <Link href="#planos" style={{
-                fontSize: 16, fontWeight: 700, color: '#fff',
-                background: '#0f2d5e', padding: '15px 30px',
-                borderRadius: 14, textDecoration: 'none',
-              }}>Ver planos</Link>
-              <Link href="#como-funciona" style={{
-                fontSize: 16, fontWeight: 600, color: '#0f2d5e',
-                padding: '15px 30px', borderRadius: 14,
-                border: '1px solid #e5e7eb', background: '#fff',
-                textDecoration: 'none',
-              }}>Como funciona</Link>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link href="#planos" className="text-base font-bold text-white bg-[#0f2d5e] px-7 py-4 rounded-[14px] no-underline text-center hover:opacity-90">Ver planos</Link>
+              <Link href="#como-funciona" className="text-base font-semibold text-[#0f2d5e] px-7 py-4 rounded-[14px] border border-[#e5e7eb] bg-white no-underline text-center hover:bg-[#f9fafb]">Como funciona</Link>
             </div>
           </div>
-          <div style={{
-            borderRadius: 24,
-            background: 'repeating-linear-gradient(135deg,#eef2f7 0px,#eef2f7 1px,#f6f8fb 1px,#f6f8fb 16px)',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 1px 2px rgba(15,23,42,.04),0 24px 48px -12px rgba(15,45,94,.14)',
-            height: 380,
-            display: 'flex', alignItems: 'flex-end', padding: 18,
-          }}>
-            <span style={{
-              fontFamily: 'monospace', fontSize: 12,
-              background: '#fff', color: '#6b7280',
-              padding: '6px 12px', borderRadius: 999, border: '1px solid #e5e7eb',
-            }}>[ Dashboard JurisRadar ]</span>
+          <div
+            className="rounded-2xl border border-[#e5e7eb] h-60 md:h-[380px] flex items-end p-4"
+            style={{
+              background: 'repeating-linear-gradient(135deg,#eef2f7 0px,#eef2f7 1px,#f6f8fb 1px,#f6f8fb 16px)',
+              boxShadow: '0 1px 2px rgba(15,23,42,.04),0 24px 48px -12px rgba(15,45,94,.14)',
+            }}
+          >
+            <span className="font-mono text-xs bg-white text-[#6b7280] px-3 py-1.5 rounded-full border border-[#e5e7eb]">[ Dashboard JurisRadar ]</span>
           </div>
         </div>
       </section>
 
       {/* ── Como funciona ── */}
-      <section id="como-funciona" style={{ padding: '64px 40px' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>Como funciona</div>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 32, color: '#0f2d5e', margin: '0 0 40px' }}>
+      <section id="como-funciona" className="px-5 md:px-10 py-16">
+        <div className="max-w-[1180px] mx-auto">
+          <div className="text-[13px] font-bold tracking-[.06em] uppercase text-[#c9a84c] mb-2">Como funciona</div>
+          <h2 className="font-extrabold text-3xl text-[#0f2d5e] mb-10" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Dois problemas, um único lugar
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: 32, boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: '#eaf0f8', color: '#0f2d5e', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
-                <Radar style={{ width: 24, height: 24 }} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+            <div className="bg-white border border-[#e5e7eb] rounded-[20px] p-8 shadow-sm">
+              <div className="w-12 h-12 rounded-[14px] bg-[#eaf0f8] text-[#0f2d5e] flex items-center justify-center mb-4">
+                <Radar className="w-6 h-6" />
               </div>
-              <h3 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 20, margin: '0 0 10px' }}>1. Prospecção de casos novos</h3>
-              <p style={{ color: '#6b7280', margin: 0, lineHeight: 1.6 }}>Busque publicações por termo, bairro, nome de parte ou número CNJ nos principais diários eletrônicos do país. Encontrou um caso de interesse? Adicione ao CRM com um clique.</p>
+              <h3 className="font-bold text-xl mb-2.5" style={{ fontFamily: 'Manrope, sans-serif' }}>1. Prospecção de casos novos</h3>
+              <p className="text-[#6b7280] leading-relaxed m-0">Busque publicações por termo, bairro, nome de parte ou número CNJ nos principais diários eletrônicos do país. Encontrou um caso de interesse? Adicione ao CRM com um clique.</p>
             </div>
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: 32, boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: '#fbf3e1', color: '#9a7c2c', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
-                <Kanban style={{ width: 24, height: 24 }} />
+            <div className="bg-white border border-[#e5e7eb] rounded-[20px] p-8 shadow-sm">
+              <div className="w-12 h-12 rounded-[14px] bg-[#fbf3e1] text-[#9a7c2c] flex items-center justify-center mb-4">
+                <Kanban className="w-6 h-6" />
               </div>
-              <h3 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 20, margin: '0 0 10px' }}>2. Gestão dos processos ativos</h3>
-              <p style={{ color: '#6b7280', margin: 0, lineHeight: 1.6 }}>Acompanhe em tempo real tudo que você já representa. Alertas automáticos por e-mail e no sistema a cada nova intimação, prazo crítico ou movimentação.</p>
+              <h3 className="font-bold text-xl mb-2.5" style={{ fontFamily: 'Manrope, sans-serif' }}>2. Gestão dos processos ativos</h3>
+              <p className="text-[#6b7280] leading-relaxed m-0">Acompanhe em tempo real tudo que você já representa. Alertas automáticos por e-mail e no sistema a cada nova intimação, prazo crítico ou movimentação.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── Funcionalidades ── */}
-      <section id="funcionalidades" style={{ padding: '64px 40px', background: '#fff', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>Funcionalidades</div>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 32, color: '#0f2d5e', margin: '0 0 40px' }}>
+      <section id="funcionalidades" className="px-5 md:px-10 py-16 bg-white border-t border-b border-[#e5e7eb]">
+        <div className="max-w-[1180px] mx-auto">
+          <div className="text-[13px] font-bold tracking-[.06em] uppercase text-[#c9a84c] mb-2">Funcionalidades</div>
+          <h2 className="font-extrabold text-3xl text-[#0f2d5e] mb-10" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Tudo que o seu escritório precisa, integrado
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 20 }}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div key={title} style={{
-                background: '#f9fafb', border: '1px solid #e5e7eb',
-                borderRadius: 18, padding: 24,
-              }}>
-                <div style={{ width: 38, height: 38, borderRadius: 11, background: '#eaf0f8', color: '#0f2d5e', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-                  <Icon style={{ width: 19, height: 19 }} />
+              <div key={title} className="bg-[#f9fafb] border border-[#e5e7eb] rounded-[18px] p-6">
+                <div className="w-[38px] h-[38px] rounded-[11px] bg-[#eaf0f8] text-[#0f2d5e] flex items-center justify-center mb-3.5">
+                  <Icon className="w-[19px] h-[19px]" />
                 </div>
-                <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{title}</div>
-                <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.5, margin: 0 }}>{desc}</p>
+                <div className="font-bold text-[15px] mb-1.5" style={{ fontFamily: 'Manrope, sans-serif' }}>{title}</div>
+                <p className="text-[13px] text-[#6b7280] leading-relaxed m-0">{desc}</p>
               </div>
             ))}
           </div>
@@ -180,29 +136,29 @@ export default function LandingPage() {
       </section>
 
       {/* ── Comparação ── */}
-      <section style={{ padding: '64px 40px', background: '#fff', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>Comparação</div>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 32, color: '#0f2d5e', margin: '0 0 40px' }}>
+      <section className="px-5 md:px-10 py-16 bg-white border-t border-b border-[#e5e7eb]">
+        <div className="max-w-[1180px] mx-auto">
+          <div className="text-[13px] font-bold tracking-[.06em] uppercase text-[#c9a84c] mb-2">Comparação</div>
+          <h2 className="font-extrabold text-3xl text-[#0f2d5e] mb-10" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Por que trocar a planilha pelo radar
           </h2>
-          <div style={{ border: '1px solid #e5e7eb', borderRadius: 20, overflow: 'hidden', boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <div className="overflow-x-auto rounded-[20px] border border-[#e5e7eb] shadow-sm">
+            <table className="w-full border-collapse text-sm min-w-[500px]">
               <thead>
-                <tr style={{ background: '#eaf0f8' }}>
-                  <th style={{ textAlign: 'left', padding: '16px 20px', color: '#0f2d5e', fontWeight: 700 }}>Critério</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px', color: '#0f2d5e', fontWeight: 700 }}>Planilhas / e-mail</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px', color: '#0f2d5e', fontWeight: 700 }}>Sistema genérico</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px', color: '#0f2d5e', fontWeight: 700 }}>JurisRadar</th>
+                <tr className="bg-[#eaf0f8]">
+                  <th className="text-left px-5 py-4 text-[#0f2d5e] font-bold">Critério</th>
+                  <th className="text-left px-5 py-4 text-[#0f2d5e] font-bold">Planilhas / e-mail</th>
+                  <th className="text-left px-5 py-4 text-[#0f2d5e] font-bold">Sistema genérico</th>
+                  <th className="text-left px-5 py-4 text-[#0f2d5e] font-bold">JurisRadar</th>
                 </tr>
               </thead>
               <tbody>
                 {COMPARISON.map((row) => (
-                  <tr key={row.label} style={{ borderTop: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '14px 20px', fontWeight: 600 }}>{row.label}</td>
-                    <td style={{ padding: '14px 20px', color: '#6b7280' }}>{row.manual}</td>
-                    <td style={{ padding: '14px 20px', color: '#6b7280' }}>{row.generic}</td>
-                    <td style={{ padding: '14px 20px', fontWeight: 700, color: '#9a7c2c' }}>{row.jr}</td>
+                  <tr key={row.label} className="border-t border-[#e5e7eb]">
+                    <td className="px-5 py-3.5 font-semibold">{row.label}</td>
+                    <td className="px-5 py-3.5 text-[#6b7280]">{row.manual}</td>
+                    <td className="px-5 py-3.5 text-[#6b7280]">{row.generic}</td>
+                    <td className="px-5 py-3.5 font-bold text-[#9a7c2c]">{row.jr}</td>
                   </tr>
                 ))}
               </tbody>
@@ -212,110 +168,96 @@ export default function LandingPage() {
       </section>
 
       {/* ── Planos ── */}
-      <section id="planos" style={{ padding: '64px 40px' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>Planos</div>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 32, color: '#0f2d5e', margin: '0 0 40px' }}>
+      <section id="planos" className="px-5 md:px-10 py-16">
+        <div className="max-w-[1180px] mx-auto">
+          <div className="text-[13px] font-bold tracking-[.06em] uppercase text-[#c9a84c] mb-2">Planos</div>
+          <h2 className="font-extrabold text-3xl text-[#0f2d5e] mb-10" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Comece a captar casos hoje
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, maxWidth: 760 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-[760px]">
             {/* Mensal */}
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 22, padding: 32, boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#6b7280', marginBottom: 14 }}>Mensal</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 10 }}>
-                <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 38, color: '#0f2d5e' }}>R$ 157</span>
-                <span style={{ color: '#6b7280' }}>/mês</span>
+            <div className="bg-white border border-[#e5e7eb] rounded-[22px] p-8 shadow-sm">
+              <div className="text-[13px] font-bold uppercase tracking-[.04em] text-[#6b7280] mb-3.5">Mensal</div>
+              <div className="flex items-baseline gap-1.5 mb-2.5">
+                <span className="font-extrabold text-[38px] text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>R$ 157</span>
+                <span className="text-[#6b7280]">/mês</span>
               </div>
-              <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 24px' }}>Sem contrato de fidelidade. Cancele quando quiser.</p>
-              <Link href="/register" style={{
-                display: 'block', textAlign: 'center', fontWeight: 700,
-                color: '#0f2d5e', border: '1px solid #e5e7eb',
-                padding: 13, borderRadius: 14, textDecoration: 'none',
-                background: '#fff',
-              }}>Assinar mensal</Link>
+              <p className="text-[#6b7280] text-sm mb-6">Sem contrato de fidelidade. Cancele quando quiser.</p>
+              <Link href="/register" className="block text-center font-bold text-[#0f2d5e] border border-[#e5e7eb] px-4 py-3 rounded-[14px] no-underline bg-white hover:bg-[#f9fafb]">Assinar mensal</Link>
             </div>
-
             {/* Anual */}
-            <div style={{ background: '#fff', border: '2px solid #c9a84c', borderRadius: 22, padding: 32, boxShadow: '0 12px 32px -8px rgba(201,168,76,.28)', position: 'relative' }}>
-              <div style={{
-                position: 'absolute', top: -13, left: 32,
-                background: '#c9a84c', color: '#0f2d5e',
-                fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 999,
-              }}>Recomendado — economize 19%</div>
-              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#6b7280', marginBottom: 14 }}>Anual</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 10 }}>
-                <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 38, color: '#0f2d5e' }}>R$ 127</span>
-                <span style={{ color: '#6b7280' }}>/mês, cobrança anual</span>
+            <div className="relative bg-white border-2 border-[#c9a84c] rounded-[22px] p-8" style={{ boxShadow: '0 12px 32px -8px rgba(201,168,76,.28)' }}>
+              <div className="absolute -top-3.5 left-8 bg-[#c9a84c] text-[#0f2d5e] text-xs font-bold px-3.5 py-1.5 rounded-full">Recomendado — economize 19%</div>
+              <div className="text-[13px] font-bold uppercase tracking-[.04em] text-[#6b7280] mb-3.5">Anual</div>
+              <div className="flex items-baseline gap-1.5 mb-2.5">
+                <span className="font-extrabold text-[38px] text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>R$ 127</span>
+                <span className="text-[#6b7280]">/mês, cobrança anual</span>
               </div>
-              <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 24px' }}>O mesmo radar, o ano todo, pelo menor custo mensal.</p>
-              <Link href="/register" style={{
-                display: 'block', textAlign: 'center', fontWeight: 700,
-                color: '#fff', background: '#0f2d5e',
-                padding: 13, borderRadius: 14, textDecoration: 'none',
-              }}>Assinar anual</Link>
+              <p className="text-[#6b7280] text-sm mb-6">O mesmo radar, o ano todo, pelo menor custo mensal.</p>
+              <Link href="/register" className="block text-center font-bold text-white bg-[#0f2d5e] px-4 py-3 rounded-[14px] no-underline hover:opacity-90">Assinar anual</Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── FAQ ── */}
-      <section id="faq" style={{ padding: '64px 40px', background: '#fff', borderTop: '1px solid #e5e7eb' }}>
-        <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>FAQ</div>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 32, color: '#0f2d5e', margin: '0 0 32px' }}>
+      <section id="faq" className="px-5 md:px-10 py-16 bg-white border-t border-[#e5e7eb]">
+        <div className="max-w-[760px] mx-auto">
+          <div className="text-[13px] font-bold tracking-[.06em] uppercase text-[#c9a84c] mb-2">FAQ</div>
+          <h2 className="font-extrabold text-3xl text-[#0f2d5e] mb-8" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Perguntas frequentes
           </h2>
           {FAQS.map(({ q, a }) => (
-            <details key={q} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', marginBottom: 12 }}>
-              <summary style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 16, color: '#0f2d5e', cursor: 'pointer', listStyle: 'none' }}>{q}</summary>
-              <p style={{ color: '#6b7280', margin: '10px 0 0' }}>{a}</p>
+            <details key={q} className="bg-[#f9fafb] border border-[#e5e7eb] rounded-2xl px-5 py-4.5 mb-3">
+              <summary className="font-bold text-base text-[#0f2d5e] cursor-pointer list-none" style={{ fontFamily: 'Manrope, sans-serif' }}>{q}</summary>
+              <p className="text-[#6b7280] mt-2.5 mb-0">{a}</p>
             </details>
           ))}
         </div>
       </section>
 
       {/* ── CTA ── */}
-      <section style={{ padding: '72px 40px', background: 'linear-gradient(120deg,#0f2d5e,#173e79)' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 32, flexWrap: 'wrap' }}>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 30, color: '#fff', margin: 0, maxWidth: 560 }}>
+      <section className="px-5 md:px-10 py-16" style={{ background: 'linear-gradient(120deg,#0f2d5e,#173e79)' }}>
+        <div className="max-w-[1180px] mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+          <h2 className="font-extrabold text-2xl md:text-3xl text-white m-0 max-w-[560px] text-center md:text-left" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Cada dia sem radar é um caso que o outro escritório já achou.
           </h2>
-          <Link href="#planos" style={{ fontWeight: 700, color: '#0f2d5e', background: '#c9a84c', padding: '15px 32px', borderRadius: 14, textDecoration: 'none' }}>
+          <Link href="#planos" className="font-bold text-[#0f2d5e] bg-[#c9a84c] px-8 py-4 rounded-[14px] no-underline whitespace-nowrap hover:opacity-90">
             Ver planos
           </Link>
         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer style={{ padding: '48px 40px 32px', background: '#fff' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 32 }}>
+      <footer className="px-5 md:px-10 pt-12 pb-8 bg-white">
+        <div className="max-w-[1180px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#0f2d5e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 12 }}>JR</div>
-              <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 16, color: '#0f2d5e' }}>JurisRadar</span>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 rounded-[8px] bg-[#0f2d5e] text-white flex items-center justify-center text-xs font-extrabold" style={{ fontFamily: 'Manrope, sans-serif' }}>JR</div>
+              <span className="font-extrabold text-base text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>JurisRadar</span>
             </div>
-            <p style={{ color: '#6b7280', maxWidth: 320, fontSize: 14, lineHeight: 1.6 }}>
+            <p className="text-[#6b7280] max-w-[320px] text-sm leading-relaxed m-0">
               Radar de publicações e gestão de processos para advogados autônomos e pequenos escritórios.
             </p>
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '.04em', color: '#111827', marginBottom: 12 }}>Produto</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
-              <a href="#funcionalidades" style={{ color: '#0f2d5e', textDecoration: 'none' }}>Funcionalidades</a>
-              <a href="#planos" style={{ color: '#0f2d5e', textDecoration: 'none' }}>Planos</a>
-              <a href="#faq" style={{ color: '#0f2d5e', textDecoration: 'none' }}>FAQ</a>
+            <div className="font-bold text-[13px] uppercase tracking-[.04em] text-[#111827] mb-3">Produto</div>
+            <div className="flex flex-col gap-2 text-sm">
+              <a href="#funcionalidades" className="text-[#0f2d5e] no-underline hover:underline">Funcionalidades</a>
+              <a href="#planos" className="text-[#0f2d5e] no-underline hover:underline">Planos</a>
+              <a href="#faq" className="text-[#0f2d5e] no-underline hover:underline">FAQ</a>
             </div>
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '.04em', color: '#111827', marginBottom: 12 }}>Conta</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
-              <Link href="/login" style={{ color: '#0f2d5e', textDecoration: 'none' }}>Entrar</Link>
-              <Link href="/register" style={{ color: '#0f2d5e', textDecoration: 'none' }}>Criar conta</Link>
+            <div className="font-bold text-[13px] uppercase tracking-[.04em] text-[#111827] mb-3">Conta</div>
+            <div className="flex flex-col gap-2 text-sm">
+              <Link href="/login" className="text-[#0f2d5e] no-underline hover:underline">Entrar</Link>
+              <Link href="/register" className="text-[#0f2d5e] no-underline hover:underline">Criar conta</Link>
             </div>
           </div>
         </div>
-        <div style={{ maxWidth: 1180, margin: '32px auto 0', borderTop: '1px solid #e5e7eb', paddingTop: 20 }}>
-          <p style={{ color: '#9ca3af', fontSize: 12, margin: 0 }}>© 2026 JurisRadar. Todos os direitos reservados.</p>
+        <div className="max-w-[1180px] mx-auto mt-8 pt-5 border-t border-[#e5e7eb]">
+          <p className="text-[#9ca3af] text-xs m-0">© 2026 JurisRadar. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>

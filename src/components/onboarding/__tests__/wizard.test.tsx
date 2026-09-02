@@ -147,13 +147,12 @@ describe('Passo2Importacao', () => {
 
   it('exibe ImportLoader após clicar em Importar', async () => {
     vi.useRealTimers();
-    // Fetch retorna 202 mas polling nunca resolve (mantém em loading)
+    // sync-djen nunca resolve — mantém o componente em loading para checar o spinner
     mockFetch.mockImplementation(async (url: string) => {
-      if ((url as string).includes('/api/processos/sync')) {
-        return { ok: true, status: 202, json: async () => ({}) };
+      if ((url as string).includes('/api/processos/sync-djen')) {
+        return new Promise(() => {}); // nunca resolve
       }
-      // polling: nunca retorna total > 0 durante o teste
-      return { ok: true, json: async () => ({ total: 0 }) };
+      return { ok: true, json: async () => ({}) };
     });
 
     const { Passo2Importacao } = await import('../Passo2Importacao');
@@ -164,25 +163,22 @@ describe('Passo2Importacao', () => {
       />,
     );
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /importar meus processos/i }));
-    });
+    // Clicar sem await — deixa o estado loading aparecer antes do fetch resolver
+    fireEvent.click(screen.getByRole('button', { name: /importar meus processos/i }));
 
-    // Após o fetch de sync retornar, status muda para 'loading' e mostra ImportLoader
     await waitFor(() => {
       expect(screen.getByRole('status')).toBeInTheDocument();
     }, { timeout: 3000 });
   }, 10000);
 
-  it('exibe contagem de processos após polling retornar resultados', async () => {
+  it('exibe contagem de processos após sync-djen retornar resultados', async () => {
     vi.useRealTimers();
-    // Primeiro fetch: POST sync → 202
-    // Segundo fetch (polling): GET processos → { total: 5 }
+    // sync-djen retorna imediatamente com { total: 5 } — componente vai para 'done'
     mockFetch.mockImplementation(async (url: string) => {
-      if ((url as string).includes('/api/processos/sync')) {
-        return { ok: true, status: 202, json: async () => ({}) };
+      if ((url as string).includes('/api/processos/sync-djen')) {
+        return { ok: true, json: async () => ({ total: 5 }) };
       }
-      return { ok: true, json: async () => ({ total: 5 }) };
+      return { ok: true, json: async () => ({}) };
     });
 
     const { Passo2Importacao } = await import('../Passo2Importacao');
@@ -197,11 +193,10 @@ describe('Passo2Importacao', () => {
       fireEvent.click(screen.getByRole('button', { name: /importar meus processos/i }));
     });
 
-    // Aguarda o polling completar (máximo 3s + margem)
     await waitFor(() => {
       expect(screen.getByText(/encontramos 5 processo/i)).toBeInTheDocument();
-    }, { timeout: 8000 });
-  }, 15000);
+    }, { timeout: 5000 });
+  }, 10000);
 });
 
 // ── Passo3Dashboard ───────────────────────────────────────────────────────────
@@ -240,7 +235,7 @@ describe('Passo3Dashboard', () => {
         '/api/onboarding/complete',
         expect.objectContaining({ method: 'PATCH' }),
       );
-      expect(mockPush).toHaveBeenCalledWith('/app/dashboard');
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
     });
   });
 

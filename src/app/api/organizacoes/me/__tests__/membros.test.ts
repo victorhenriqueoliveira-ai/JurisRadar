@@ -228,6 +228,14 @@ describe('POST /api/organizacoes/me/membros', () => {
     const insertChain = { values: vi.fn().mockResolvedValue(undefined) };
     vi.mocked(db.insert).mockReturnValue(insertChain as unknown as ReturnType<typeof db.insert>);
 
+    // Rota chama db.update(users).set({inviteToken, ...}).where(...) antes de enviar o e-mail
+    const updateChain = {
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    };
+    vi.mocked(db.update).mockReturnValue(updateChain as unknown as ReturnType<typeof db.update>);
+
     const { POST } = await import('../membros/route');
     const req = makeRequest('POST', BASE_URL, { email: 'novo@test.com', papel: 'associado' });
     const res = await POST(req);

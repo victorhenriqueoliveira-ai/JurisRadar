@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { TIPOS_CRITICOS } from '@/inngest/notificacao-dispatcher';
+import { TIPOS_CRITICOS } from '@/inngest/tipos';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 

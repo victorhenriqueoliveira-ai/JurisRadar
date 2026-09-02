@@ -29,25 +29,8 @@ import { NotificacaoIntimacao } from '@/lib/email/templates/NotificacaoIntimacao
 
 // ── Tipos de evento que geram notificação ─────────────────────────────────────
 
-export const TIPOS_RELEVANTES = [
-  'intimacao',
-  'citacao',
-  'decisao',
-  'sentenca',
-  'publicacao_dje',
-] as const;
-
-export type TipoNotificacao = (typeof TIPOS_RELEVANTES)[number];
-
-// ── Tipos críticos — disparam garantia de intimação ───────────────────────────
-
-export const TIPOS_CRITICOS = [
-  'intimacao',
-  'citacao',
-  'prazo_fatal',
-  'decisao',
-  'sentenca',
-] as const;
+export { TIPOS_RELEVANTES, TIPOS_CRITICOS } from './tipos';
+export type { TipoNotificacao } from './tipos';
 
 // ── Payload do evento ─────────────────────────────────────────────────────────
 
