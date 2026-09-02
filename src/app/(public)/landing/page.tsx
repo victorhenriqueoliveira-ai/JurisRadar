@@ -53,7 +53,7 @@ export default function LandingPage() {
           <a href="#planos" className="text-sm text-[#374151] font-medium no-underline hover:text-[#0f2d5e]">Planos</a>
           <a href="#faq" className="text-sm text-[#374151] font-medium no-underline hover:text-[#0f2d5e]">FAQ</a>
         </nav>
-        <Link href="/login" className="hidden sm:block text-sm font-semibold text-[#0f2d5e] px-4 py-2 rounded-full border border-[#e5e7eb] bg-white no-underline hover:bg-[#f9fafb]">Entrar</Link>
+        <Link href="/login" className="text-sm font-semibold text-[#0f2d5e] px-4 py-2 rounded-full border border-[#e5e7eb] bg-white no-underline hover:bg-[#f9fafb]">Entrar</Link>
         <Link href="#planos" className="text-sm font-semibold text-white px-4 py-2 rounded-full bg-[#0f2d5e] no-underline hover:opacity-90">Ver planos</Link>
       </header>
 
