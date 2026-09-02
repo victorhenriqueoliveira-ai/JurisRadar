@@ -18,6 +18,9 @@ import {
   SheetFooter,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { ConfirmarCienciaButton } from '@/components/notificacoes/ConfirmarCienciaButton';
+import { GarantiaStatusIndicator } from '@/components/notificacoes/GarantiaStatusIndicator';
+import { TIPOS_CRITICOS } from '@/inngest/tipos';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -32,6 +35,7 @@ interface Notificacao {
   lida: boolean;
   lidaAt: string | null;
   createdAt: string;
+  confirmadoEm?: string | null;
 }
 
 interface NotificacoesSheetProps {
@@ -190,49 +194,75 @@ export function NotificacoesSheet({
 
           {!loading && notificacoes.length > 0 && (
             <ul role="list" className="divide-y divide-border">
-              {notificacoes.map((n) => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleClickNotificacao(n)}
-                    className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-accent transition-colors ${
-                      !n.lida ? 'bg-primary/5' : ''
-                    }`}
-                  >
-                    {/* Ícone */}
-                    <div className="mt-0.5 shrink-0">
-                      {getIconByTipo(n.tipo)}
-                    </div>
-
-                    {/* Conteúdo */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <p
-                          className={`text-sm leading-snug truncate ${
-                            !n.lida ? 'font-semibold' : 'font-normal'
-                          }`}
-                        >
-                          {n.titulo}
-                        </p>
-                        <time
-                          dateTime={n.createdAt}
-                          className="text-xs text-muted-foreground shrink-0"
-                        >
-                          {formatRelativeDate(n.createdAt)}
-                        </time>
+              {notificacoes.map((n) => {
+                const isCritico = (TIPOS_CRITICOS as readonly string[]).includes(n.tipo);
+                return (
+                  <li key={n.id}>
+                    <div
+                      className={`px-4 py-3 flex gap-3 hover:bg-accent transition-colors ${
+                        !n.lida ? 'bg-primary/5' : ''
+                      }`}
+                    >
+                      {/* Ícone */}
+                      <div className="mt-0.5 shrink-0">
+                        {getIconByTipo(n.tipo)}
                       </div>
-                      {n.corpo && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                          {n.corpo}
-                        </p>
-                      )}
-                      {!n.lida && (
-                        <span className="inline-block mt-1 w-2 h-2 rounded-full bg-primary" aria-label="Não lida" />
-                      )}
+
+                      {/* Conteúdo */}
+                      <div className="flex-1 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => handleClickNotificacao(n)}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p
+                              className={`text-sm leading-snug truncate ${
+                                !n.lida ? 'font-semibold' : 'font-normal'
+                              }`}
+                            >
+                              {n.titulo}
+                            </p>
+                            <time
+                              dateTime={n.createdAt}
+                              className="text-xs text-muted-foreground shrink-0"
+                            >
+                              {formatRelativeDate(n.createdAt)}
+                            </time>
+                          </div>
+                          {n.corpo && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                              {n.corpo}
+                            </p>
+                          )}
+                          {!n.lida && (
+                            <span className="inline-block mt-1 w-2 h-2 rounded-full bg-primary" aria-label="Não lida" />
+                          )}
+                        </button>
+
+                        {/* Indicador e botão de garantia — apenas para tipos críticos */}
+                        {isCritico && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <GarantiaStatusIndicator notificacaoId={n.id} />
+                            <ConfirmarCienciaButton
+                              notificacaoId={n.id}
+                              tipo={n.tipo}
+                              confirmadoEm={n.confirmadoEm ?? null}
+                              onConfirmado={(confirmadoEm) => {
+                                setNotificacoes((prev) =>
+                                  prev.map((item) =>
+                                    item.id === n.id ? { ...item, confirmadoEm } : item,
+                                  ),
+                                );
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </button>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

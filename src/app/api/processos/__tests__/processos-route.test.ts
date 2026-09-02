@@ -26,18 +26,29 @@ vi.mock('@/db', () => ({
   db: {
     select: vi.fn(),
     insert: vi.fn(),
+    update: vi.fn(),
     delete: vi.fn(),
   },
 }));
 
 vi.mock('@/db/schema', () => ({
-  processos: {},
+  processos: { id: 'id', orgId: 'orgId', numeroCnj: 'numeroCnj', tribunal: 'tribunal', status: 'status', responsavelId: 'responsavelId' },
 }));
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...args) => ({ type: 'and', conditions: args })),
   eq: vi.fn((field, value) => ({ type: 'eq', field, value })),
   ilike: vi.fn((field, value) => ({ type: 'ilike', field, value })),
+  isNull: vi.fn((field) => ({ type: 'isNull', field })),
+  desc: vi.fn((field) => ({ type: 'desc', field })),
+  gt: vi.fn((field, value) => ({ type: 'gt', field, value })),
+  or: vi.fn((...args) => ({ type: 'or', args })),
+  sql: vi.fn(() => ({ type: 'sql' })),
+}));
+
+// A rota usa listProcessos de @/services/processos (que importa drizzle com isNull etc.)
+vi.mock('@/services/processos', () => ({
+  listProcessos: vi.fn(),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,14 +90,8 @@ describe('GET /api/processos', () => {
       role: 'socio',
     });
 
-    const { db } = await import('@/db');
-    vi.mocked(db.select).mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([]),
-        }),
-      }),
-    } as unknown as ReturnType<typeof db.select>);
+    const { listProcessos } = await import('@/services/processos');
+    vi.mocked(listProcessos).mockResolvedValue({ data: [], total: 0, nextCursor: null });
 
     const { GET } = await import('../route');
     const req = makeRequest('GET', BASE_URL);

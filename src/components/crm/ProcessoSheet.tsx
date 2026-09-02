@@ -13,6 +13,8 @@ import { NotasList, type Nota } from './NotasList';
 import { type Movimentacao } from './MovimentacaoTimeline';
 import { HonorarioForm, type HonorarioFormData } from '@/components/financeiro/HonorarioForm';
 import { PagamentoList, type Pagamento } from '@/components/financeiro/PagamentoList';
+import { AnexoUpload } from '@/components/processos/AnexoUpload';
+import { AnexoList } from '@/components/processos/AnexoList';
 
 export interface Parte {
   polo: string;
@@ -65,7 +67,8 @@ export function ProcessoSheet({
   onAddNota,
   onDeleteNota,
 }: ProcessoSheetProps) {
-  const [activeTab, setActiveTab] = useState<'movimentacoes' | 'notas' | 'financeiro'>('movimentacoes');
+  const [activeTab, setActiveTab] = useState<'movimentacoes' | 'notas' | 'financeiro' | 'anexos'>('movimentacoes');
+  const [anexosRefreshTrigger, setAnexosRefreshTrigger] = useState(0);
   const [editingHonorario, setEditingHonorario] = useState(false);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
@@ -307,6 +310,9 @@ export function ProcessoSheet({
               <button type="button" style={tabStyle('financeiro')} onClick={() => setActiveTab('financeiro')}>
                 Financeiro
               </button>
+              <button type="button" style={tabStyle('anexos')} onClick={() => setActiveTab('anexos')}>
+                Anexos
+              </button>
             </div>
 
             {/* Content */}
@@ -464,6 +470,18 @@ export function ProcessoSheet({
                       )}
                     </div>
                   )}
+                </div>
+              )}
+              {activeTab === 'anexos' && (
+                <div data-testid="anexos-section" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <AnexoUpload
+                    processoId={processo.id}
+                    onUploadSuccess={() => setAnexosRefreshTrigger((prev) => prev + 1)}
+                  />
+                  <AnexoList
+                    processoId={processo.id}
+                    refreshTrigger={anexosRefreshTrigger}
+                  />
                 </div>
               )}
             </div>

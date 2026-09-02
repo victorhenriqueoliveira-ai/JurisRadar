@@ -105,6 +105,11 @@ export function ProcessoTable({
 
   return (
     <div data-testid="processo-table-wrapper" className="hidden md:block">
+      {lastSync && (
+        <p data-testid="last-sync" className="text-xs text-muted-foreground mb-2">
+          Última sync: {lastSync.toLocaleString('pt-BR')}
+        </p>
+      )}
       {data.length === 0 ? (
         <EmptyStateIllustrated
           title="Nenhum processo encontrado"

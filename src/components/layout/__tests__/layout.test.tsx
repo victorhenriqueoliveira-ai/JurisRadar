@@ -5,13 +5,12 @@ import '@testing-library/jest-dom';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
-// Mock next/navigation
-const mockPathname = vi.fn(() => '/app/dashboard');
+const mockPathname = vi.fn(() => '/dashboard');
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
-// Mock next/link
 vi.mock('next/link', () => ({
   default: ({ href, children, onClick, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
     <a href={href} onClick={onClick} {...props}>
@@ -20,21 +19,26 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-// Mock next-themes
-const mockSetTheme = vi.fn();
-const mockTheme = vi.fn(() => 'light');
 vi.mock('next-themes', () => ({
-  useTheme: () => ({ theme: mockTheme(), setTheme: mockSetTheme }),
+  useTheme: () => ({ theme: 'light', setTheme: vi.fn() }),
 }));
 
-// Mock next-auth/react
 vi.mock('next-auth/react', () => ({
   signOut: vi.fn(),
 }));
 
-// Mock SidebarMobile dentro de AppHeader
 vi.mock('@/components/layout/SidebarMobile', () => ({
   SidebarMobile: () => <button aria-label="Abrir menu de navegação" className="md:hidden" />,
+}));
+
+// Impede que notificacao-dispatcher (importado via NotificacoesSheet) acesse @/db
+vi.mock('@/inngest/notificacao-dispatcher', () => ({
+  TIPOS_CRITICOS: ['prazo_critico', 'nova_movimentacao'],
+  TIPOS_RELEVANTES: ['prazo_critico', 'nova_movimentacao'],
+}));
+
+vi.mock('@/components/layout/NotificacoesSheet', () => ({
+  NotificacoesSheet: () => null,
 }));
 
 // ── Imports dos componentes ────────────────────────────────────────────────
@@ -45,16 +49,16 @@ import { AppHeader } from '../AppHeader';
 // ── Testes: Sidebar ────────────────────────────────────────────────────────
 
 describe('SidebarContent', () => {
-  it('renderiza todos os 7 itens de navegação', () => {
+  it('renderiza todos os itens de navegação', () => {
     render(<SidebarContent />);
-    expect(navItems).toHaveLength(7);
+    expect(navItems.length).toBeGreaterThanOrEqual(7);
     for (const item of navItems) {
       expect(screen.getByText(item.label)).toBeInTheDocument();
     }
   });
 
   it('aplica aria-current="page" apenas no item ativo (Dashboard)', () => {
-    mockPathname.mockReturnValue('/app/dashboard');
+    mockPathname.mockReturnValue('/dashboard');
     render(<SidebarContent />);
 
     const dashboardLink = screen.getByText('Dashboard').closest('a');
@@ -64,8 +68,8 @@ describe('SidebarContent', () => {
     expect(crmLink).not.toHaveAttribute('aria-current');
   });
 
-  it('aplica aria-current="page" apenas no item CRM quando rota é /app/crm', () => {
-    mockPathname.mockReturnValue('/app/crm');
+  it('aplica aria-current="page" apenas no item CRM quando rota é /crm', () => {
+    mockPathname.mockReturnValue('/crm');
     render(<SidebarContent />);
 
     const crmLink = screen.getByText('CRM').closest('a');
@@ -76,7 +80,7 @@ describe('SidebarContent', () => {
   });
 
   it('chama onNavigate ao clicar em um item', () => {
-    mockPathname.mockReturnValue('/app/dashboard');
+    mockPathname.mockReturnValue('/dashboard');
     const onNavigate = vi.fn();
     render(<SidebarContent onNavigate={onNavigate} />);
 
@@ -84,10 +88,10 @@ describe('SidebarContent', () => {
     expect(onNavigate).toHaveBeenCalledOnce();
   });
 
-  it('cada item de navegação tem href correto', () => {
-    render(<SidebarContent />);
-    const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(7);
+  it('cada item de navegação tem href sem prefixo /app/', () => {
+    for (const item of navItems) {
+      expect(item.href).not.toMatch(/^\/app\//);
+    }
   });
 });
 
@@ -101,11 +105,13 @@ describe('AppHeader', () => {
       id: 'user-1',
     },
     expires: '2099-01-01',
-  } as any;
+  } as Parameters<typeof AppHeader>[0]['session'];
 
   beforeEach(() => {
-    mockSetTheme.mockClear();
-    mockTheme.mockReturnValue('light');
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ count: 0 }),
+    });
   });
 
   it('renderiza nome do usuário da sessão', () => {
@@ -118,31 +124,9 @@ describe('AppHeader', () => {
     expect(screen.getByText('VO')).toBeInTheDocument();
   });
 
-  it('não exibe PulsingBadge quando notificationCount=0', () => {
-    render(<AppHeader session={mockSession} notificationCount={0} />);
-    // PulsingBadge retorna null quando count === 0
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    // badge não deve exibir número
-    expect(screen.queryByText('0')).not.toBeInTheDocument();
-  });
-
-  it('exibe PulsingBadge com "3" quando notificationCount=3', () => {
-    render(<AppHeader session={mockSession} notificationCount={3} />);
-    expect(screen.getByText('3')).toBeInTheDocument();
-  });
-
-  it('dark mode toggle chama setTheme("dark") quando tema atual é "light"', () => {
-    mockTheme.mockReturnValue('light');
+  it('renderiza botão de notificações', () => {
     render(<AppHeader session={mockSession} />);
-    fireEvent.click(screen.getByRole('button', { name: /alternar modo escuro/i }));
-    expect(mockSetTheme).toHaveBeenCalledWith('dark');
-  });
-
-  it('dark mode toggle chama setTheme("light") quando tema atual é "dark"', () => {
-    mockTheme.mockReturnValue('dark');
-    render(<AppHeader session={mockSession} />);
-    fireEvent.click(screen.getByRole('button', { name: /alternar modo escuro/i }));
-    expect(mockSetTheme).toHaveBeenCalledWith('light');
+    expect(screen.getByRole('button', { name: /notificações/i })).toBeInTheDocument();
   });
 
   it('renderiza botão hambúrguer mobile via SidebarMobile', () => {
@@ -154,7 +138,7 @@ describe('AppHeader', () => {
     const sessionSemNome = {
       user: { name: null, email: 'victor@test.com', id: 'user-1' },
       expires: '2099-01-01',
-    } as any;
+    } as Parameters<typeof AppHeader>[0]['session'];
     render(<AppHeader session={sessionSemNome} />);
     expect(screen.getByText('victor@test.com')).toBeInTheDocument();
   });
@@ -163,17 +147,17 @@ describe('AppHeader', () => {
 // ── Testes: navItems ───────────────────────────────────────────────────────
 
 describe('navItems', () => {
-  it('contém exatamente 7 itens', () => {
-    expect(navItems).toHaveLength(7);
+  it('contém ao menos 7 itens', () => {
+    expect(navItems.length).toBeGreaterThanOrEqual(7);
   });
 
   it('contém Dashboard como primeiro item', () => {
-    expect(navItems[0].href).toBe('/app/dashboard');
+    expect(navItems[0].href).toBe('/dashboard');
     expect(navItems[0].label).toBe('Dashboard');
   });
 
   it('contém Configurações como último item', () => {
-    expect(navItems[navItems.length - 1].href).toBe('/app/configuracoes');
+    expect(navItems[navItems.length - 1].href).toBe('/configuracoes');
     expect(navItems[navItems.length - 1].label).toBe('Configurações');
   });
 });

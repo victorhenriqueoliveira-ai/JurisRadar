@@ -9,20 +9,17 @@ const nodeModulesRoot = path.resolve(__dirname, 'node_modules');
 export default defineConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: [react() as any, tsconfigPaths()],
-  resolve: {
-    alias: {
-      react: path.resolve(nodeModulesRoot, 'react'),
-      'react-dom': path.resolve(nodeModulesRoot, 'react-dom'),
-      'react/jsx-dev-runtime': path.resolve(nodeModulesRoot, 'react/jsx-dev-runtime'),
-      'react/jsx-runtime': path.resolve(nodeModulesRoot, 'react/jsx-runtime'),
-    },
-  },
   server: {
     fs: {
       allow: [__dirname, nodeModulesRoot],
     },
   },
   test: {
+    exclude: [
+      '**/node_modules/**',
+      '**/.worktrees/**',
+      '**/dist/**',
+    ],
     environment: 'node',
     globals: true,
     coverage: {

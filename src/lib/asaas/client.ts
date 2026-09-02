@@ -38,9 +38,10 @@ import type {
 // ── Configuração ──────────────────────────────────────────────────────────────
 
 const ASAAS_BASE_URL =
-  process.env.NODE_ENV === 'production'
+  process.env.ASAAS_BASE_URL ??
+  (process.env.NODE_ENV === 'production'
     ? 'https://www.asaas.com/api/v3'
-    : 'https://sandbox.asaas.com/api/v3';
+    : 'https://sandbox.asaas.com/api/v3');
 
 const MAX_RETRIES = 3;
 const BACKOFF_DELAYS_MS = [1000, 2000, 4000]; // backoff exponencial

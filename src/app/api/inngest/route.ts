@@ -14,8 +14,10 @@ import { syncProcessosScheduler } from '@/inngest/sync-processos-scheduler';
 import { syncProcessosWorker } from '@/inngest/sync-processos-worker';
 import { notificacaoDispatcher } from '@/inngest/notificacao-dispatcher';
 import { alertasPrazo } from '@/inngest/alertas-prazo';
+import { garantiaIntimacaoEscalador } from '@/inngest/garantia-intimacao-escalador';
+import { garantiaFallbackCron } from '@/inngest/garantia-fallback-cron';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [djeIndexer, syncProcessosScheduler, syncProcessosWorker, notificacaoDispatcher, alertasPrazo],
+  functions: [djeIndexer, syncProcessosScheduler, syncProcessosWorker, notificacaoDispatcher, alertasPrazo, garantiaIntimacaoEscalador, garantiaFallbackCron],
 });
