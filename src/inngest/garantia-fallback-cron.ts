@@ -3,25 +3,17 @@
  *
  * Cron de segurança a cada 30 minutos que varre `notificacao_garantia`
  * em busca de intimações travadas no step `email_enviado` há mais de 4 horas
- * sem confirmação, e envia SMS diretamente via Zenvia.
+ * sem confirmação, e envia e-mail de lembrete para o responsável.
  *
- * Propósito: cobrir cenários em que o `garantiaIntimacaoEscalador` não
- * acordou corretamente após o sleep (falha de infraestrutura, crash de worker).
- *
- * Critério de seleção:
- *   - step = 'email_enviado'
- *   - email_enviado_em < now() - 4h
- *   - confirmado_em IS NULL
- *
- * Ação: enviar SMS via ZenviaClient para o responsável.
- * Não altera step — a state machine principal permanece como autoridade.
+ * SMS e WhatsApp desativados — somente e-mail.
  */
 
 import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 import { inngest } from './client';
 import { db } from '@/db';
 import { notificacaoGarantia, users } from '@/db/schema';
-import { enviarSMS } from '@/lib/zenvia/client';
+import { sendEmail } from '@/lib/email/send';
+import React from 'react';
 
 // ── Inngest Function ──────────────────────────────────────────────────────────
 
@@ -42,8 +34,9 @@ export const garantiaFallbackCron = inngest.createFunction(
           garantiaId: notificacaoGarantia.id,
           responsavelId: notificacaoGarantia.responsavelId,
           orgId: notificacaoGarantia.orgId,
-          smsNumero: users.smsNumero,
           emailEnviadoEm: notificacaoGarantia.emailEnviadoEm,
+          email: users.email,
+          name: users.name,
         })
         .from(notificacaoGarantia)
         .innerJoin(users, eq(notificacaoGarantia.responsavelId, users.id))
@@ -64,44 +57,45 @@ export const garantiaFallbackCron = inngest.createFunction(
       return { total: 0, message: 'Nenhuma garantia travada para processar' };
     }
 
-    // Step 2: enviar SMS de fallback para cada garantia
-    const resultados = await step.run('enviar-sms-fallback', async () => {
+    // Step 2: enviar e-mail de lembrete para cada garantia travada
+    const resultados = await step.run('enviar-email-fallback', async () => {
       let enviados = 0;
-      let pulados = 0;
       const erros: string[] = [];
 
       for (const garantia of garantiasTravadas) {
-        if (!garantia.smsNumero) {
-          console.log(
-            `[garantia-fallback-cron] garantia_id=${garantia.garantiaId} sem sms_numero — pulado`,
-          );
-          pulados++;
-          continue;
-        }
-
         try {
-          await enviarSMS({
-            para: garantia.smsNumero,
-            mensagem:
-              '[JurisRadar] Atenção: você tem uma intimação crítica aguardando sua confirmação de ciência. Acesse o sistema para confirmar.',
-            correlationId: `fallback-sms-${garantia.garantiaId}`,
+          const emailElement = React.createElement(
+            'div',
+            null,
+            React.createElement('h2', null, '[JurisRadar] Lembrete: intimação crítica aguardando confirmação'),
+            React.createElement(
+              'p',
+              null,
+              'Você ainda não confirmou ciência de uma intimação crítica. Acesse o sistema para confirmar.',
+            ),
+          );
+
+          await sendEmail({
+            to: garantia.email,
+            subject: '[JurisRadar] Lembrete: intimação crítica aguardando sua confirmação',
+            react: emailElement,
           });
 
           enviados++;
           console.log(
-            `[garantia-fallback-cron] SMS de fallback enviado garantia_id=${garantia.garantiaId} org_id=${garantia.orgId} responsavel_id=${garantia.responsavelId}`,
+            `[garantia-fallback-cron] E-mail de fallback enviado garantia_id=${garantia.garantiaId} org_id=${garantia.orgId} responsavel_id=${garantia.responsavelId}`,
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           erros.push(`garantia_id=${garantia.garantiaId}: ${msg}`);
           console.error(
-            `[garantia-fallback-cron] Falha ao enviar SMS fallback garantia_id=${garantia.garantiaId}:`,
+            `[garantia-fallback-cron] Falha ao enviar e-mail fallback garantia_id=${garantia.garantiaId}:`,
             err,
           );
         }
       }
 
-      return { enviados, pulados, erros, total: garantiasTravadas.length };
+      return { enviados, erros, total: garantiasTravadas.length };
     });
 
     console.log('[garantia-fallback-cron] concluído', resultados);
