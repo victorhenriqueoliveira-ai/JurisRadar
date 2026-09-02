@@ -85,7 +85,7 @@ function buildEmailReactElement(
       tribunal: payload.tribunal ?? 'Tribunal não informado',
       descricao: payload.descricao ?? payload.titulo,
       prazo: payload.prazo,
-      linkCrm: payload.linkCrm ?? `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.jurisradar.com.br'}/processos/${payload.processoId}`,
+      linkCrm: payload.linkCrm ?? `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://jurisradaroficial.com.br'}/processos/${payload.processoId}`,
     });
   }
 
@@ -249,7 +249,7 @@ export const notificacaoDispatcher = inngest.createFunction(
           orgId,
           responsavelId: userId,
           processoNumero: payload.numeroCnj ?? payload.processoId,
-          link: payload.linkCrm ?? `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.jurisradar.com.br'}/processos/${processoId}`,
+          link: payload.linkCrm ?? `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://jurisradaroficial.com.br'}/processos/${processoId}`,
         },
       });
 
