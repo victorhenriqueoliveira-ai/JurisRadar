@@ -41,13 +41,13 @@ const KPI_CONFIG = [
   {
     key: 'urgenciaAlta' as const,
     label: 'Urgência Alta',
-    description: 'Prazos vencendo em 2 dias',
+    description: 'Intimações/citações nas últimas 48h',
     color: '#dc2626',
   },
   {
     key: 'prazos7Dias' as const,
-    label: 'Prazos em 7 dias',
-    description: 'Compromissos na próxima semana',
+    label: 'Atividade 7 dias',
+    description: 'Processos com movimentação recente',
     color: '#d97706',
   },
   {
