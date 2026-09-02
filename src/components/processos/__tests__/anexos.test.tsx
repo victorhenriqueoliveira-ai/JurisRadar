@@ -37,6 +37,7 @@ describe('AnexoUpload', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -86,7 +87,6 @@ describe('AnexoUpload', () => {
   });
 
   it('com PDF válido chama POST e invoca onUploadSuccess ao concluir', async () => {
-    vi.useFakeTimers();
     const onUploadSuccess = vi.fn();
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
@@ -98,13 +98,8 @@ describe('AnexoUpload', () => {
     const arquivo = new File(['pdf'], 'doc.pdf', { type: 'application/pdf' });
     const dropZone = screen.getByTestId('drop-zone');
 
-    act(() => {
-      fireEvent.drop(dropZone, { dataTransfer: { files: [arquivo] } });
-    });
-
-    // Avança timers de intervalo de progresso
     await act(async () => {
-      vi.advanceTimersByTime(1500);
+      fireEvent.drop(dropZone, { dataTransfer: { files: [arquivo] } });
     });
 
     await waitFor(() => {
@@ -117,12 +112,9 @@ describe('AnexoUpload', () => {
     await waitFor(() => {
       expect(onUploadSuccess).toHaveBeenCalledTimes(1);
     });
-
-    vi.useRealTimers();
   });
 
   it('exibe erro 413 como "Arquivo muito grande"', async () => {
-    vi.useFakeTimers();
     vi.mocked(global.fetch).mockResolvedValue({
       ok: false,
       status: 413,
@@ -134,23 +126,16 @@ describe('AnexoUpload', () => {
     const arquivo = new File(['pdf'], 'grande.pdf', { type: 'application/pdf' });
     const dropZone = screen.getByTestId('drop-zone');
 
-    act(() => {
-      fireEvent.drop(dropZone, { dataTransfer: { files: [arquivo] } });
-    });
-
     await act(async () => {
-      vi.advanceTimersByTime(1500);
+      fireEvent.drop(dropZone, { dataTransfer: { files: [arquivo] } });
     });
 
     await waitFor(() => {
       expect(screen.getByTestId('upload-error').textContent).toMatch(/arquivo muito grande/i);
     });
-
-    vi.useRealTimers();
   });
 
   it('exibe erro 415 como "Tipo não suportado"', async () => {
-    vi.useFakeTimers();
     vi.mocked(global.fetch).mockResolvedValue({
       ok: false,
       status: 415,
@@ -162,19 +147,13 @@ describe('AnexoUpload', () => {
     const arquivo = new File(['pdf'], 'doc.pdf', { type: 'application/pdf' });
     const dropZone = screen.getByTestId('drop-zone');
 
-    act(() => {
-      fireEvent.drop(dropZone, { dataTransfer: { files: [arquivo] } });
-    });
-
     await act(async () => {
-      vi.advanceTimersByTime(1500);
+      fireEvent.drop(dropZone, { dataTransfer: { files: [arquivo] } });
     });
 
     await waitFor(() => {
       expect(screen.getByTestId('upload-error').textContent).toMatch(/tipo não suportado/i);
     });
-
-    vi.useRealTimers();
   });
 });
 

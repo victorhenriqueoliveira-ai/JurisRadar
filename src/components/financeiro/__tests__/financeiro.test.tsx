@@ -264,7 +264,7 @@ describe('AssinaturaForm', () => {
       const resumo = screen.getByTestId('resumo-assinatura');
       expect(resumo).toBeInTheDocument();
       expect(resumo).toHaveTextContent('12x');
-      expect(resumo).toHaveTextContent('R$ 500,00');
+      expect(resumo).toHaveTextContent(/R\$[\s\u00a0]500,00/);
     });
   });
 });
