@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@vercel/blob": "^0.27.0",
+    "@anthropic-ai/sdk": "^0.123.0",
     "@base-ui/react": "^1.6.0",
     "@date-fns/tz": "^1.5.0",
     "@hookform/resolvers": "^5.7.1",
@@ -25,6 +25,7 @@
     "@react-email/render": "^2.1.0",
     "@types/qrcode": "^1.5.6",
     "@types/react-big-calendar": "^1.16.3",
+    "@vercel/blob": "^0.27.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
