@@ -13,6 +13,7 @@ const formSchema = z.object({
   nomeParte: z.string().optional(),
   data: z.string().optional(),
   tipoComunicacao: z.string().optional(),
+  classeProcessual: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -37,8 +38,8 @@ interface DjenItem {
 
 type BuscaState =
   | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'success'; items: DjenItem[]; total: number; page: number; totalPages: number; searchTerms: string[] }
+  | { status: 'loading'; message?: string }
+  | { status: 'success'; items: DjenItem[]; total: number; page: number; totalPages: number; searchTerms: string[]; totalBruto?: number; classeFilter?: string }
   | { status: 'error'; message: string };
 
 const LIMIT = 20;
@@ -659,7 +660,7 @@ function DjenNacionalBuscaContent() {
 
   const { register, handleSubmit, getValues, watch, setValue } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { numeroProcesso: '', texto: '', nomeParte: '', data: '', tipoComunicacao: '' },
+    defaultValues: { numeroProcesso: '', texto: '', nomeParte: '', data: '', tipoComunicacao: '', classeProcessual: '' },
   });
 
   const byNumero = Boolean(watch('numeroProcesso')?.trim());
@@ -671,12 +672,14 @@ function DjenNacionalBuscaContent() {
     const nomeParte = searchParams.get('nomeParte');
     const data = searchParams.get('data');
     const tipo = searchParams.get('tipoComunicacao');
+    const classe = searchParams.get('classeProcessual');
     if (!np && !texto) return;
     if (np) setValue('numeroProcesso', np);
     if (texto) setValue('texto', texto);
     if (nomeParte) setValue('nomeParte', nomeParte);
     if (data) setValue('data', data);
     if (tipo) setValue('tipoComunicacao', tipo);
+    if (classe) setValue('classeProcessual', classe);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -702,6 +705,35 @@ function DjenNacionalBuscaContent() {
     return res.json() as Promise<{ items?: unknown[]; count?: number }>;
   }
 
+  async function fetchAll(values: FormValues): Promise<{ items: DjenItem[]; totalBruto: number }> {
+    const first = await fetchPage(values, 0, 100);
+    const totalBruto = first.count ?? 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const firstItems: DjenItem[] = ((first.items ?? []) as any[]).map(mapItem);
+
+    if (totalBruto <= 100) {
+      return { items: firstItems, totalBruto };
+    }
+
+    const MAX_ITEMS = 2000;
+    const offsets: number[] = [];
+    for (let off = 100; off < Math.min(totalBruto, MAX_ITEMS); off += 100) {
+      offsets.push(off);
+    }
+
+    // Busca em grupos de 5 paralelos para não sobrecarregar a API
+    const GROUP = 5;
+    const allItems: DjenItem[] = [...firstItems];
+    for (let i = 0; i < offsets.length; i += GROUP) {
+      const grupo = offsets.slice(i, i + GROUP);
+      const batches = await Promise.all(grupo.map((o) => fetchPage(values, o, 100)));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      batches.forEach((b) => allItems.push(...((b.items ?? []) as any[]).map(mapItem)));
+    }
+
+    return { items: allItems, totalBruto };
+  }
+
   function ativarModoLeads() {
     setLeadsMode(true);
     const bairro = getValues('texto')?.trim();
@@ -720,17 +752,36 @@ function DjenNacionalBuscaContent() {
   }
 
   async function search(values: FormValues, page = 1) {
-    setState({ status: 'loading' });
+    const classe = values.classeProcessual?.trim();
+    setState({ status: 'loading', message: classe ? 'Buscando todas as publicações para filtrar por classe…' : undefined });
     setLastSearch(values);
     try {
-      const offset = (page - 1) * LIMIT;
-      const data = await fetchPage(values, offset);
-      const total = data.count ?? 0;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const items = (data.items ?? ([] as any[])).map(mapItem);
-      const totalPages = Math.max(1, Math.ceil(total / LIMIT));
       const searchTerms = [values.texto, values.nomeParte].filter(Boolean) as string[];
-      setState({ status: 'success', items, total, page, totalPages, searchTerms });
+
+      if (classe) {
+        const { items: allItems, totalBruto } = await fetchAll(values);
+        const filtered = allItems.filter((item) =>
+          item.classe.toLowerCase().includes(classe.toLowerCase())
+        );
+        setState({
+          status: 'success',
+          items: filtered,
+          total: filtered.length,
+          page: 1,
+          totalPages: 1,
+          searchTerms,
+          totalBruto,
+          classeFilter: classe,
+        });
+      } else {
+        const offset = (page - 1) * LIMIT;
+        const data = await fetchPage(values, offset);
+        const total = data.count ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items = (data.items ?? ([] as any[])).map(mapItem);
+        const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+        setState({ status: 'success', items, total, page, totalPages, searchTerms });
+      }
     } catch (err) {
       setState({ status: 'error', message: err instanceof Error ? err.message : 'Erro desconhecido' });
     }
@@ -759,6 +810,7 @@ function DjenNacionalBuscaContent() {
         ...(values.nomeParte ? { nomeParte: values.nomeParte } : {}),
         ...(values.data ? { data: values.data } : {}),
         ...(values.tipoComunicacao ? { tipoComunicacao: values.tipoComunicacao } : {}),
+        ...(values.classeProcessual ? { classeProcessual: values.classeProcessual } : {}),
       },
     });
     localStorage.setItem(key, JSON.stringify(existing.slice(0, 20)));
@@ -772,6 +824,7 @@ function DjenNacionalBuscaContent() {
     if (params.nomeParte) setValue('nomeParte', params.nomeParte);
     if (params.data) setValue('data', params.data);
     if (params.tipoComunicacao) setValue('tipoComunicacao', params.tipoComunicacao);
+    if (params.classeProcessual) setValue('classeProcessual', params.classeProcessual);
     void search(getValues(), 1);
   }
 
@@ -872,6 +925,45 @@ function DjenNacionalBuscaContent() {
             </div>
           </div>
 
+          <div>
+            <label htmlFor="classeProcessual" className="block text-sm font-medium text-gray-700 mb-1">
+              Filtrar por classe processual{' '}
+              <span className="text-gray-400 font-normal">(opcional — busca todas as páginas e filtra)</span>
+            </label>
+            <input
+              id="classeProcessual"
+              type="text"
+              placeholder="Ex: Ação de Cobrança, Execução de Título, Monitória"
+              {...register('classeProcessual')}
+              disabled={isLoading || byNumero}
+              className={inputCls}
+            />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                'Ação de Cobrança',
+                'Execução de Título Extrajudicial',
+                'Monitória',
+                'Execução Fiscal',
+                'Busca e Apreensão',
+                'Despejo',
+                'Indenização',
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  disabled={isLoading || byNumero}
+                  onClick={() => setValue('classeProcessual', chip)}
+                  className="px-2.5 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:border-purple-400 hover:text-purple-600 hover:bg-purple-50 transition-colors disabled:opacity-40"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+              ⚠ Com este filtro ativo, o sistema busca até 2.000 publicações na API e filtra localmente — pode demorar alguns segundos.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="data" className="block text-sm font-medium text-gray-700 mb-1">
@@ -911,7 +1003,7 @@ function DjenNacionalBuscaContent() {
               onClick={() => setLeadsMode(false)}
               className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors"
             >
-              {isLoading && !leadsMode ? 'Buscando…' : 'Buscar no DJEN'}
+              {isLoading && !leadsMode ? (state.status === 'loading' && state.message ? 'Buscando tudo…' : 'Buscando…') : 'Buscar no DJEN'}
             </button>
             <button
               type="button"
@@ -962,12 +1054,21 @@ function DjenNacionalBuscaContent() {
           />
         )}
 
+        {state.status === 'loading' && state.message && (
+          <div className="rounded-md bg-purple-50 border border-purple-200 px-4 py-3 text-sm text-purple-800 flex items-center gap-2 animate-pulse">
+            <span>⏳</span>
+            <span>{state.message}</span>
+          </div>
+        )}
+
         {state.status === 'success' && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
               {state.items.length === 0
                 ? 'Nenhuma publicação encontrada.'
-                : `${state.total.toLocaleString('pt-BR')} publicaç${state.total !== 1 ? 'ões' : 'ão'} encontrada${state.total !== 1 ? 's' : ''}`}
+                : state.classeFilter
+                  ? `${state.total.toLocaleString('pt-BR')} publicaç${state.total !== 1 ? 'ões' : 'ão'} com classe "${state.classeFilter}"${state.totalBruto ? ` (de ${state.totalBruto.toLocaleString('pt-BR')} analisadas)` : ''}`
+                  : `${state.total.toLocaleString('pt-BR')} publicaç${state.total !== 1 ? 'ões' : 'ão'} encontrada${state.total !== 1 ? 's' : ''}`}
               {state.totalPages > 1 && ` — página ${state.page} de ${state.totalPages}`}
             </p>
 
