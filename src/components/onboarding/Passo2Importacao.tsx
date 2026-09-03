@@ -33,29 +33,53 @@ export function Passo2Importacao({ onProximo, onPular }: Passo2Props) {
   const [processosEncontrados, setProcessosEncontrados] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
+  async function fetchDjenBrowser(oab: string, estado: string) {
+    const PAGE_SIZE = 100;
+    const MAX_PAGES = 10;
+    const all = [];
+    let totalApi = 0;
+
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const params = new URLSearchParams({
+        numeroOAB: oab,
+        siglaOAB: estado.toUpperCase(),
+        pagina: String(page),
+        qtd: String(PAGE_SIZE),
+      });
+      const res = await fetch(
+        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`,
+        { headers: { Accept: 'application/json' } },
+      );
+      if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+      const data = await res.json() as { count: number; items: unknown[] };
+      totalApi = data.count;
+      all.push(...data.items);
+      if (all.length >= totalApi || data.items.length < PAGE_SIZE) break;
+    }
+    return all;
+  }
+
   async function handleImportar(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
     setStatus('loading');
 
     try {
-      // Salva OAB no perfil do usuário
-      await fetch('/api/users/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oabNumero: oabNumero.trim(), oabEstado }),
-      });
+      const oab = oabNumero.trim();
 
-      // Sync direto via DJEN — síncrono, retorna imediatamente
-      const res = await fetch('/api/processos/sync-djen', {
+      // Busca direto do browser — evita bloqueio de IP da Vercel
+      const items = await fetchDjenBrowser(oab, oabEstado);
+
+      // Envia os dados ao servidor para persistência
+      const res = await fetch('/api/processos/import-djen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oabNumero: oabNumero.trim(), oabEstado }),
+        body: JSON.stringify({ items, oabNumero: oab, oabEstado }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string };
-        setErro(data.error ?? 'Erro ao importar processos. Tente novamente.');
+        setErro(data.error ?? 'Erro ao salvar processos. Tente novamente.');
         setStatus('error');
         return;
       }
@@ -63,8 +87,9 @@ export function Passo2Importacao({ onProximo, onPular }: Passo2Props) {
       const data = await res.json() as { total?: number };
       setProcessosEncontrados(data.total ?? 0);
       setStatus('done');
-    } catch {
-      setErro('Erro de conexão. Verifique sua internet e tente novamente.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro de conexão.';
+      setErro(msg.includes('DJEN') ? `${msg}. Tente novamente em instantes.` : 'Erro de conexão. Verifique sua internet.');
       setStatus('error');
     }
   }
