@@ -228,8 +228,8 @@ export function Passo4Asaas({
             </button>
           )}
 
-          {/* Botão pular — sempre visível após 5s */}
-          {mostrarPular && status !== 'active' && (
+          {/* Botão pular — visível após 5s ou imediatamente em caso de erro */}
+          {(mostrarPular || status === 'error') && status !== 'active' && (
             <button
               type="button"
               onClick={onPular}
