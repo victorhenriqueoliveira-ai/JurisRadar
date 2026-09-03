@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
 
   // Chama Claude — até 3 rodadas de tool use
   let response = await client.messages.create({
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-3-haiku-20240307',
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     tools,
@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
     conversationMessages.push({ role: 'user', content: toolResults });
 
     response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       tools,
