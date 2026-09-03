@@ -7,7 +7,7 @@
 
 import { db } from '@/db'
 import { eventosCalendario, processos, movimentacoes } from '@/db/schema'
-import { eq, and, gte, lte, sql } from 'drizzle-orm'
+import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm'
 import type { OrgContext } from '@/types/domain'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
@@ -84,6 +84,10 @@ export async function getEventosByPeriod(
     )
     .orderBy(eventosCalendario.data)
 
+  // Tipos de movimentação relevantes para o calendário — editais e intimações
+  // são publicações informativas do DJEN e não devem poluir a agenda.
+  const TIPOS_CALENDARIO = ['audiencia', 'prazo', 'prazo_fatal', 'sessao', 'julgamento']
+
   // 2. Movimentações processuais do período como eventos de agenda
   const movRows = await db
     .select({
@@ -102,6 +106,7 @@ export async function getEventosByPeriod(
         eq(movimentacoes.orgId, ctx.orgId),
         gte(movimentacoes.data, new Date(de + 'T00:00:00')),
         lte(movimentacoes.data, new Date(ate + 'T23:59:59')),
+        inArray(movimentacoes.tipo, TIPOS_CALENDARIO),
       ),
     )
     .orderBy(movimentacoes.data)
