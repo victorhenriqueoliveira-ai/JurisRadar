@@ -11,10 +11,9 @@
 import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { asaasAccounts } from '@/db/schema';
+import { asaasAccounts, organizations, users } from '@/db/schema';
 import { AsaasError } from '@/lib/asaas/errors';
 import { asaasClient } from '@/lib/asaas/client';
-import { conectarSubContaSchema } from '@/lib/asaas/schemas';
 import { requireOrgContext } from '@/lib/org-context';
 import { UnauthorizedError } from '@/lib/errors';
 
@@ -50,22 +49,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3. Validar body com Zod
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Body inválido — JSON malformado.' }, { status: 400 });
+  // 3. Buscar dados do org e usuário no banco
+  const [org] = await db
+    .select({ name: organizations.name, cnpj: organizations.cnpj })
+    .from(organizations)
+    .where(eq(organizations.id, ctx.orgId))
+    .limit(1);
+
+  const [user] = await db
+    .select({ email: users.email, cpf: users.cpf })
+    .from(users)
+    .where(eq(users.id, ctx.userId))
+    .limit(1);
+
+  const name = org?.name;
+  const email = user?.email;
+  const cpfCnpj = org?.cnpj || user?.cpf || null;
+
+  if (!name || !email) {
+    return NextResponse.json(
+      { error: 'Dados do escritório incompletos. Verifique nome e e-mail.' },
+      { status: 422 },
+    );
   }
 
-  const parsed = conectarSubContaSchema.safeParse(body);
-  if (!parsed.success) {
+  if (!cpfCnpj) {
     return NextResponse.json(
-      {
-        error: 'Dados inválidos.',
-        detalhes: parsed.error.flatten().fieldErrors,
-      },
-      { status: 400 },
+      { error: 'CPF ou CNPJ não cadastrado. Adicione nas configurações do escritório para ativar o módulo de honorários.' },
+      { status: 422 },
     );
   }
 
@@ -73,7 +84,9 @@ export async function POST(req: NextRequest) {
   try {
     const subconta = await asaasClient.criarSubConta({
       orgId: ctx.orgId,
-      ...parsed.data,
+      name,
+      email,
+      cpfCnpj,
     });
 
     return NextResponse.json(
