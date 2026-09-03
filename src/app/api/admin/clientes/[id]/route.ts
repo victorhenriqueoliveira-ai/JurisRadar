@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, isNextResponse } from '@/lib/admin-guard';
 import { db } from '@/db';
-import { organizations, subscriptions, orgMembers, users, processos, searches } from '@/db/schema';
+import {
+  organizations, subscriptions, orgMembers, users, processos, searches,
+  djeSearches, asaasAccounts, cobrancas, anexos, notificacaoGarantia,
+} from '@/db/schema';
 import { eq, count, inArray } from 'drizzle-orm';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -130,48 +133,61 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const guard = await requireAdmin();
-  if (isNextResponse(guard)) return guard;
+  try {
+    const guard = await requireAdmin();
+    if (isNextResponse(guard)) return guard;
 
-  const { id } = params;
+    const { id } = params;
 
-  const [org] = await db
-    .select({ id: organizations.id, name: organizations.name })
-    .from(organizations)
-    .where(eq(organizations.id, id))
-    .limit(1);
+    const [org] = await db
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
 
-  if (!org) {
-    return NextResponse.json({ error: 'Organização não encontrada.' }, { status: 404 });
-  }
+    if (!org) {
+      return NextResponse.json({ error: 'Organização não encontrada.' }, { status: 404 });
+    }
 
-  // Coleta os userIds dos membros antes do cascade apagar orgMembers
-  const membros = await db
-    .select({ userId: orgMembers.userId })
-    .from(orgMembers)
-    .where(eq(orgMembers.orgId, id));
-
-  const userIds = membros.map((m) => m.userId);
-
-  // Apaga a organização — cascade remove: subscriptions, orgMembers, processos,
-  // searches, movimentacoes, eventosCalendario, asaasAccounts, etc.
-  await db.delete(organizations).where(eq(organizations.id, id));
-
-  // Remove os usuários que eram membros exclusivos desta organização
-  if (userIds.length > 0) {
-    // Só apaga se o usuário não for membro de nenhuma outra org
-    const aindaMembros = await db
+    // Coleta userIds dos membros antes de qualquer exclusão
+    const membros = await db
       .select({ userId: orgMembers.userId })
       .from(orgMembers)
-      .where(inArray(orgMembers.userId, userIds));
+      .where(eq(orgMembers.orgId, id));
 
-    const idsAindaMembros = new Set(aindaMembros.map((m) => m.userId));
-    const idsParaApagar = userIds.filter((uid) => !idsAindaMembros.has(uid));
+    const userIds = membros.map((m) => m.userId);
 
-    if (idsParaApagar.length > 0) {
-      await db.delete(users).where(inArray(users.id, idsParaApagar));
+    // Tabelas com FK ON DELETE NO ACTION — precisam ser limpas manualmente
+    await db.delete(notificacaoGarantia).where(eq(notificacaoGarantia.orgId, id));
+    await db.delete(cobrancas).where(eq(cobrancas.orgId, id));
+    await db.delete(anexos).where(eq(anexos.orgId, id));
+    await db.delete(asaasAccounts).where(eq(asaasAccounts.orgId, id));
+    await db.delete(djeSearches).where(eq(djeSearches.orgId, id));
+    await db.delete(searches).where(eq(searches.orgId, id));
+
+    // Apaga a organização — cascade remove o resto (subscriptions, orgMembers,
+    // processos, movimentacoes, eventosCalendario, etc.)
+    await db.delete(organizations).where(eq(organizations.id, id));
+
+    // Remove usuários que eram exclusivos desta organização
+    if (userIds.length > 0) {
+      const aindaMembros = await db
+        .select({ userId: orgMembers.userId })
+        .from(orgMembers)
+        .where(inArray(orgMembers.userId, userIds));
+
+      const idsAindaMembros = new Set(aindaMembros.map((m) => m.userId));
+      const idsParaApagar = userIds.filter((uid) => !idsAindaMembros.has(uid));
+
+      if (idsParaApagar.length > 0) {
+        await db.delete(users).where(inArray(users.id, idsParaApagar));
+      }
     }
-  }
 
-  return NextResponse.json({ ok: true, deleted: org.name });
+    return NextResponse.json({ ok: true, deleted: org.name });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[DELETE /api/admin/clientes/[id]]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
