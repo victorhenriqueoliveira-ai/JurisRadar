@@ -78,6 +78,13 @@
       "when": 1756857600000,
       "tag": "0010_asaas_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1756944000000,
+      "tag": "0008_perfect_blue_blade",
+      "breakpoints": true
     }
   ]
 }
