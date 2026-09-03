@@ -70,22 +70,36 @@ export function Passo2Importacao({ onProximo, onPular }: Passo2Props) {
       // Busca direto do browser — evita bloqueio de IP da Vercel
       const items = await fetchDjenBrowser(oab, oabEstado);
 
-      // Envia os dados ao servidor para persistência
-      const res = await fetch('/api/processos/import-djen', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, oabNumero: oab, oabEstado }),
-      });
+      // Remove campo texto (grande, não armazenado) e envia em lotes de 200
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const itemsCompactos = items.map(({ texto: _t, ...rest }: any) => rest);
+      const BATCH = 200;
+      let totalImportado = 0;
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string };
-        setErro(data.error ?? 'Erro ao salvar processos. Tente novamente.');
-        setStatus('error');
-        return;
+      for (let i = 0; i < itemsCompactos.length; i += BATCH) {
+        const lote = itemsCompactos.slice(i, i + BATCH);
+        const res = await fetch('/api/processos/import-djen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: lote,
+            // OAB só no primeiro lote para não duplicar o update
+            ...(i === 0 ? { oabNumero: oab, oabEstado } : {}),
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string };
+          setErro(data.error ?? 'Erro ao salvar processos. Tente novamente.');
+          setStatus('error');
+          return;
+        }
+
+        const data = await res.json() as { total?: number };
+        totalImportado += data.total ?? 0;
       }
 
-      const data = await res.json() as { total?: number };
-      setProcessosEncontrados(data.total ?? 0);
+      setProcessosEncontrados(totalImportado);
       setStatus('done');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro de conexão.';
