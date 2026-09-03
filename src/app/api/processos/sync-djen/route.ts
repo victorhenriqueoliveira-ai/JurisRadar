@@ -46,7 +46,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
-    console.error('[POST /api/processos/sync-djen]', error);
-    return NextResponse.json({ error: 'Erro ao sincronizar via DJEN' }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[POST /api/processos/sync-djen]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
