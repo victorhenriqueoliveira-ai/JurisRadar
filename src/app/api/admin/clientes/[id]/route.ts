@@ -5,6 +5,7 @@ import { organizations, subscriptions, orgMembers, users, processos, searches } 
 import { eq, count, inArray } from 'drizzle-orm';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  try {
   const guard = await requireAdmin();
   if (isNextResponse(guard)) return guard;
 
@@ -60,6 +61,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       totalBuscas,
     },
   });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[GET /api/admin/clientes/[id]]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
