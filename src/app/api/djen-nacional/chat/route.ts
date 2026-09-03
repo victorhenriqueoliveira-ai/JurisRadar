@@ -141,9 +141,10 @@ async function fetchPjePage(
     cache: 'no-store',
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
-      Accept: 'application/json',
-      Referer: 'https://comunica.pje.jus.br/',
-      Origin: 'https://comunica.pje.jus.br',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'pt-BR,pt;q=0.9',
+      'Referer': 'https://comunica.pje.jus.br/',
+      'Origin': 'https://comunica.pje.jus.br',
     },
   });
 
