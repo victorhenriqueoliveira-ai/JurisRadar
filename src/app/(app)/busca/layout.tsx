@@ -20,7 +20,7 @@ export default function BuscaLayout({ children }: { children: ReactNode }) {
   const modeLabel = mode === 'ia' ? 'Busca com IA' : null;
 
   return (
-    <div className="w-full flex flex-col flex-1">
+    <div className="w-full flex flex-col flex-1 min-h-0">
       {/* Header */}
       {/* <div className="mb-4">
         <h1 className="text-2xl font-extrabold text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>

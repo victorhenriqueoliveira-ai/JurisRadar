@@ -313,20 +313,54 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const loadHistory = useCallback(async () => {
+  const loadConversationById = useCallback(async (conv: ConvSummary) => {
+    setConversationLoading(true);
+    setMessages([]);
+    setPanelItems([]);
+    setCurrentConvId(null);
+    try {
+      const res = await fetch(`/api/djen-nacional/conversations/${conv.id}`);
+      if (!res.ok) return;
+      const data = await res.json() as { conversation: { apiMessages: ApiMessage[] }; messages: ChatMessage[] };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const msgs: ChatMessage[] = data.messages.map((m: any) => ({
+        role: m.role, text: m.text,
+        items: m.items ? (m.items as unknown[]).map(mapItem) : undefined,
+        total: m.total ?? undefined, totalBruto: m.totalBruto ?? undefined, params: m.params ?? undefined,
+      }));
+      setMessages(msgs);
+      setApiMessages(data.conversation.apiMessages ?? []);
+      setCurrentConvId(conv.id);
+      const lastWithItems = [...msgs].reverse().find((m) => m.items && m.items.length > 0);
+      if (lastWithItems?.items) {
+        setPanelItems(lastWithItems.items);
+        setPanelTotal(lastWithItems.total ?? lastWithItems.items.length);
+        setPanelTotalBruto(lastWithItems.totalBruto ?? lastWithItems.total ?? lastWithItems.items.length);
+        setPanelLabel(String(lastWithItems.params?.texto ?? ''));
+      }
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
+    } catch { /* silent */ } finally {
+      setConversationLoading(false);
+    }
+  }, []);
+
+  const loadHistory = useCallback(async (autoLoadLast = false) => {
     setHistoryLoading(true);
     try {
       const res = await fetch('/api/djen-nacional/conversations');
       if (res.ok) {
         const data = await res.json() as { conversations: ConvSummary[] };
         setHistory(data.conversations);
+        if (autoLoadLast && data.conversations.length > 0) {
+          await loadConversationById(data.conversations[0]);
+        }
       }
     } finally {
       setHistoryLoading(false);
     }
-  }, []);
+  }, [loadConversationById]);
 
-  useEffect(() => { void loadHistory(); }, [loadHistory]);
+  useEffect(() => { void loadHistory(true); }, [loadHistory]);
 
   useEffect(() => {
     if (!isLoading) return;
@@ -389,34 +423,7 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
   }
 
   async function loadConversation(conv: ConvSummary) {
-    setConversationLoading(true);
-    setMessages([]);
-    setPanelItems([]);
-    setCurrentConvId(null);
-    try {
-      const res = await fetch(`/api/djen-nacional/conversations/${conv.id}`);
-      if (!res.ok) return;
-      const data = await res.json() as { conversation: { apiMessages: ApiMessage[] }; messages: ChatMessage[] };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const msgs: ChatMessage[] = data.messages.map((m: any) => ({
-        role: m.role, text: m.text,
-        items: m.items ? (m.items as unknown[]).map(mapItem) : undefined,
-        total: m.total ?? undefined, totalBruto: m.totalBruto ?? undefined, params: m.params ?? undefined,
-      }));
-      setMessages(msgs);
-      setApiMessages(data.conversation.apiMessages ?? []);
-      setCurrentConvId(conv.id);
-      const lastWithItems = [...msgs].reverse().find((m) => m.items && m.items.length > 0);
-      if (lastWithItems?.items) {
-        setPanelItems(lastWithItems.items);
-        setPanelTotal(lastWithItems.total ?? lastWithItems.items.length);
-        setPanelTotalBruto(lastWithItems.totalBruto ?? lastWithItems.total ?? lastWithItems.items.length);
-        setPanelLabel(String(lastWithItems.params?.texto ?? ''));
-      }
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
-    } catch { /* silent */ } finally {
-      setConversationLoading(false);
-    }
+    await loadConversationById(conv);
   }
 
   async function deleteConversation(id: string, e: React.MouseEvent) {
