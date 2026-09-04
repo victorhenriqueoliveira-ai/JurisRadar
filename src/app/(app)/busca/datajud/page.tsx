@@ -220,10 +220,10 @@ function DataJudSearchContent() {
   const isLoading = searchState.status === 'loading';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div
         role="note"
-        className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-1"
+        className="rounded-md bg-blue-50 border border-blue-200 text-sm text-blue-800 space-y-1 p-4"
       >
         <p className="font-semibold">DataJud / CNJ — Base Nacional de Dados do Poder Judiciário</p>
         <p><strong>Tempo quase real</strong> — processos são atualizados em até 24h pelos tribunais.</p>

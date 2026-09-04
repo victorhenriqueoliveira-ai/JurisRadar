@@ -658,7 +658,13 @@ function DjenNacionalBuscaContent() {
   const [crmItem, setCrmItem] = useState<DjenItem | null>(null);
   const [lastSearch, setLastSearch] = useState<FormValues | null>(null);
   const [leadsMode, setLeadsMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'manual' | 'ia'>('manual');
+  const [activeTab, setActiveTab] = useState<'manual' | 'ia'>(
+    searchParams.get('mode') === 'ia' ? 'ia' : 'manual'
+  );
+
+  useEffect(() => {
+    setActiveTab(searchParams.get('mode') === 'ia' ? 'ia' : 'manual');
+  }, [searchParams]);
 
   const { register, handleSubmit, getValues, watch, setValue } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -836,36 +842,12 @@ function DjenNacionalBuscaContent() {
     <>
       {crmItem && <CrmModal item={crmItem} onClose={() => setCrmItem(null)} />}
 
-      <div className="flex flex-col flex-1 gap-4 min-h-0">
-        {/* Toggle de abas */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
-          <button
-            type="button"
-            onClick={() => setActiveTab('manual')}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'manual'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Busca Manual
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('ia')}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
-              activeTab === 'ia'
-                ? 'bg-white text-purple-700 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <span>✨</span> Busca com IA
-          </button>
-        </div>
+      {/* Modo IA: DjenIaChat preenche todo o card sem tab toggle */}
+      {activeTab === 'ia' && (
+        <DjenIaChat onSwitchToManual={() => setActiveTab('manual')} />
+      )}
 
-        {/* Chat IA */}
-        {activeTab === 'ia' && <DjenIaChat />}
-
+      <div className={`flex flex-col flex-1 gap-4 min-h-0 p-6 ${activeTab === 'ia' ? 'hidden' : ''}`}>
         {/* Busca Manual — intacta */}
         {activeTab === 'manual' && <>
         <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-1">

@@ -138,13 +138,13 @@ function DjePageContent() {
   const isLoading = searchState.status === 'loading';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Favoritos */}
       <BuscaFavoritos fonte="dje" onAplicar={applyFavorito} />
 
       <div
         role="note"
-        className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 space-y-1"
+        className="rounded-md bg-amber-50 border border-amber-200 text-sm text-amber-800 space-y-1 p-4"
         data-testid="coverage-notice"
       >
         <p className="font-semibold">DJe TJSP — Diário da Justiça Eletrônico do Tribunal de Justiça de SP</p>
