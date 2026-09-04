@@ -15,6 +15,7 @@ const formSchema = z.object({
   data: z.string().optional(),
   tipoComunicacao: z.string().optional(),
   classeProcessual: z.string().optional(),
+  siglaTribunal: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -673,7 +674,7 @@ function DjenNacionalBuscaContent() {
 
   const { register, handleSubmit, getValues, watch, setValue } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { numeroProcesso: '', texto: '', nomeParte: '', data: '', tipoComunicacao: '', classeProcessual: '' },
+    defaultValues: { numeroProcesso: '', texto: '', nomeParte: '', data: '', tipoComunicacao: '', classeProcessual: '', siglaTribunal: '' },
   });
 
   const byNumero = Boolean(watch('numeroProcesso')?.trim());
@@ -693,6 +694,8 @@ function DjenNacionalBuscaContent() {
     if (data) setValue('data', data);
     if (tipo) setValue('tipoComunicacao', tipo);
     if (classe) setValue('classeProcessual', classe);
+    const sigla = searchParams.get('siglaTribunal');
+    if (sigla) setValue('siglaTribunal', sigla);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -709,6 +712,7 @@ function DjenNacionalBuscaContent() {
       if (values.data) params.set('dataDisponibilizacao', values.data);
     }
     if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
+    if (values.siglaTribunal?.trim()) params.set('siglaTribunal', values.siglaTribunal.trim());
 
     const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
     if (!res.ok) {
@@ -824,6 +828,7 @@ function DjenNacionalBuscaContent() {
         ...(values.data ? { data: values.data } : {}),
         ...(values.tipoComunicacao ? { tipoComunicacao: values.tipoComunicacao } : {}),
         ...(values.classeProcessual ? { classeProcessual: values.classeProcessual } : {}),
+        ...(values.siglaTribunal ? { siglaTribunal: values.siglaTribunal } : {}),
       },
     });
     localStorage.setItem(key, JSON.stringify(existing.slice(0, 20)));
@@ -838,6 +843,7 @@ function DjenNacionalBuscaContent() {
     if (params.data) setValue('data', params.data);
     if (params.tipoComunicacao) setValue('tipoComunicacao', params.tipoComunicacao);
     if (params.classeProcessual) setValue('classeProcessual', params.classeProcessual);
+    if (params.siglaTribunal) setValue('siglaTribunal', params.siglaTribunal);
     void search(getValues(), 1);
   }
 
@@ -901,27 +907,35 @@ function DjenNacionalBuscaContent() {
             <input
               id="texto"
               type="text"
-              placeholder="Ex: santo amaro, pinheiros, banco bradesco"
+              placeholder="Ex: santo amaro, lapa, banco bradesco"
               {...register('texto')}
               disabled={isLoading || byNumero}
               className={inputCls}
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                'Pinheiros', 'Santo Amaro', 'Embu das Artes',
-                'Campo Limpo', 'Parelheiros', 'Osasco',
-              ].map((local) => (
+              {([
+                { label: 'Pinheiros', texto: 'Lapa', sigla: 'TJSP' },
+                { label: 'Santo Amaro', texto: 'Santo Amaro', sigla: 'TJSP' },
+                { label: 'Embu das Artes', texto: 'Embu das Artes', sigla: 'TJSP' },
+                { label: 'Campo Limpo', texto: 'Campo Limpo', sigla: 'TJSP' },
+                { label: 'Parelheiros', texto: 'Parelheiros', sigla: 'TJSP' },
+                { label: 'Osasco', texto: 'Osasco', sigla: 'TJSP' },
+              ] as { label: string; texto: string; sigla: string }[]).map((loc) => (
                 <button
-                  key={local}
+                  key={loc.label}
                   type="button"
                   disabled={isLoading || byNumero}
-                  onClick={() => setValue('texto', local)}
+                  onClick={() => { setValue('texto', loc.texto); setValue('siglaTribunal', loc.sigla); }}
+                  title={loc.texto !== loc.label ? `Busca por "${loc.texto}" (nome do fórum TJSP)` : undefined}
                   className="px-2.5 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-40"
                 >
-                  📍 {local}
+                  📍 {loc.label}
                 </button>
               ))}
             </div>
+            <p className="mt-1.5 text-xs text-gray-400">
+              Dica: no TJSP, o DJEN usa o nome do fórum (ex: Pinheiros → &quot;Lapa&quot;, pois o fórum é Foro Regional IV - Lapa). Os chips já ajustam automaticamente.
+            </p>
           </div>
 
           <div>
@@ -1004,7 +1018,7 @@ function DjenNacionalBuscaContent() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label htmlFor="data" className="block text-sm font-medium text-gray-700 mb-1">
                 Data de disponibilização
@@ -1033,6 +1047,40 @@ function DjenNacionalBuscaContent() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label htmlFor="siglaTribunal" className="block text-sm font-medium text-gray-700 mb-1">
+                Tribunal <span className="text-gray-400 font-normal">(filtra por estado)</span>
+              </label>
+              <input
+                id="siglaTribunal"
+                type="text"
+                placeholder="Ex: TJSP, TJRJ, TJMG"
+                {...register('siglaTribunal')}
+                disabled={isLoading || byNumero}
+                className={inputCls}
+              />
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {['TJSP', 'TJRJ', 'TJMG', 'TJRS', 'TJPR'].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    disabled={isLoading || byNumero}
+                    onClick={() => setValue('siglaTribunal', t)}
+                    className="px-2 py-0.5 text-[11px] rounded-full border border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40"
+                  >
+                    {t}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={isLoading || byNumero}
+                  onClick={() => setValue('siglaTribunal', '')}
+                  className="px-2 py-0.5 text-[11px] rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+                >
+                  Todos
+                </button>
+              </div>
             </div>
           </div>
 

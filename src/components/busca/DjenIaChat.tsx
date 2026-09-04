@@ -414,17 +414,26 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
   }
 
   // Adiciona mensagem da IA à conversa — com 1 retry automático em falha transitória
+  // Trunca o campo `texto` dos itens para evitar payload gigante (publicações DJEN têm HTML completo)
   async function appendAiMessage(msg: ChatMessage, newApiMsgs: ApiMessage[], convId: string | null): Promise<void> {
     if (!convId) return;
+    const msgForDb: ChatMessage = {
+      ...msg,
+      items: msg.items?.map((item) => ({
+        ...item,
+        texto: stripHtml(item.texto ?? '').slice(0, 400),
+      })),
+    };
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await fetch(`/api/djen-nacional/conversations/${convId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newMessages: [msg], apiMessages: newApiMsgs }),
+          body: JSON.stringify({ newMessages: [msgForDb], apiMessages: newApiMsgs }),
         });
         if (res.ok) { void loadHistory(); return; }
-      } catch { /* rede — tenta novamente */ }
+        console.error('[appendAiMessage] falhou status', res.status, await res.text().catch(() => ''));
+      } catch (e) { console.error('[appendAiMessage] erro de rede:', e); }
       if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
     }
     void loadHistory();
@@ -630,6 +639,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
             finalPhase2 = event;
             break;
           } else if (event.type === 'error') {
+            const errMsg: ChatMessage = { role: 'assistant', text: 'Erro ao processar a busca. Tente novamente.' };
+            setMessages([...nextMessages, errMsg]);
+            try { await appendAiMessage(errMsg, apiMessages, convId); } catch { /* silent */ }
             shouldExit = true;
             break;
           }
