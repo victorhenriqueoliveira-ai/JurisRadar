@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { X, Plus, Clock } from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,34 @@ interface ChatMessage {
   params?: Record<string, unknown>;
 }
 
+interface Conversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  apiMessages: ApiMessage[];
+  createdAt: number;
+}
+
+// ─── Histórico localStorage ───────────────────────────────────────────────────
+
+const STORAGE_KEY = 'djen-chat-history';
+
+function loadHistory(): Conversation[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as Conversation[];
+  } catch {
+    return [];
+  }
+}
+
+function persistHistory(history: Conversation[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 50)));
+  } catch {}
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,6 +95,18 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('pt-BR');
+}
+
+function relativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `${min}min atrás`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h atrás`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d atrás`;
+  return new Date(ts).toLocaleDateString('pt-BR');
 }
 
 // ─── Card de publicação inline no chat ───────────────────────────────────────
@@ -161,7 +202,7 @@ function MiniCard({
   );
 }
 
-// ─── CRM Modal (reaproveitado) ────────────────────────────────────────────────
+// ─── CRM Modal ────────────────────────────────────────────────────────────────
 
 function CrmModal({ item, onClose }: { item: DjenItem; onClose: () => void }) {
   const [estado, setEstado] = useState<'idle' | 'loading' | 'added' | 'exists' | 'error'>('idle');
@@ -255,12 +296,58 @@ export default function DjenIaChat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [crmItem, setCrmItem] = useState<DjenItem | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<Conversation[]>([]);
+  const [currentConvId, setCurrentConvId] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    setHistory(loadHistory());
+    setCurrentConvId(crypto.randomUUID());
+  }, []);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  function saveConversation(msgs: ChatMessage[], apiMsgs: ApiMessage[], convId: string) {
+    if (msgs.length === 0 || !convId) return;
+    const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 60) ?? 'Conversa';
+    const newConv: Conversation = { id: convId, title, messages: msgs, apiMessages: apiMsgs, createdAt: Date.now() };
+    setHistory((prev) => {
+      const updated = [newConv, ...prev.filter((c) => c.id !== convId)];
+      persistHistory(updated);
+      return updated;
+    });
+  }
+
+  function startNewConversation() {
+    setMessages([]);
+    setApiMessages([]);
+    setCurrentConvId(crypto.randomUUID());
+    setInput('');
+    setShowHistory(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  function loadConversation(conv: Conversation) {
+    setMessages(conv.messages);
+    setApiMessages(conv.apiMessages);
+    setCurrentConvId(conv.id);
+    setShowHistory(false);
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
+  }
+
+  function deleteConversation(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setHistory((prev) => {
+      const updated = prev.filter((c) => c.id !== id);
+      persistHistory(updated);
+      return updated;
+    });
+    if (currentConvId === id) startNewConversation();
+  }
 
   // Fetch DJEN diretamente do browser (evita bloqueio de IP da Vercel)
   async function fetchDjenBrowser(params: Record<string, unknown>): Promise<{
@@ -333,7 +420,9 @@ export default function DjenIaChat() {
     if (!userText || isLoading) return;
 
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', text: userText }]);
+    const convId = currentConvId;
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', text: userText }];
+    setMessages(nextMessages);
     setIsLoading(true);
 
     try {
@@ -346,7 +435,10 @@ export default function DjenIaChat() {
 
       if (!res1.ok) {
         const err = await res1.json().catch(() => ({})) as { error?: string };
-        setMessages((prev) => [...prev, { role: 'assistant', text: err.error ?? 'Erro ao consultar a IA. Tente novamente.' }]);
+        const errMsg = err.error ?? 'Erro ao consultar a IA. Tente novamente.';
+        const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: errMsg }];
+        setMessages(finalMsgs);
+        saveConversation(finalMsgs, apiMessages, convId);
         return;
       }
 
@@ -369,12 +461,15 @@ export default function DjenIaChat() {
       // Claude respondeu sem busca
       if (phase1.status !== 'need_browser_search') {
         const items = (phase1.items ?? []).map(mapItem);
-        setMessages((prev) => [...prev, { role: 'assistant', text: phase1.message ?? '', items, total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined }]);
-        setApiMessages(phase1.messages ?? []);
+        const newApiMsgs = phase1.messages ?? [];
+        const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: phase1.message ?? '', items, total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined }];
+        setMessages(finalMsgs);
+        setApiMessages(newApiMsgs);
+        saveConversation(finalMsgs, newApiMsgs, convId);
         return;
       }
 
-      // Fase 2: busca diretamente do browser (sem passar pela Vercel)
+      // Fase 2: busca diretamente do browser
       let djenResult: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null };
       try {
         djenResult = await fetchDjenBrowser(phase1.searchParams ?? {});
@@ -404,7 +499,9 @@ export default function DjenIaChat() {
       });
 
       if (!res2.ok) {
-        setMessages((prev) => [...prev, { role: 'assistant', text: 'Erro ao processar resposta da IA.' }]);
+        const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro ao processar resposta da IA.' }];
+        setMessages(errMsgs);
+        saveConversation(errMsgs, apiMessages, convId);
         return;
       }
 
@@ -419,11 +516,16 @@ export default function DjenIaChat() {
       };
 
       const items = (phase2.items ?? []).map(mapItem);
-      setMessages((prev) => [...prev, { role: 'assistant', text: phase2.message, items, total: phase2.total, totalBruto: phase2.totalBruto, params: phase2.params ?? undefined }]);
-      setApiMessages(phase2.messages ?? []);
+      const newApiMsgs = phase2.messages ?? [];
+      const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: phase2.message, items, total: phase2.total, totalBruto: phase2.totalBruto, params: phase2.params ?? undefined }];
+      setMessages(finalMsgs);
+      setApiMessages(newApiMsgs);
+      saveConversation(finalMsgs, newApiMsgs, convId);
 
     } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' }]);
+      const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' }];
+      setMessages(errMsgs);
+      saveConversation(errMsgs, apiMessages, convId);
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -441,140 +543,208 @@ export default function DjenIaChat() {
     <>
       {crmItem && <CrmModal item={crmItem} onClose={() => setCrmItem(null)} />}
 
-      <div className="flex flex-col h-[calc(100vh-12rem)] min-h-[500px]">
+      {/* -m-6 cancela o p-6 do card pai para o chat ir de borda a borda */}
+      <div className="flex flex-1 min-h-0 -m-6">
 
-        {/* Mensagens */}
-        <div className="flex-1 overflow-y-auto space-y-4 pb-4">
-
-          {/* Estado inicial */}
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-4">
-              <div>
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-3">
-                  <span className="text-2xl">⚖️</span>
-                </div>
-                <p className="text-base font-semibold text-gray-900">Assistente de Busca DJEN</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Descreva o que você precisa em linguagem natural.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
-                {SUGESTOES.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => void send(s)}
-                    className="text-left px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:border-purple-300 hover:bg-purple-50 hover:text-purple-800 transition-colors"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+        {/* Painel de histórico */}
+        {showHistory && (
+          <div className="w-56 shrink-0 border-r border-gray-100 flex flex-col bg-gray-50/80">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Histórico</span>
+              <button
+                type="button"
+                onClick={() => setShowHistory(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          )}
 
-          {/* Histórico */}
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'assistant' && (
-                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-sm">⚖️</span>
-                </div>
+            <button
+              type="button"
+              onClick={startNewConversation}
+              className="mx-3 mt-2 mb-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Nova conversa
+            </button>
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+              {history.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-6">Nenhuma conversa ainda</p>
               )}
-
-              <div className={`max-w-[85%] space-y-3 ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
-                {/* Balão de texto */}
-                <div
-                  className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'user'
-                      ? 'bg-[#0f2d5e] text-white rounded-tr-sm'
-                      : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
+              {history.map((conv) => (
+                <button
+                  key={conv.id}
+                  type="button"
+                  onClick={() => loadConversation(conv)}
+                  className={`w-full text-left px-3 py-2 rounded-lg group flex items-start gap-2 transition-colors ${
+                    conv.id === currentConvId
+                      ? 'bg-purple-100 text-purple-800'
+                      : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  {msg.text}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate leading-snug">{conv.title}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{relativeTime(conv.createdAt)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => deleteConversation(conv.id, e)}
+                    className="opacity-0 group-hover:opacity-100 shrink-0 text-gray-400 hover:text-red-500 transition-opacity mt-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Área principal do chat */}
+        <div className="flex flex-col flex-1 min-h-0 p-6">
+
+          {/* Mensagens */}
+          <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+
+            {/* Estado inicial */}
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-4">
+                <div>
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl">⚖️</span>
+                  </div>
+                  <p className="text-base font-semibold text-gray-900">Assistente de Busca DJEN</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Descreva o que você precisa em linguagem natural.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
+                  {SUGESTOES.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => void send(s)}
+                      className="text-left px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:border-purple-300 hover:bg-purple-50 hover:text-purple-800 transition-colors"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Histórico de mensagens */}
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.role === 'assistant' && (
+                  <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-sm">⚖️</span>
+                  </div>
+                )}
+
+                <div className={`max-w-[85%] space-y-3 ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
+                  <div
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                      msg.role === 'user'
+                        ? 'bg-[#0f2d5e] text-white rounded-tr-sm'
+                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+
+                  {msg.role === 'assistant' && msg.items && msg.items.length > 0 && (
+                    <div className="w-full space-y-2">
+                      <p className="text-xs text-gray-400 px-1">
+                        {msg.total?.toLocaleString('pt-BR')} publicaç{msg.total !== 1 ? 'ões' : 'ão'}
+                        {msg.totalBruto && msg.totalBruto > (msg.total ?? 0)
+                          ? ` filtradas de ${msg.totalBruto.toLocaleString('pt-BR')} analisadas`
+                          : ' encontradas'}
+                      </p>
+                      {msg.items.slice(0, 20).map((item, i) => (
+                        <MiniCard key={item.id ?? i} item={item} onAbrirCrm={setCrmItem} />
+                      ))}
+                      {msg.items.length > 20 && (
+                        <p className="text-xs text-gray-400 text-center py-1">
+                          + {msg.items.length - 20} publicações não exibidas
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Cards de publicação */}
-                {msg.role === 'assistant' && msg.items && msg.items.length > 0 && (
-                  <div className="w-full space-y-2">
-                    <p className="text-xs text-gray-400 px-1">
-                      {msg.total?.toLocaleString('pt-BR')} publicaç{msg.total !== 1 ? 'ões' : 'ão'}
-                      {msg.totalBruto && msg.totalBruto > (msg.total ?? 0)
-                        ? ` filtradas de ${msg.totalBruto.toLocaleString('pt-BR')} analisadas`
-                        : ' encontradas'}
-                    </p>
-                    {msg.items.slice(0, 20).map((item, i) => (
-                      <MiniCard key={item.id ?? i} item={item} onAbrirCrm={setCrmItem} />
-                    ))}
-                    {msg.items.length > 20 && (
-                      <p className="text-xs text-gray-400 text-center py-1">
-                        + {msg.items.length - 20} publicações não exibidas
-                      </p>
-                    )}
+                {msg.role === 'user' && (
+                  <div className="w-7 h-7 rounded-full bg-[#0f2d5e] flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">V</span>
                   </div>
                 )}
               </div>
+            ))}
 
-              {msg.role === 'user' && (
-                <div className="w-7 h-7 rounded-full bg-[#0f2d5e] flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-white text-xs font-bold">V</span>
+            {/* Loading */}
+            {isLoading && (
+              <div className="flex gap-3 justify-start">
+                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                  <span className="text-sm">⚖️</span>
                 </div>
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                  <div className="flex gap-1 items-center">
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div className="border-t border-gray-200 pt-3">
+            <div className="flex items-center gap-3 mb-2">
+              <button
+                type="button"
+                onClick={() => setShowHistory((v) => !v)}
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                Histórico{history.length > 0 ? ` (${history.length})` : ''}
+              </button>
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={startNewConversation}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ↺ Nova conversa
+                </button>
               )}
             </div>
-          ))}
-
-          {/* Loading */}
-          {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                <span className="text-sm">⚖️</span>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                <div className="flex gap-1 items-center">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
-                </div>
-              </div>
+            <div className="flex gap-2 items-end">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isLoading}
+                placeholder="Ex: busca e apreensão de veículo em Embu das Artes de ontem…"
+                className="flex-1 resize-none px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:opacity-50 max-h-32 overflow-y-auto"
+                style={{ fieldSizing: 'content' } as React.CSSProperties}
+              />
+              <button
+                type="button"
+                onClick={() => void send(input)}
+                disabled={isLoading || !input.trim()}
+                className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors shrink-0"
+              >
+                Enviar
+              </button>
             </div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Input */}
-        <div className="border-t border-gray-200 pt-3">
-          {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => { setMessages([]); setApiMessages([]); }}
-              className="text-xs text-gray-400 hover:text-gray-600 mb-2"
-            >
-              ↺ Nova conversa
-            </button>
-          )}
-          <div className="flex gap-2 items-end">
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading}
-              placeholder="Ex: busca e apreensão de veículo em Embu das Artes de ontem…"
-              className="flex-1 resize-none px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:opacity-50 max-h-32 overflow-y-auto"
-              style={{ fieldSizing: 'content' } as React.CSSProperties}
-            />
-            <button
-              type="button"
-              onClick={() => void send(input)}
-              disabled={isLoading || !input.trim()}
-              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors shrink-0"
-            >
-              Enviar
-            </button>
+            <p className="text-xs text-gray-400 mt-1.5">Enter para enviar · Shift+Enter para nova linha</p>
           </div>
-          <p className="text-xs text-gray-400 mt-1.5">Enter para enviar · Shift+Enter para nova linha</p>
         </div>
       </div>
     </>

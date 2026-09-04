@@ -17,7 +17,7 @@ export default function BuscaLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto w-full flex flex-col flex-1">
       {/* Header */}
       <div className="mb-5">
         <h1 className="text-2xl font-extrabold text-[#0f2d5e]" style={{ fontFamily: 'Manrope, sans-serif' }}>
@@ -50,7 +50,7 @@ export default function BuscaLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Conteúdo da aba ativa */}
-      <div className="bg-white border border-[#e5e7eb] rounded-b-2xl rounded-tr-2xl p-6 shadow-sm">
+      <div className="bg-white border border-[#e5e7eb] rounded-b-2xl rounded-tr-2xl p-6 shadow-sm flex flex-col flex-1 overflow-hidden">
         {children}
       </div>
     </div>
