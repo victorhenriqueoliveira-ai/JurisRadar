@@ -65,7 +65,12 @@ const inputCls =
   'w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50';
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function highlight(text: string, terms: string[]): React.ReactNode {
@@ -896,14 +901,27 @@ function DjenNacionalBuscaContent() {
             <input
               id="texto"
               type="text"
-              placeholder="Ex: capão redondo, banco bradesco, avenida paulista"
+              placeholder="Ex: santo amaro, pinheiros, banco bradesco"
               {...register('texto')}
               disabled={isLoading || byNumero}
               className={inputCls}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Ex: &quot;capão redondo&quot;, &quot;banco bradesco&quot;, &quot;avenida paulista&quot;
-            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                'Pinheiros', 'Santo Amaro', 'Embu das Artes',
+                'Campo Limpo', 'Parelheiros', 'Osasco',
+              ].map((local) => (
+                <button
+                  key={local}
+                  type="button"
+                  disabled={isLoading || byNumero}
+                  onClick={() => setValue('texto', local)}
+                  className="px-2.5 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-40"
+                >
+                  📍 {local}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -913,19 +931,23 @@ function DjenNacionalBuscaContent() {
             <input
               id="nomeParte"
               type="text"
-              placeholder="Ex: busca e apreensão, alimentos, divórcio"
+              placeholder="Ex: busca e apreensão, usucapião, inventário"
               {...register('nomeParte')}
               disabled={isLoading || byNumero}
               className={inputCls}
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {[
-                { label: 'Veículo', valor: 'veículo' },
-                { label: 'Imóvel', valor: 'imóvel' },
-                { label: 'Equipamento', valor: 'equipamento' },
                 { label: 'Busca e apreensão', valor: 'busca e apreensão' },
+                { label: 'Usucapião', valor: 'usucapião' },
+                { label: 'Ação de cobrança', valor: 'cobrança' },
+                { label: 'Inventário', valor: 'inventário' },
+                { label: 'Interdição', valor: 'interdição' },
+                { label: 'Alvará judicial', valor: 'alvará' },
                 { label: 'Alimentos', valor: 'alimentos' },
                 { label: 'Execução fiscal', valor: 'execução fiscal' },
+                { label: 'Veículo', valor: 'veículo' },
+                { label: 'Imóvel', valor: 'imóvel' },
               ].map((chip) => (
                 <button
                   key={chip.valor}
@@ -955,11 +977,14 @@ function DjenNacionalBuscaContent() {
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {[
-                'Ação de Cobrança',
-                'Execução de Título Extrajudicial',
-                'Monitória',
-                'Execução Fiscal',
                 'Busca e Apreensão',
+                'Usucapião',
+                'Inventário',
+                'Interdição',
+                'Alvará',
+                'Execução de Título Extrajudicial',
+                'Execução Fiscal',
+                'Monitória',
                 'Despejo',
                 'Indenização',
               ].map((chip) => (
