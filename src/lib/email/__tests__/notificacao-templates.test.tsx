@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { NotificacaoIntimacao } from '../templates/NotificacaoIntimacao'
 import { AlertaPrazo } from '../templates/AlertaPrazo'
 import { ResumoDiario } from '../templates/ResumoDiario'
+import { NotificacaoCliente } from '../templates/NotificacaoCliente'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -310,6 +311,69 @@ describe('ResumoDiario', () => {
     const html = await renderToHtml(
       <ResumoDiario movimentacoes={[]} prazos={[]} intimacoesNaoLidas={0} />,
     )
+    expect(html).toContain('<html')
+    expect(html).toContain('</html>')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// NotificacaoCliente
+// ---------------------------------------------------------------------------
+
+describe('NotificacaoCliente', () => {
+  const defaultProps = {
+    clienteNome: 'Ana Paula Silva',
+    processoNumCnj: '0001234-56.2026.8.26.0001',
+    tipoEvento: 'Audiência de instrução',
+    dataEvento: '10/09/2026',
+    mensagemPersonalizada: 'Prezada Ana, sua audiência está agendada.',
+    nomeAdvogado: 'Dr. Carlos Mendes',
+  }
+
+  it('renderiza sem erros', async () => {
+    const html = await renderToHtml(<NotificacaoCliente {...defaultProps} />)
+    expect(html).toBeTruthy()
+    expect(typeof html).toBe('string')
+  })
+
+  it('contém o nome do cliente', async () => {
+    const html = await renderToHtml(<NotificacaoCliente {...defaultProps} />)
+    expect(html).toContain('Ana Paula Silva')
+  })
+
+  it('contém o número CNJ do processo', async () => {
+    const html = await renderToHtml(<NotificacaoCliente {...defaultProps} />)
+    expect(html).toContain('0001234-56.2026.8.26.0001')
+  })
+
+  it('contém o tipo do evento', async () => {
+    const html = await renderToHtml(<NotificacaoCliente {...defaultProps} />)
+    expect(html).toContain('Audiência de instrução')
+  })
+
+  it('contém a mensagem personalizada', async () => {
+    const html = await renderToHtml(<NotificacaoCliente {...defaultProps} />)
+    expect(html).toContain('Prezada Ana, sua audiência está agendada.')
+  })
+
+  it('contém o nome do advogado', async () => {
+    const html = await renderToHtml(<NotificacaoCliente {...defaultProps} />)
+    expect(html).toContain('Dr. Carlos Mendes')
+  })
+
+  it('renderiza com mensagem contendo caracteres especiais sem quebrar', async () => {
+    const html = await renderToHtml(
+      <NotificacaoCliente
+        {...defaultProps}
+        mensagemPersonalizada='Processo nº 0001 — Aguardando decisão & prazo <urgente>.'
+      />,
+    )
+    expect(html).toBeTruthy()
+    expect(html).toContain('JurisRadar')
+  })
+
+  it('contém tag html válida', async () => {
+    const html = await renderToHtml(<NotificacaoCliente {...defaultProps} />)
     expect(html).toContain('<html')
     expect(html).toContain('</html>')
   })

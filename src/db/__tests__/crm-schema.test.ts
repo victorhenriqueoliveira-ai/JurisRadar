@@ -17,6 +17,10 @@ import {
   honorarios,
   processos,
   orgMembers,
+  clientes,
+  comunicacoesCliente,
+  eventosCalendario,
+  eventosAgenda,
 } from '../schema';
 
 // ── Exportações das novas tabelas ─────────────────────────────────────────────
@@ -372,6 +376,183 @@ describe('crm-schema — constraints unique', () => {
   it('cobrancas deve ter constraint UNIQUE em asaas_payment_id', () => {
     const col = (cobrancas as any).asaasPaymentId;
     expect(col.isUnique).toBe(true);
+  });
+});
+
+// ── Schema v2 — tabelas clientes e comunicacoes_cliente (task_16) ─────────────
+
+describe('crm-schema v2 — tabela clientes', () => {
+  it('deve exportar clientes como objeto não-nulo', () => {
+    expect(clientes).toBeDefined();
+    expect(typeof clientes).toBe('object');
+  });
+
+  it('deve ter todas as colunas obrigatórias', () => {
+    const cols = Object.keys(clientes);
+    expect(cols).toContain('id');
+    expect(cols).toContain('orgId');
+    expect(cols).toContain('nome');
+    expect(cols).toContain('email');
+    expect(cols).toContain('whatsapp');
+    expect(cols).toContain('cpfCnpj');
+    expect(cols).toContain('createdAt');
+  });
+
+  it('coluna nome deve ser NOT NULL', () => {
+    expect((clientes as any).nome.notNull).toBe(true);
+  });
+
+  it('coluna email deve ser nullable', () => {
+    expect((clientes as any).email.notNull).toBeFalsy();
+  });
+
+  it('coluna cpfCnpj deve ser nullable (cliente pode não ter CPF/CNPJ cadastrado)', () => {
+    expect((clientes as any).cpfCnpj.notNull).toBeFalsy();
+  });
+
+  it('deve ter FK para organizations com ON DELETE CASCADE', () => {
+    const config = getTableConfig(clientes);
+    const fk = config.foreignKeys.find((fk) => {
+      const ref = fk.reference();
+      return ref.foreignTable === organizations;
+    });
+    expect(fk).toBeDefined();
+    expect(fk!.onDelete).toBe('cascade');
+  });
+
+  it('deve ter índice em org_id', () => {
+    const config = getTableConfig(clientes);
+    const idxNames = config.indexes.map((idx) => idx.config.name);
+    expect(idxNames).toContain('idx_clientes_org_id');
+  });
+
+  it('deve ter constraint UNIQUE em (org_id, cpf_cnpj)', () => {
+    const config = getTableConfig(clientes);
+    const uniqueConstraints = config.uniqueConstraints;
+    const hasUnique = uniqueConstraints.some((uc) => uc.name === 'clientes_org_id_cpf_cnpj_unique');
+    expect(hasUnique).toBe(true);
+  });
+});
+
+describe('crm-schema v2 — tabela comunicacoes_cliente', () => {
+  it('deve exportar comunicacoesCliente como objeto não-nulo', () => {
+    expect(comunicacoesCliente).toBeDefined();
+    expect(typeof comunicacoesCliente).toBe('object');
+  });
+
+  it('deve ter todas as colunas obrigatórias', () => {
+    const cols = Object.keys(comunicacoesCliente);
+    expect(cols).toContain('id');
+    expect(cols).toContain('orgId');
+    expect(cols).toContain('clienteId');
+    expect(cols).toContain('processoId');
+    expect(cols).toContain('canal');
+    expect(cols).toContain('mensagem');
+    expect(cols).toContain('enviadoPor');
+    expect(cols).toContain('createdAt');
+  });
+
+  it('coluna canal deve ser NOT NULL', () => {
+    expect((comunicacoesCliente as any).canal.notNull).toBe(true);
+  });
+
+  it('coluna mensagem deve ser NOT NULL', () => {
+    expect((comunicacoesCliente as any).mensagem.notNull).toBe(true);
+  });
+
+  it('coluna processoId deve ser nullable', () => {
+    expect((comunicacoesCliente as any).processoId.notNull).toBeFalsy();
+  });
+
+  it('deve ter FK para clientes com ON DELETE CASCADE', () => {
+    const config = getTableConfig(comunicacoesCliente);
+    const fk = config.foreignKeys.find((fk) => {
+      const ref = fk.reference();
+      return ref.foreignTable === clientes;
+    });
+    expect(fk).toBeDefined();
+    expect(fk!.onDelete).toBe('cascade');
+  });
+
+  it('deve ter FK para processos com ON DELETE SET NULL', () => {
+    const config = getTableConfig(comunicacoesCliente);
+    const fk = config.foreignKeys.find((fk) => {
+      const ref = fk.reference();
+      return ref.foreignTable === processos;
+    });
+    expect(fk).toBeDefined();
+    expect(fk!.onDelete).toBe('set null');
+  });
+
+  it('deve ter índice em processo_id', () => {
+    const config = getTableConfig(comunicacoesCliente);
+    const idxNames = config.indexes.map((idx) => idx.config.name);
+    expect(idxNames).toContain('idx_comunicacoes_processo_id');
+  });
+
+  it('deve ter índice em cliente_id', () => {
+    const config = getTableConfig(comunicacoesCliente);
+    const idxNames = config.indexes.map((idx) => idx.config.name);
+    expect(idxNames).toContain('idx_comunicacoes_cliente_id');
+  });
+});
+
+describe('crm-schema v2 — colunas adicionadas em eventosCalendario', () => {
+  it('deve ter coluna horaInicio (nullable)', () => {
+    const cols = Object.keys(eventosCalendario);
+    expect(cols).toContain('horaInicio');
+    expect((eventosCalendario as any).horaInicio.notNull).toBeFalsy();
+  });
+
+  it('deve ter coluna horaFim (nullable)', () => {
+    const cols = Object.keys(eventosCalendario);
+    expect(cols).toContain('horaFim');
+    expect((eventosCalendario as any).horaFim.notNull).toBeFalsy();
+  });
+
+  it('deve ter coluna responsavelId (nullable)', () => {
+    const cols = Object.keys(eventosCalendario);
+    expect(cols).toContain('responsavelId');
+    expect((eventosCalendario as any).responsavelId.notNull).toBeFalsy();
+  });
+
+  it('deve ter coluna origem com default "manual" e NOT NULL', () => {
+    const cols = Object.keys(eventosCalendario);
+    expect(cols).toContain('origem');
+    expect((eventosCalendario as any).origem.notNull).toBe(true);
+    expect((eventosCalendario as any).origem.default).toBe('manual');
+  });
+
+  it('deve manter todas as colunas existentes (não-destrutivo)', () => {
+    const cols = Object.keys(eventosCalendario);
+    expect(cols).toContain('id');
+    expect(cols).toContain('orgId');
+    expect(cols).toContain('processoId');
+    expect(cols).toContain('tipo');
+    expect(cols).toContain('titulo');
+    expect(cols).toContain('data');
+    expect(cols).toContain('alertadoT5');
+    expect(cols).toContain('alertadoT2');
+    expect(cols).toContain('alertadoT1');
+  });
+});
+
+describe('crm-schema v2 — colunas adicionadas em eventosAgenda', () => {
+  it('deve ter coluna responsavelId (nullable)', () => {
+    const cols = Object.keys(eventosAgenda);
+    expect(cols).toContain('responsavelId');
+    expect((eventosAgenda as any).responsavelId.notNull).toBeFalsy();
+  });
+
+  it('deve manter todas as colunas existentes (não-destrutivo)', () => {
+    const cols = Object.keys(eventosAgenda);
+    expect(cols).toContain('id');
+    expect(cols).toContain('orgId');
+    expect(cols).toContain('titulo');
+    expect(cols).toContain('data');
+    expect(cols).toContain('tipo');
+    expect(cols).toContain('horaInicio');
+    expect(cols).toContain('horaFim');
   });
 });
 
