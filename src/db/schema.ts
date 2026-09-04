@@ -557,6 +557,45 @@ export const cobrancas = pgTable(
   }),
 );
 
+// ── Tabelas IA Chat ───────────────────────────────────────────────────────────
+
+/** Conversas do assistente DJEN IA por usuário/org */
+export const djenConversations = pgTable(
+  'djen_conversations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    // Histórico no formato Anthropic MessageParam[] para multi-turn
+    apiMessages: jsonb('api_messages').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgUserIdx: index('idx_djen_conversations_org_user').on(t.orgId, t.userId, t.updatedAt),
+  }),
+);
+
+/** Mensagens individuais de cada conversa DJEN IA */
+export const djenMessages = pgTable(
+  'djen_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id').notNull().references(() => djenConversations.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'user' | 'assistant'>().notNull(),
+    text: text('text').notNull(),
+    items: jsonb('items'),
+    total: integer('total'),
+    totalBruto: integer('total_bruto'),
+    params: jsonb('params'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    conversationIdx: index('idx_djen_messages_conversation').on(t.conversationId, t.createdAt),
+  }),
+);
+
 /**
  * Anexos de processos — referências a arquivos no Vercel Blob.
  * Limite por arquivo: 10 MB. Quota por escritório: 500 MB.
