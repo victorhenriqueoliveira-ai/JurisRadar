@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 const ROUTE_LABELS: Record<string, string> = {
+  '/busca/ia': 'Busca IA Unificada',
   '/busca/djen-nacional': 'DJEN Nacional',
   '/busca/datajud': 'DataJud / CNJ',
   '/busca/dje': 'DJe TJSP',

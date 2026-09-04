@@ -596,6 +596,40 @@ export const djenMessages = pgTable(
   }),
 );
 
+/** Conversas da Busca IA Unificada (DJEN + DataJud + DJe) */
+export const buscaIaConversations = pgTable(
+  'busca_ia_conversations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    apiMessages: jsonb('api_messages').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgUserIdx: index('idx_busca_ia_conversations_org_user').on(t.orgId, t.userId, t.updatedAt),
+  }),
+);
+
+/** Mensagens individuais da Busca IA Unificada */
+export const buscaIaMessages = pgTable(
+  'busca_ia_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id').notNull().references(() => buscaIaConversations.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'user' | 'assistant'>().notNull(),
+    text: text('text').notNull(),
+    sources: jsonb('sources'),
+    params: jsonb('params'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    conversationIdx: index('idx_busca_ia_messages_conversation').on(t.conversationId, t.createdAt),
+  }),
+);
+
 /**
  * Anexos de processos — referências a arquivos no Vercel Blob.
  * Limite por arquivo: 10 MB. Quota por escritório: 500 MB.
