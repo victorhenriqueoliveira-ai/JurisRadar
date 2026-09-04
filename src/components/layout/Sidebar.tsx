@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Kanban,
@@ -13,12 +14,22 @@ import {
   Wallet,
   Bell,
   Settings,
+  ChevronRight,
 } from 'lucide-react';
+
+type NavSubItem = {
+  href: string;
+  label: string;
+  accent?: boolean; // IA items — destaque roxo
+  manual?: boolean; // Manual items — destaque azul
+  icon?: React.ComponentType<{ className?: string }>;
+};
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  children?: NavSubItem[];
 };
 
 type NavSection = {
@@ -42,10 +53,41 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Buscas de casos',
     items: [
-      { href: '/busca/djen-nacional', label: 'DJEN Nacional', icon: Radar },
-      { href: '/busca/datajud', label: 'DataJud / CNJ', icon: Database },
-      { href: '/busca/dje', label: 'DJe TJSP', icon: Newspaper },
-      { href: '/busca/pje', label: 'PJe Nacional', icon: Search },
+      {
+        href: '/busca/djen-nacional',
+        label: 'DJEN Nacional',
+        icon: Radar,
+        children: [
+          { href: '/busca/djen-nacional', label: 'Busca Manual' , icon: Search
+          },
+          { href: '/busca/djen-nacional?mode=ia', label: 'Busca com IA', accent: true },
+        ],
+      },
+      {
+        href: '/busca/datajud',
+        label: 'DataJud / CNJ',
+        icon: Database,
+        children: [
+          { href: '/busca/datajud', label: 'Busca Manual' , icon: Search
+          },
+        ],
+      },
+      {
+        href: '/busca/dje',
+        label: 'DJe TJSP',
+        icon: Newspaper,
+        children: [
+          { href: '/busca/dje', label: 'Busca Manual' , icon: Search},
+        ],
+      },
+      {
+        href: '/busca/pje',
+        label: 'PJe Nacional',
+        icon: Search,
+        children: [
+          { href: '/busca/pje', label: 'Busca Manual' , icon: Search},
+        ],
+      },
     ],
   },
   {
@@ -69,8 +111,111 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+function NavItemComponent({
+  item,
+  pathname,
+  mode,
+  showLabels,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  mode: string | null;
+  showLabels: boolean;
+  onNavigate?: () => void;
+}) {
+  const isParentActive = pathname === item.href || pathname.startsWith(item.href + '/');
+  const hasChildren = Boolean(item.children?.length);
+  const [expanded, setExpanded] = useState(isParentActive);
+
+  // Sincroniza expansão quando rota muda
+  useEffect(() => {
+    if (isParentActive) setExpanded(true);
+  }, [isParentActive]);
+
+  function isChildActive(child: NavSubItem): boolean {
+    const [childPath, childQuery] = child.href.split('?');
+    const childMode = childQuery ? new URLSearchParams(childQuery).get('mode') : null;
+    if (pathname !== childPath) return false;
+    if (childMode === 'ia') return mode === 'ia';
+    // manual: sem ?mode ou ?mode=manual
+    return !mode || mode === 'manual';
+  }
+
+  if (!hasChildren) {
+    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+    return (
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={isActive ? 'page' : undefined}
+        title={item.label}
+        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-colors mb-0.5 ${
+          isActive ? 'bg-[#0f2d5e] text-white font-semibold' : 'text-[#374151] font-medium hover:bg-gray-100'
+        }`}
+      >
+        <item.icon className="w-[17px] h-[17px] shrink-0" />
+        <span className={showLabels ? 'truncate' : 'hidden xl:block truncate'}>{item.label}</span>
+      </Link>
+    );
+  }
+
+  return (
+    <div className="mb-0.5">
+      {/* Item pai — clicável para expandir ou navegar */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-colors ${
+          isParentActive && !expanded
+            ? 'bg-[#0f2d5e] text-white font-semibold'
+            : isParentActive
+            ? 'text-[#0f2d5e] font-semibold bg-blue-50'
+            : 'text-[#374151] font-medium hover:bg-gray-100'
+        }`}
+      >
+        <item.icon className="w-[17px] h-[17px] shrink-0" />
+        <span className={`flex-1 text-left ${showLabels ? 'truncate' : 'hidden xl:block truncate'}`}>{item.label}</span>
+        <ChevronRight
+          className={`w-3.5 h-3.5 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''} ${showLabels ? '' : 'hidden xl:block'}`}
+        />
+      </button>
+
+      {/* Sub-itens */}
+      {expanded && (
+        <div className={`mt-0.5 space-y-0.5 ${showLabels ? 'pl-8' : 'pl-0 xl:pl-8'}`}>
+          {item.children!.map((child) => {
+            const active = isChildActive(child);
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                onClick={onNavigate}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  active
+                    ? child.accent
+                      ? 'bg-purple-100 text-purple-800 font-semibold'
+                      : 'bg-[#0f2d5e]/10 text-[#0f2d5e] font-semibold'
+                    : 'text-[#6b7280] hover:bg-gray-100 hover:text-[#374151]'
+                }`}
+              >
+                {child.accent && (
+                  <span className={`text-[10px] ${active ? 'text-purple-600' : 'text-purple-400'}`}>✦</span>
+                )}
+                <span className={showLabels ? '' : 'hidden xl:block'}>{child.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SidebarContent({ onNavigate, showLabels = false }: { onNavigate?: () => void; showLabels?: boolean }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get('mode');
 
   return (
     <nav className="flex flex-col gap-0.5 px-3.5 py-3 flex-1 overflow-y-auto">
@@ -82,29 +227,16 @@ export function SidebarContent({ onNavigate, showLabels = false }: { onNavigate?
           >
             {section.title}
           </p>
-
-          {section.items.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href || pathname.startsWith(href + '/');
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={onNavigate}
-                aria-current={isActive ? 'page' : undefined}
-                title={label}
-                className={`
-                  flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-colors mb-0.5
-                  ${isActive
-                    ? 'bg-[#0f2d5e] text-white font-semibold'
-                    : 'text-[#374151] font-medium hover:bg-gray-100'
-                  }
-                `}
-              >
-                <Icon className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
-                <span className={showLabels ? 'truncate' : 'hidden xl:block truncate'}>{label}</span>
-              </Link>
-            );
-          })}
+          {section.items.map((item) => (
+            <NavItemComponent
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              mode={mode}
+              showLabels={showLabels}
+              onNavigate={onNavigate}
+            />
+          ))}
         </div>
       ))}
     </nav>
