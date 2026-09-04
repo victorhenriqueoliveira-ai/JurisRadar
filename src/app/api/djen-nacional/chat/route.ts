@@ -338,7 +338,8 @@ export async function POST(request: NextRequest) {
             emit({
               type: 'done',
               message: fullText,
-              items,
+              // items omitido — cliente já tem os itens do fetchDjenBrowser
+              // incluir aqui causava SSE gigante que corrompía o JSON no split TCP
               total,
               totalBruto,
               params,
