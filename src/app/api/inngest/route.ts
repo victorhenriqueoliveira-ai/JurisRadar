@@ -20,6 +20,7 @@ import { notificacaoDispatcher } from '@/inngest/notificacao-dispatcher';
 import { alertasPrazo } from '@/inngest/alertas-prazo';
 import { garantiaIntimacaoEscalador } from '@/inngest/garantia-intimacao-escalador';
 import { garantiaFallbackCron } from '@/inngest/garantia-fallback-cron';
+import { calendarioAutoEventCreator } from '@/inngest/calendario-auto-event-creator';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -29,5 +30,6 @@ export const { GET, POST, PUT } = serve({
     syncProcessosScheduler, syncProcessosWorker,
     notificacaoDispatcher, alertasPrazo,
     garantiaIntimacaoEscalador, garantiaFallbackCron,
+    calendarioAutoEventCreator,
   ],
 });

@@ -2,27 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireOrgContext } from '@/lib/org-context';
 import { UnauthorizedError } from '@/lib/errors';
 import { db } from '@/db';
-import { eventosAgenda } from '@/db/schema';
-import { and, eq, gte, lte, asc } from 'drizzle-orm';
+import { eventosCalendario, eventosAgenda } from '@/db/schema';
+import { sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
     const ctx = await requireOrgContext();
     const { searchParams } = request.nextUrl;
-    const de = searchParams.get('de');
-    const ate = searchParams.get('ate');
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
 
-    const conditions = [eq(eventosAgenda.orgId, ctx.orgId)];
-    if (de) conditions.push(gte(eventosAgenda.data, de));
-    if (ate) conditions.push(lte(eventosAgenda.data, ate));
+    if (!start || !end) {
+      return NextResponse.json(
+        { error: 'Parâmetros start e end são obrigatórios.' },
+        { status: 400 },
+      );
+    }
 
-    const eventos = await db
-      .select()
-      .from(eventosAgenda)
-      .where(and(...conditions))
-      .orderBy(asc(eventosAgenda.data));
+    const tipo = searchParams.get('tipo');
+    const responsavelId = searchParams.get('responsavelId');
 
-    return NextResponse.json({ data: eventos });
+    const result = await db.execute(sql`
+      SELECT * FROM v_eventos_calendario
+      WHERE org_id = ${ctx.orgId}::uuid
+        AND data >= ${start}::date
+        AND data <= ${end}::date
+        ${tipo ? sql`AND tipo = ${tipo}` : sql``}
+        ${responsavelId ? sql`AND responsavel_id = ${responsavelId}::uuid` : sql``}
+      ORDER BY data ASC, hora_inicio ASC NULLS LAST
+    `);
+
+    return NextResponse.json({ data: result.rows });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
@@ -34,36 +44,48 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const ctx = await requireOrgContext();
-    const body = await request.json() as {
-      titulo?: string;
-      descricao?: string;
-      data?: string;
-      horaInicio?: string;
-      horaFim?: string;
-      tipo?: string;
-    };
+    const body = (await request.json()) as Record<string, string>;
+    const { titulo, data, tipo, processoId, descricao, horaInicio, horaFim, responsavelId } = body;
 
-    if (!body.titulo?.trim()) {
-      return NextResponse.json({ error: 'título é obrigatório' }, { status: 400 });
+    if (!titulo?.trim()) {
+      return NextResponse.json({ error: 'titulo é obrigatório.' }, { status: 400 });
     }
-    if (!body.data || !/^\d{4}-\d{2}-\d{2}$/.test(body.data)) {
-      return NextResponse.json({ error: 'data inválida (use YYYY-MM-DD)' }, { status: 400 });
+    if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      return NextResponse.json({ error: 'data inválida (use YYYY-MM-DD).' }, { status: 400 });
+    }
+
+    if (processoId) {
+      const [evento] = await db
+        .insert(eventosCalendario)
+        .values({
+          orgId: ctx.orgId,
+          processoId,
+          titulo: titulo.trim(),
+          data,
+          tipo: tipo ?? 'tarefa',
+          horaInicio: horaInicio ?? null,
+          horaFim: horaFim ?? null,
+          responsavelId: responsavelId ?? null,
+          origem: 'manual',
+        })
+        .returning();
+      return NextResponse.json({ ...evento, fonte: 'calendario' }, { status: 201 });
     }
 
     const [evento] = await db
       .insert(eventosAgenda)
       .values({
         orgId: ctx.orgId,
-        titulo: body.titulo.trim(),
-        descricao: body.descricao?.trim() ?? null,
-        data: body.data,
-        horaInicio: body.horaInicio ?? null,
-        horaFim: body.horaFim ?? null,
-        tipo: body.tipo ?? 'pessoal',
+        titulo: titulo.trim(),
+        descricao: descricao?.trim() ?? null,
+        data,
+        tipo: tipo ?? 'tarefa',
+        horaInicio: horaInicio ?? null,
+        horaFim: horaFim ?? null,
+        responsavelId: responsavelId ?? null,
       })
       .returning();
-
-    return NextResponse.json(evento, { status: 201 });
+    return NextResponse.json({ ...evento, fonte: 'agenda' }, { status: 201 });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
