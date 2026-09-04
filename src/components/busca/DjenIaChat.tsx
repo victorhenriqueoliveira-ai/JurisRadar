@@ -313,7 +313,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const loadConversationById = useCallback(async (conv: ConvSummary) => {
+  // setAsActive=true: continua a conversa (clique no histórico)
+  // setAsActive=false: só exibe as mensagens como contexto visual, sem ativar a conversa
+  const loadConversationById = useCallback(async (conv: ConvSummary, setAsActive = true) => {
     setConversationLoading(true);
     setMessages([]);
     setPanelItems([]);
@@ -329,8 +331,10 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
         total: m.total ?? undefined, totalBruto: m.totalBruto ?? undefined, params: m.params ?? undefined,
       }));
       setMessages(msgs);
-      setApiMessages(data.conversation.apiMessages ?? []);
-      setCurrentConvId(conv.id);
+      if (setAsActive) {
+        setApiMessages(data.conversation.apiMessages ?? []);
+        setCurrentConvId(conv.id);
+      }
       const lastWithItems = [...msgs].reverse().find((m) => m.items && m.items.length > 0);
       if (lastWithItems?.items) {
         setPanelItems(lastWithItems.items);
@@ -352,7 +356,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
         const data = await res.json() as { conversations: ConvSummary[] };
         setHistory(data.conversations);
         if (autoLoadLast && data.conversations.length > 0) {
-          await loadConversationById(data.conversations[0]);
+          // setAsActive=false: mostra mensagens mas não ativa a conversa
+          // → próximo envio cria uma nova conversa
+          await loadConversationById(data.conversations[0], false);
         }
       }
     } finally {
