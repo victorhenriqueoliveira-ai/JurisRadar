@@ -53,25 +53,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     apiMessages: unknown[];
   };
 
-  await db.transaction(async (tx) => {
-    if (body.newMessages?.length) {
-      await tx.insert(djenMessages).values(
-        body.newMessages.map((m) => ({
-          conversationId: id,
-          role: m.role,
-          text: m.text,
-          items: m.items ?? null,
-          total: m.total ?? null,
-          totalBruto: m.totalBruto ?? null,
-          params: m.params ?? null,
-        })),
-      );
-    }
-    await tx
-      .update(djenConversations)
-      .set({ apiMessages: body.apiMessages, updatedAt: new Date() })
-      .where(eq(djenConversations.id, id));
-  });
+  // Neon HTTP driver não suporta transações — usar queries sequenciais
+  if (body.newMessages?.length) {
+    await db.insert(djenMessages).values(
+      body.newMessages.map((m) => ({
+        conversationId: id,
+        role: m.role,
+        text: m.text,
+        items: m.items ?? null,
+        total: m.total ?? null,
+        totalBruto: m.totalBruto ?? null,
+        params: m.params ?? null,
+      })),
+    );
+  }
+  await db
+    .update(djenConversations)
+    .set({ apiMessages: body.apiMessages, updatedAt: new Date() })
+    .where(eq(djenConversations.id, id));
 
   return NextResponse.json({ ok: true });
 }
