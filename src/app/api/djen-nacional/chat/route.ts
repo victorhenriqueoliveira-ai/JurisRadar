@@ -231,6 +231,19 @@ function resumoParaClaude(result: BuscaResult): string {
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
+interface BrowserSearchResult {
+  toolUseId: string;
+  toolContent: string; // resumoParaClaude JSON
+  items: RawItem[];
+  total: number;
+  totalBruto: number;
+  classeFilter: string | null;
+  params: BuscaInput;
+  pendingMessages: Anthropic.MessageParam[];
+  userMessage: string;
+  originalMessages: Anthropic.MessageParam[];
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireOrgContext();
@@ -244,10 +257,55 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as {
     messages?: Anthropic.MessageParam[];
     userMessage?: string;
+    browserSearchResult?: BrowserSearchResult;
   };
 
-  const { messages = [], userMessage } = body;
+  const { messages = [], userMessage, browserSearchResult } = body;
 
+  // ── Fase 2: browser já fez o fetch DJEN e manda os resultados ───────────────
+  if (browserSearchResult) {
+    const {
+      toolUseId, toolContent, items, total, totalBruto, classeFilter, params,
+      pendingMessages, userMessage: originalUserMsg, originalMessages,
+    } = browserSearchResult;
+
+    const messagesWithResult: Anthropic.MessageParam[] = [
+      ...pendingMessages,
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content: toolContent }],
+      },
+    ];
+
+    const finalResponse = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      tools,
+      messages: messagesWithResult,
+    });
+
+    const textBlock = finalResponse.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+    const assistantMessage = textBlock?.text ?? '';
+
+    const historyForClient: Anthropic.MessageParam[] = [
+      ...originalMessages,
+      { role: 'user', content: originalUserMsg },
+      { role: 'assistant', content: assistantMessage },
+    ];
+
+    return NextResponse.json({
+      message: assistantMessage,
+      items,
+      total,
+      totalBruto,
+      params,
+      classeFilter,
+      messages: historyForClient,
+    });
+  }
+
+  // ── Fase 1: primeira chamada — Claude decide o que buscar ────────────────────
   if (!userMessage?.trim()) {
     return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400 });
   }
@@ -257,10 +315,7 @@ export async function POST(request: NextRequest) {
     { role: 'user', content: userMessage },
   ];
 
-  let lastSearchResult: BuscaResult | null = null;
-
-  // Chama Claude — até 3 rodadas de tool use
-  let response = await client.messages.create({
+  const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
@@ -268,52 +323,27 @@ export async function POST(request: NextRequest) {
     messages: conversationMessages,
   });
 
-  for (let round = 0; round < 3 && response.stop_reason === 'tool_use'; round++) {
-    const toolUseBlocks = response.content.filter(
+  // Claude quer usar a ferramenta → devolve os parâmetros para o browser buscar
+  if (response.stop_reason === 'tool_use') {
+    const toolUseBlock = response.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
     );
-
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-    for (const block of toolUseBlocks) {
-      if (block.name !== 'buscar_djen') continue;
-
-      const input = block.input as BuscaInput;
-
-      try {
-        const result = await executarBusca(input);
-        lastSearchResult = result;
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: resumoParaClaude(result),
-        });
-      } catch (err) {
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: `Erro ao buscar: ${err instanceof Error ? err.message : 'desconhecido'}`,
-          is_error: true,
-        });
-      }
+    if (toolUseBlock) {
+      return NextResponse.json({
+        status: 'need_browser_search',
+        searchParams: toolUseBlock.input as BuscaInput,
+        toolUseId: toolUseBlock.id,
+        pendingMessages: [...conversationMessages, { role: 'assistant', content: response.content }],
+        originalMessages: messages,
+        userMessage,
+      });
     }
-
-    conversationMessages.push({ role: 'assistant', content: response.content });
-    conversationMessages.push({ role: 'user', content: toolResults });
-
-    response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      tools,
-      messages: conversationMessages,
-    });
   }
 
+  // Claude respondeu sem usar ferramenta (raro, mas possível)
   const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
   const assistantMessage = textBlock?.text ?? '';
 
-  // Histórico limpo para o próximo turno: só texto, sem blocos de tool use
   const historyForClient: Anthropic.MessageParam[] = [
     ...messages,
     { role: 'user', content: userMessage },
@@ -322,11 +352,11 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     message: assistantMessage,
-    items: lastSearchResult?.items ?? [],
-    total: lastSearchResult?.total ?? 0,
-    totalBruto: lastSearchResult?.totalBruto ?? 0,
-    params: lastSearchResult?.params ?? null,
-    classeFilter: lastSearchResult?.classeFilter ?? null,
+    items: [],
+    total: 0,
+    totalBruto: 0,
+    params: null,
+    classeFilter: null,
     messages: historyForClient,
   });
 }

@@ -262,6 +262,72 @@ export default function DjenIaChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  // Fetch DJEN diretamente do browser (evita bloqueio de IP da Vercel)
+  async function fetchDjenBrowser(params: Record<string, unknown>): Promise<{
+    items: unknown[];
+    total: number;
+    totalBruto: number;
+    classeFilter: string | null;
+  }> {
+    const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
+    const useClassFilter = Boolean((params.classeProcessual as string)?.trim());
+    const MAX_ITEMS = 200;
+
+    async function fetchPage(offset: number, lote: number) {
+      const p = new URLSearchParams({ limit: String(lote), offset: String(offset) });
+      if (params.texto) p.set('texto', params.texto as string);
+      if (params.data) p.set('dataDisponibilizacao', params.data as string);
+      if (params.tipoComunicacao) p.set('tipoComunicacao', params.tipoComunicacao as string);
+      if (params.siglaTribunal) p.set('siglaTribunal', params.siglaTribunal as string);
+      const r = await fetch(`${DJEN_BASE}?${p}`);
+      if (!r.ok) throw new Error(`DJEN ${r.status}`);
+      return r.json() as Promise<{ items?: unknown[]; count?: number }>;
+    }
+
+    if (!useClassFilter) {
+      const lote = Math.min((params.limit as number) ?? 20, 100);
+      const d = await fetchPage(0, lote);
+      return { items: d.items ?? [], total: d.count ?? 0, totalBruto: d.count ?? 0, classeFilter: null };
+    }
+
+    const first = await fetchPage(0, 100);
+    const totalBruto = first.count ?? 0;
+    let all: unknown[] = [...(first.items ?? [])];
+
+    if (totalBruto > 100) {
+      await new Promise((r) => setTimeout(r, 300));
+      const second = await fetchPage(100, Math.min(100, MAX_ITEMS - 100));
+      all = [...all, ...(second.items ?? [])];
+    }
+
+    const classe = (params.classeProcessual as string).trim().toLowerCase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filtered = all.filter((item: any) =>
+      ((item.nomeClasse as string) ?? '').toLowerCase().includes(classe)
+    );
+    return { items: filtered, total: filtered.length, totalBruto, classeFilter: params.classeProcessual as string };
+  }
+
+  function buildToolContent(result: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null }, params: Record<string, unknown>): string {
+    if (result.total === 0) {
+      const extra = result.classeFilter
+        ? ` (analisadas ${result.totalBruto} publicações, nenhuma com classe contendo "${result.classeFilter}")`
+        : '';
+      return `Nenhuma publicação encontrada${extra}.`;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const amostra = (result.items as any[]).slice(0, 8).map((item: any) => ({
+      nomeClasse: item.nomeClasse,
+      nomeOrgao: item.nomeOrgao,
+      siglaTribunal: item.siglaTribunal,
+      tipoComunicacao: item.tipoComunicacao,
+      data: item.dataDisponibilizacao ?? item.data_disponibilizacao,
+      numeroProcesso: item.numeroprocessocommascara ?? item.numero_processo,
+      partes: (item.destinatarios ?? []).slice(0, 2),
+    }));
+    return JSON.stringify({ total: result.total, totalBruto: result.totalBruto, classeFilter: result.classeFilter, amostra, params });
+  }
+
   async function send(text: string) {
     const userText = text.trim();
     if (!userText || isLoading) return;
@@ -271,22 +337,78 @@ export default function DjenIaChat() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/djen-nacional/chat', {
+      // Fase 1: Claude decide o que buscar
+      const res1 = await fetch('/api/djen-nacional/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userMessage: userText, messages: apiMessages }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', text: err.error ?? 'Erro ao consultar a IA. Tente novamente.' },
-        ]);
+      if (!res1.ok) {
+        const err = await res1.json().catch(() => ({})) as { error?: string };
+        setMessages((prev) => [...prev, { role: 'assistant', text: err.error ?? 'Erro ao consultar a IA. Tente novamente.' }]);
         return;
       }
 
-      const data = await res.json() as {
+      const phase1 = await res1.json() as {
+        status?: string;
+        searchParams?: Record<string, unknown>;
+        toolUseId?: string;
+        pendingMessages?: ApiMessage[];
+        originalMessages?: ApiMessage[];
+        userMessage?: string;
+        message?: string;
+        items?: unknown[];
+        total?: number;
+        totalBruto?: number;
+        params?: Record<string, unknown> | null;
+        classeFilter?: string | null;
+        messages?: ApiMessage[];
+      };
+
+      // Claude respondeu sem busca
+      if (phase1.status !== 'need_browser_search') {
+        const items = (phase1.items ?? []).map(mapItem);
+        setMessages((prev) => [...prev, { role: 'assistant', text: phase1.message ?? '', items, total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined }]);
+        setApiMessages(phase1.messages ?? []);
+        return;
+      }
+
+      // Fase 2: busca diretamente do browser (sem passar pela Vercel)
+      let djenResult: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null };
+      try {
+        djenResult = await fetchDjenBrowser(phase1.searchParams ?? {});
+      } catch {
+        djenResult = { items: [], total: 0, totalBruto: 0, classeFilter: null };
+      }
+
+      const toolContent = buildToolContent(djenResult, phase1.searchParams ?? {});
+
+      const res2 = await fetch('/api/djen-nacional/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          browserSearchResult: {
+            toolUseId: phase1.toolUseId,
+            toolContent,
+            items: djenResult.items,
+            total: djenResult.total,
+            totalBruto: djenResult.totalBruto,
+            classeFilter: djenResult.classeFilter,
+            params: phase1.searchParams,
+            pendingMessages: phase1.pendingMessages,
+            userMessage: phase1.userMessage,
+            originalMessages: phase1.originalMessages,
+          },
+        }),
+      });
+
+      if (!res2.ok) {
+        setMessages((prev) => [...prev, { role: 'assistant', text: 'Erro ao processar resposta da IA.' }]);
+        return;
+      }
+
+      const phase2 = await res2.json() as {
         message: string;
         items: unknown[];
         total: number;
@@ -296,26 +418,12 @@ export default function DjenIaChat() {
         messages: ApiMessage[];
       };
 
-      const items = (data.items ?? []).map(mapItem);
+      const items = (phase2.items ?? []).map(mapItem);
+      setMessages((prev) => [...prev, { role: 'assistant', text: phase2.message, items, total: phase2.total, totalBruto: phase2.totalBruto, params: phase2.params ?? undefined }]);
+      setApiMessages(phase2.messages ?? []);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: data.message,
-          items,
-          total: data.total,
-          totalBruto: data.totalBruto,
-          params: data.params ?? undefined,
-        },
-      ]);
-
-      setApiMessages(data.messages ?? []);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' },
-      ]);
+      setMessages((prev) => [...prev, { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' }]);
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
