@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus, Clock } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Plus, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -37,32 +37,12 @@ interface ChatMessage {
   params?: Record<string, unknown>;
 }
 
-interface Conversation {
+interface ConvSummary {
   id: string;
   title: string;
-  messages: ChatMessage[];
-  apiMessages: ApiMessage[];
-  createdAt: number;
-}
-
-// ─── Histórico localStorage ───────────────────────────────────────────────────
-
-const STORAGE_KEY = 'djen-chat-history';
-
-function loadHistory(): Conversation[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as Conversation[];
-  } catch {
-    return [];
-  }
-}
-
-function persistHistory(history: Conversation[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 50)));
-  } catch {}
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,13 +51,13 @@ function persistHistory(history: Conversation[]) {
 function mapItem(raw: any): DjenItem {
   return {
     id: raw.id,
-    data: raw.dataDisponibilizacao ?? raw.data_disponibilizacao ?? '',
-    tipo: raw.tipoComunicacao ?? '',
-    orgao: raw.nomeOrgao ?? '',
-    classe: raw.nomeClasse ?? '',
-    tribunal: raw.siglaTribunal ?? '',
+    data: raw.dataDisponibilizacao ?? raw.data_disponibilizacao ?? raw.data ?? '',
+    tipo: raw.tipoComunicacao ?? raw.tipo ?? '',
+    orgao: raw.nomeOrgao ?? raw.orgao ?? '',
+    classe: raw.nomeClasse ?? raw.classe ?? '',
+    tribunal: raw.siglaTribunal ?? raw.tribunal ?? '',
     numeroProcesso: raw.numeroprocessocommascara ?? raw.numero_processo ?? raw.numeroProcesso ?? '',
-    partes: (raw.destinatarios ?? []).map((d: { nome?: string; polo?: string }) => ({
+    partes: (raw.destinatarios ?? raw.partes ?? []).map((d: { nome?: string; polo?: string }) => ({
       nome: d.nome,
       polo: d.polo,
     })),
@@ -97,58 +77,49 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('pt-BR');
 }
 
-function relativeTime(ts: number): string {
+function relativeTime(iso: string): string {
+  const ts = new Date(iso).getTime();
   const diff = Date.now() - ts;
   const min = Math.floor(diff / 60000);
   if (min < 1) return 'agora';
-  if (min < 60) return `${min}min atrás`;
+  if (min < 60) return `${min}min`;
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h atrás`;
+  if (h < 24) return `${h}h`;
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d atrás`;
-  return new Date(ts).toLocaleDateString('pt-BR');
+  if (d < 7) return `${d}d`;
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
-// ─── Card de publicação inline no chat ───────────────────────────────────────
+// ─── Painel de resultados — item expandível ───────────────────────────────────
 
-function MiniCard({
-  item,
-  onAbrirCrm,
-}: {
-  item: DjenItem;
-  onAbrirCrm: (item: DjenItem) => void;
-}) {
+function ResultItem({ item, onAbrirCrm }: { item: DjenItem; onAbrirCrm: (item: DjenItem) => void }) {
   const [expanded, setExpanded] = useState(false);
   const plain = stripHtml(item.texto ?? '');
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5 text-xs">
-      <div className="flex items-center justify-between gap-2">
+    <div className="border-b border-gray-100 last:border-0 py-3 px-4">
+      {/* Header do item */}
+      <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1.5 flex-wrap">
           {item.tipo && (
-            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium border border-blue-200">
+            <span className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-100">
               {item.tipo}
             </span>
           )}
-          {item.data && <span className="text-gray-400">{formatDate(item.data)}</span>}
+          {item.data && <span className="text-[10px] text-gray-400">{formatDate(item.data)}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {item.numeroProcesso && (
             <button
               type="button"
               onClick={() => onAbrirCrm(item)}
-              className="px-2 py-0.5 rounded-md font-medium border transition-colors bg-[#0f2d5e]/5 text-[#0f2d5e] border-[#0f2d5e]/20 hover:bg-[#0f2d5e] hover:text-white"
+              className="text-[10px] px-1.5 py-0.5 rounded font-medium border bg-[#0f2d5e]/5 text-[#0f2d5e] border-[#0f2d5e]/20 hover:bg-[#0f2d5e] hover:text-white transition-colors"
             >
               + CRM
             </button>
           )}
           {item.link && (
-            <a
-              href={item.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
+            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline shrink-0">
               Ver ↗
             </a>
           )}
@@ -156,25 +127,23 @@ function MiniCard({
       </div>
 
       {item.numeroProcesso && (
-        <p className="font-mono font-bold text-gray-900">{item.numeroProcesso}</p>
+        <p className="font-mono text-xs font-bold text-gray-900 mb-1">{item.numeroProcesso}</p>
       )}
 
       {(item.tribunal || item.orgao) && (
-        <p className="text-gray-500">
+        <p className="text-[11px] text-gray-500 mb-0.5">
           {item.tribunal && <span className="font-medium">{item.tribunal} · </span>}
           {item.orgao}
         </p>
       )}
 
-      {item.classe && <p className="text-gray-400 italic">{item.classe}</p>}
+      {item.classe && <p className="text-[10px] text-gray-400 italic mb-1">{item.classe}</p>}
 
       {item.partes.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mb-1.5">
           {item.partes.map((p, i) => (
-            <span key={i} className="text-gray-600">
-              {p.polo && (
-                <span className="text-gray-400 uppercase mr-1 font-medium text-[10px]">{p.polo}</span>
-              )}
+            <span key={i} className="text-[10px] text-gray-600">
+              {p.polo && <span className="text-gray-400 uppercase mr-0.5 font-medium text-[9px]">{p.polo}</span>}
               {p.nome}
             </span>
           ))}
@@ -182,18 +151,18 @@ function MiniCard({
       )}
 
       {plain && (
-        <div className="pt-1 border-t border-gray-100">
-          <p className="text-gray-500 leading-relaxed">
-            {expanded ? plain.slice(0, 2000) : plain.slice(0, 200)}
-            {!expanded && plain.length > 200 && '…'}
+        <div>
+          <p className="text-[11px] text-gray-500 leading-relaxed">
+            {expanded ? plain.slice(0, 3000) : plain.slice(0, 150)}
+            {!expanded && plain.length > 150 && '…'}
           </p>
-          {plain.length > 200 && (
+          {plain.length > 150 && (
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="mt-0.5 text-blue-500 hover:underline"
+              className="flex items-center gap-0.5 mt-1 text-[10px] text-blue-500 hover:text-blue-700"
             >
-              {expanded ? 'Recolher' : 'Ver mais'}
+              {expanded ? <><ChevronUp className="w-3 h-3" /> Recolher</> : <><ChevronDown className="w-3 h-3" /> Ver mais</>}
             </button>
           )}
         </div>
@@ -230,14 +199,8 @@ function CrmModal({ item, onClose }: { item: DjenItem; onClose: () => void }) {
   const done = estado === 'added' || estado === 'exists';
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-900">Adicionar ao CRM</h2>
         </div>
@@ -263,12 +226,7 @@ function CrmModal({ item, onClose }: { item: DjenItem; onClose: () => void }) {
               <button type="button" onClick={onClose} className="flex-1 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={handleConfirmar}
-                disabled={estado === 'loading'}
-                className="flex-1 py-2 text-sm font-medium text-white bg-[#0f2d5e] rounded-md hover:bg-[#1a3d7c] disabled:opacity-50"
-              >
+              <button type="button" onClick={handleConfirmar} disabled={estado === 'loading'} className="flex-1 py-2 text-sm font-medium text-white bg-[#0f2d5e] rounded-md hover:bg-[#1a3d7c] disabled:opacity-50">
                 {estado === 'loading' ? 'Adicionando…' : 'Confirmar'}
               </button>
             </div>
@@ -296,60 +254,124 @@ export default function DjenIaChat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [crmItem, setCrmItem] = useState<DjenItem | null>(null);
+
+  // Histórico
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<Conversation[]>([]);
-  const [currentConvId, setCurrentConvId] = useState('');
+  const [history, setHistory] = useState<ConvSummary[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [currentConvId, setCurrentConvId] = useState<string | null>(null);
+
+  // Painel de resultados
+  const [panelItems, setPanelItems] = useState<DjenItem[]>([]);
+  const [panelTotal, setPanelTotal] = useState(0);
+  const [panelTotalBruto, setPanelTotalBruto] = useState(0);
+  const [panelLabel, setPanelLabel] = useState('');
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    setHistory(loadHistory());
-    setCurrentConvId(crypto.randomUUID());
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/djen-nacional/conversations');
+      if (res.ok) {
+        const data = await res.json() as { conversations: ConvSummary[] };
+        setHistory(data.conversations);
+      }
+    } finally {
+      setHistoryLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  function saveConversation(msgs: ChatMessage[], apiMsgs: ApiMessage[], convId: string) {
-    if (msgs.length === 0 || !convId) return;
-    const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 60) ?? 'Conversa';
-    const newConv: Conversation = { id: convId, title, messages: msgs, apiMessages: apiMsgs, createdAt: Date.now() };
-    setHistory((prev) => {
-      const updated = [newConv, ...prev.filter((c) => c.id !== convId)];
-      persistHistory(updated);
-      return updated;
-    });
+  async function saveConversation(msgs: ChatMessage[], apiMsgs: ApiMessage[], convId: string | null): Promise<string> {
+    const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 120) ?? 'Conversa';
+
+    if (!convId) {
+      // Cria nova conversa
+      const res = await fetch('/api/djen-nacional/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, messages: msgs, apiMessages: apiMsgs }),
+      });
+      const data = await res.json() as { conversation: { id: string } };
+      void loadHistory();
+      return data.conversation.id;
+    } else {
+      // Adiciona apenas as 2 últimas mensagens (user + assistant desta rodada)
+      const newMessages = msgs.slice(-2);
+      await fetch(`/api/djen-nacional/conversations/${convId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newMessages, apiMessages: apiMsgs }),
+      });
+      void loadHistory();
+      return convId;
+    }
   }
 
   function startNewConversation() {
     setMessages([]);
     setApiMessages([]);
-    setCurrentConvId(crypto.randomUUID());
+    setCurrentConvId(null);
     setInput('');
+    setPanelItems([]);
+    setPanelLabel('');
     setShowHistory(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  function loadConversation(conv: Conversation) {
-    setMessages(conv.messages);
-    setApiMessages(conv.apiMessages);
-    setCurrentConvId(conv.id);
+  async function loadConversation(conv: ConvSummary) {
     setShowHistory(false);
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
+    setMessages([]);
+    setPanelItems([]);
+    setPanelLabel('');
+    try {
+      const res = await fetch(`/api/djen-nacional/conversations/${conv.id}`);
+      if (!res.ok) return;
+      const data = await res.json() as {
+        conversation: { apiMessages: ApiMessage[] };
+        messages: ChatMessage[];
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const msgs: ChatMessage[] = data.messages.map((m: any) => ({
+        role: m.role,
+        text: m.text,
+        items: m.items ? (m.items as unknown[]).map(mapItem) : undefined,
+        total: m.total ?? undefined,
+        totalBruto: m.totalBruto ?? undefined,
+        params: m.params ?? undefined,
+      }));
+      setMessages(msgs);
+      setApiMessages(data.conversation.apiMessages ?? []);
+      setCurrentConvId(conv.id);
+
+      // Mostra resultados da última mensagem com itens no painel
+      const lastWithItems = [...msgs].reverse().find((m) => m.items && m.items.length > 0);
+      if (lastWithItems?.items) {
+        setPanelItems(lastWithItems.items);
+        setPanelTotal(lastWithItems.total ?? lastWithItems.items.length);
+        setPanelTotalBruto(lastWithItems.totalBruto ?? lastWithItems.total ?? lastWithItems.items.length);
+        setPanelLabel(lastWithItems.params ? JSON.stringify(lastWithItems.params) : '');
+      }
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
+    } catch {}
   }
 
-  function deleteConversation(id: string, e: React.MouseEvent) {
+  async function deleteConversation(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    setHistory((prev) => {
-      const updated = prev.filter((c) => c.id !== id);
-      persistHistory(updated);
-      return updated;
-    });
+    await fetch(`/api/djen-nacional/conversations/${id}`, { method: 'DELETE' });
     if (currentConvId === id) startNewConversation();
+    void loadHistory();
   }
 
-  // Fetch DJEN diretamente do browser (evita bloqueio de IP da Vercel)
   async function fetchDjenBrowser(params: Record<string, unknown>): Promise<{
     items: unknown[];
     total: number;
@@ -380,26 +402,20 @@ export default function DjenIaChat() {
     const first = await fetchPage(0, 100);
     const totalBruto = first.count ?? 0;
     let all: unknown[] = [...(first.items ?? [])];
-
     if (totalBruto > 100) {
       await new Promise((r) => setTimeout(r, 300));
       const second = await fetchPage(100, Math.min(100, MAX_ITEMS - 100));
       all = [...all, ...(second.items ?? [])];
     }
-
     const classe = (params.classeProcessual as string).trim().toLowerCase();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filtered = all.filter((item: any) =>
-      ((item.nomeClasse as string) ?? '').toLowerCase().includes(classe)
-    );
+    const filtered = all.filter((item: any) => ((item.nomeClasse as string) ?? '').toLowerCase().includes(classe));
     return { items: filtered, total: filtered.length, totalBruto, classeFilter: params.classeProcessual as string };
   }
 
   function buildToolContent(result: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null }, params: Record<string, unknown>): string {
     if (result.total === 0) {
-      const extra = result.classeFilter
-        ? ` (analisadas ${result.totalBruto} publicações, nenhuma com classe contendo "${result.classeFilter}")`
-        : '';
+      const extra = result.classeFilter ? ` (analisadas ${result.totalBruto} publicações, nenhuma com classe contendo "${result.classeFilter}")` : '';
       return `Nenhuma publicação encontrada${extra}.`;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -426,7 +442,6 @@ export default function DjenIaChat() {
     setIsLoading(true);
 
     try {
-      // Fase 1: Claude decide o que buscar
       const res1 = await fetch('/api/djen-nacional/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -438,7 +453,8 @@ export default function DjenIaChat() {
         const errMsg = err.error ?? 'Erro ao consultar a IA. Tente novamente.';
         const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: errMsg }];
         setMessages(finalMsgs);
-        saveConversation(finalMsgs, apiMessages, convId);
+        const newId = await saveConversation(finalMsgs, apiMessages, convId);
+        if (!currentConvId) setCurrentConvId(newId);
         return;
       }
 
@@ -458,18 +474,26 @@ export default function DjenIaChat() {
         messages?: ApiMessage[];
       };
 
-      // Claude respondeu sem busca
       if (phase1.status !== 'need_browser_search') {
         const items = (phase1.items ?? []).map(mapItem);
         const newApiMsgs = phase1.messages ?? [];
-        const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: phase1.message ?? '', items, total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined }];
+        const finalMsgs: ChatMessage[] = [...nextMessages, {
+          role: 'assistant', text: phase1.message ?? '', items,
+          total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined,
+        }];
         setMessages(finalMsgs);
         setApiMessages(newApiMsgs);
-        saveConversation(finalMsgs, newApiMsgs, convId);
+        if (items.length > 0) {
+          setPanelItems(items);
+          setPanelTotal(phase1.total ?? items.length);
+          setPanelTotalBruto(phase1.totalBruto ?? phase1.total ?? items.length);
+          setPanelLabel(userText);
+        }
+        const newId = await saveConversation(finalMsgs, newApiMsgs, convId);
+        if (!currentConvId) setCurrentConvId(newId);
         return;
       }
 
-      // Fase 2: busca diretamente do browser
       let djenResult: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null };
       try {
         djenResult = await fetchDjenBrowser(phase1.searchParams ?? {});
@@ -501,7 +525,8 @@ export default function DjenIaChat() {
       if (!res2.ok) {
         const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro ao processar resposta da IA.' }];
         setMessages(errMsgs);
-        saveConversation(errMsgs, apiMessages, convId);
+        const newId = await saveConversation(errMsgs, apiMessages, convId);
+        if (!currentConvId) setCurrentConvId(newId);
         return;
       }
 
@@ -517,15 +542,30 @@ export default function DjenIaChat() {
 
       const items = (phase2.items ?? []).map(mapItem);
       const newApiMsgs = phase2.messages ?? [];
-      const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: phase2.message, items, total: phase2.total, totalBruto: phase2.totalBruto, params: phase2.params ?? undefined }];
+      const finalMsgs: ChatMessage[] = [...nextMessages, {
+        role: 'assistant', text: phase2.message, items,
+        total: phase2.total, totalBruto: phase2.totalBruto, params: phase2.params ?? undefined,
+      }];
       setMessages(finalMsgs);
       setApiMessages(newApiMsgs);
-      saveConversation(finalMsgs, newApiMsgs, convId);
+
+      if (items.length > 0) {
+        setPanelItems(items);
+        setPanelTotal(phase2.total);
+        setPanelTotalBruto(phase2.totalBruto);
+        setPanelLabel(userText);
+      }
+
+      const newId = await saveConversation(finalMsgs, newApiMsgs, convId);
+      if (!currentConvId) setCurrentConvId(newId);
 
     } catch {
       const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' }];
       setMessages(errMsgs);
-      saveConversation(errMsgs, apiMessages, convId);
+      try {
+        const newId = await saveConversation(errMsgs, apiMessages, convId);
+        if (!currentConvId) setCurrentConvId(newId);
+      } catch {}
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -539,58 +579,54 @@ export default function DjenIaChat() {
     }
   }
 
+  const hasPanelResults = panelItems.length > 0;
+
   return (
     <>
       {crmItem && <CrmModal item={crmItem} onClose={() => setCrmItem(null)} />}
 
-      {/* -m-6 cancela o p-6 do card pai para o chat ir de borda a borda */}
       <div className="flex flex-1 min-h-0 -m-6">
 
-        {/* Painel de histórico */}
+        {/* ── Painel de histórico ─────────────────────────────────────────────── */}
         {showHistory && (
-          <div className="w-56 shrink-0 border-r border-gray-100 flex flex-col bg-gray-50/80">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="w-52 shrink-0 border-r border-gray-100 flex flex-col bg-gray-50/80">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Histórico</span>
-              <button
-                type="button"
-                onClick={() => setShowHistory(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
+              <button type="button" onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
-
             <button
               type="button"
               onClick={startNewConversation}
-              className="mx-3 mt-2 mb-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="mx-2.5 mt-2 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               Nova conversa
             </button>
-
             <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-              {history.length === 0 && (
+              {historyLoading && <p className="text-xs text-gray-400 text-center py-4">Carregando…</p>}
+              {!historyLoading && history.length === 0 && (
                 <p className="text-xs text-gray-400 text-center py-6">Nenhuma conversa ainda</p>
               )}
               {history.map((conv) => (
                 <button
                   key={conv.id}
                   type="button"
-                  onClick={() => loadConversation(conv)}
-                  className={`w-full text-left px-3 py-2 rounded-lg group flex items-start gap-2 transition-colors ${
-                    conv.id === currentConvId
-                      ? 'bg-purple-100 text-purple-800'
-                      : 'text-gray-600 hover:bg-gray-100'
+                  onClick={() => void loadConversation(conv)}
+                  className={`w-full text-left px-2.5 py-2 rounded-lg group flex items-start gap-1.5 transition-colors ${
+                    conv.id === currentConvId ? 'bg-purple-100 text-purple-800' : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate leading-snug">{conv.title}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{relativeTime(conv.createdAt)}</p>
+                    <p className="text-[11px] font-medium truncate leading-snug">{conv.title}</p>
+                    <p className="text-[9px] text-gray-400 mt-0.5">
+                      {conv.messageCount} msg · {relativeTime(conv.updatedAt)}
+                    </p>
                   </div>
                   <button
                     type="button"
-                    onClick={(e) => deleteConversation(conv.id, e)}
+                    onClick={(e) => void deleteConversation(conv.id, e)}
                     className="opacity-0 group-hover:opacity-100 shrink-0 text-gray-400 hover:text-red-500 transition-opacity mt-0.5"
                   >
                     <X className="w-3 h-3" />
@@ -601,13 +637,11 @@ export default function DjenIaChat() {
           </div>
         )}
 
-        {/* Área principal do chat */}
+        {/* ── Área do chat ────────────────────────────────────────────────────── */}
         <div className="flex flex-col flex-1 min-h-0 p-6">
 
           {/* Mensagens */}
           <div className="flex-1 overflow-y-auto space-y-4 pb-4">
-
-            {/* Estado inicial */}
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-4">
                 <div>
@@ -615,9 +649,7 @@ export default function DjenIaChat() {
                     <span className="text-2xl">⚖️</span>
                   </div>
                   <p className="text-base font-semibold text-gray-900">Assistente de Busca DJEN</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Descreva o que você precisa em linguagem natural.
-                  </p>
+                  <p className="text-sm text-gray-500 mt-1">Descreva o que você precisa em linguagem natural.</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
                   {SUGESTOES.map((s) => (
@@ -634,7 +666,6 @@ export default function DjenIaChat() {
               </div>
             )}
 
-            {/* Histórico de mensagens */}
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
@@ -642,38 +673,32 @@ export default function DjenIaChat() {
                     <span className="text-sm">⚖️</span>
                   </div>
                 )}
-
-                <div className={`max-w-[85%] space-y-3 ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
-                  <div
-                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.role === 'user'
-                        ? 'bg-[#0f2d5e] text-white rounded-tr-sm'
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
-                    }`}
-                  >
+                <div className={`max-w-[85%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} gap-2`}>
+                  <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === 'user'
+                      ? 'bg-[#0f2d5e] text-white rounded-tr-sm'
+                      : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
+                  }`}>
                     {msg.text}
                   </div>
 
+                  {/* Indicador de resultados no painel */}
                   {msg.role === 'assistant' && msg.items && msg.items.length > 0 && (
-                    <div className="w-full space-y-2">
-                      <p className="text-xs text-gray-400 px-1">
-                        {msg.total?.toLocaleString('pt-BR')} publicaç{msg.total !== 1 ? 'ões' : 'ão'}
-                        {msg.totalBruto && msg.totalBruto > (msg.total ?? 0)
-                          ? ` filtradas de ${msg.totalBruto.toLocaleString('pt-BR')} analisadas`
-                          : ' encontradas'}
-                      </p>
-                      {msg.items.slice(0, 20).map((item, i) => (
-                        <MiniCard key={item.id ?? i} item={item} onAbrirCrm={setCrmItem} />
-                      ))}
-                      {msg.items.length > 20 && (
-                        <p className="text-xs text-gray-400 text-center py-1">
-                          + {msg.items.length - 20} publicações não exibidas
-                        </p>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPanelItems(msg.items!);
+                        setPanelTotal(msg.total ?? msg.items!.length);
+                        setPanelTotalBruto(msg.totalBruto ?? msg.total ?? msg.items!.length);
+                        setPanelLabel(String(msg.params?.texto ?? ''));
+                      }}
+                      className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 rounded-md hover:bg-purple-50 border border-purple-200 transition-colors"
+                    >
+                      <span className="font-medium">{msg.total?.toLocaleString('pt-BR')} publicaç{msg.total !== 1 ? 'ões' : 'ão'}</span>
+                      <span className="text-gray-400">· ver no painel →</span>
+                    </button>
                   )}
                 </div>
-
                 {msg.role === 'user' && (
                   <div className="w-7 h-7 rounded-full bg-[#0f2d5e] flex items-center justify-center shrink-0 mt-0.5">
                     <span className="text-white text-xs font-bold">V</span>
@@ -682,7 +707,6 @@ export default function DjenIaChat() {
               </div>
             ))}
 
-            {/* Loading */}
             {isLoading && (
               <div className="flex gap-3 justify-start">
                 <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
@@ -697,7 +721,6 @@ export default function DjenIaChat() {
                 </div>
               </div>
             )}
-
             <div ref={bottomRef} />
           </div>
 
@@ -707,17 +730,13 @@ export default function DjenIaChat() {
               <button
                 type="button"
                 onClick={() => setShowHistory((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <Clock className="w-3.5 h-3.5" />
                 Histórico{history.length > 0 ? ` (${history.length})` : ''}
               </button>
               {messages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={startNewConversation}
-                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                >
+                <button type="button" onClick={startNewConversation} className="text-xs text-gray-400 hover:text-gray-600">
                   ↺ Nova conversa
                 </button>
               )}
@@ -746,6 +765,42 @@ export default function DjenIaChat() {
             <p className="text-xs text-gray-400 mt-1.5">Enter para enviar · Shift+Enter para nova linha</p>
           </div>
         </div>
+
+        {/* ── Painel de resultados (estilo artifact) ──────────────────────────── */}
+        {hasPanelResults && (
+          <div className="w-80 shrink-0 border-l border-gray-200 flex flex-col bg-white">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-gray-700 truncate">
+                  {panelTotal.toLocaleString('pt-BR')} publicaç{panelTotal !== 1 ? 'ões' : 'ão'}
+                  {panelTotalBruto > panelTotal && (
+                    <span className="text-gray-400 font-normal"> de {panelTotalBruto.toLocaleString('pt-BR')}</span>
+                  )}
+                </p>
+                {panelLabel && (
+                  <p className="text-[10px] text-gray-400 truncate mt-0.5">{panelLabel}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setPanelItems([]); setPanelLabel(''); }}
+                className="shrink-0 text-gray-400 hover:text-gray-600 ml-2"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {panelItems.map((item, i) => (
+                <ResultItem key={item.id ?? i} item={item} onAbrirCrm={setCrmItem} />
+              ))}
+              {panelItems.length < panelTotal && (
+                <p className="text-xs text-gray-400 text-center py-3 border-t border-gray-100">
+                  Mostrando {panelItems.length} de {panelTotal.toLocaleString('pt-BR')}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
