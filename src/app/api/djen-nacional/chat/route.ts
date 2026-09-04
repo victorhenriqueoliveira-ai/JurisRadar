@@ -45,9 +45,9 @@ Exemplos que funcionam:
 2. Se retornar 0 resultados:
    - Tente com termos mais simples (ex: "embu" em vez de "embu das artes")
    - Remova o filtro de classe e tente só pelo texto
-   - Explique o motivo e execute uma busca alternativa automaticamente
+   - Execute a nova busca IMEDIATAMENTE, sem pedir confirmação ao usuário
 3. Se a busca alternativa também falhar, explique e dê sugestões concretas
-4. Você pode chamar buscar_djen mais de uma vez para refinar
+4. Você pode chamar buscar_djen mais de uma vez para refinar — FAÇA ISSO AUTOMATICAMENTE
 
 ## Tom e formato
 
@@ -100,7 +100,7 @@ const tools: Anthropic.Tool[] = [
   },
 ];
 
-// ─── Execução da Busca ────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface BuscaInput {
   texto?: string;
@@ -133,6 +133,21 @@ interface BuscaResult {
   classeFilter: string | null;
   params: BuscaInput;
 }
+
+interface BrowserSearchResult {
+  toolUseId: string;
+  toolContent: string;
+  items: RawItem[];
+  total: number;
+  totalBruto: number;
+  classeFilter: string | null;
+  params: BuscaInput;
+  pendingMessages: Anthropic.MessageParam[];
+  userMessage: string;
+  originalMessages: Anthropic.MessageParam[];
+}
+
+// ─── Fetch Logic ──────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -178,7 +193,6 @@ async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
     return { items, total: count, totalBruto: count, classeFilter: null, params: input };
   }
 
-  // Com filtro de classe: busca até 200 sequencialmente para evitar rate limiting
   const MAX_ITEMS = 200;
   const { items: firstItems, count: totalBruto } = await fetchPjePage(input, 0, 100);
   const allItems: RawItem[] = [...firstItems];
@@ -231,19 +245,6 @@ function resumoParaClaude(result: BuscaResult): string {
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
-interface BrowserSearchResult {
-  toolUseId: string;
-  toolContent: string; // resumoParaClaude JSON
-  items: RawItem[];
-  total: number;
-  totalBruto: number;
-  classeFilter: string | null;
-  params: BuscaInput;
-  pendingMessages: Anthropic.MessageParam[];
-  userMessage: string;
-  originalMessages: Anthropic.MessageParam[];
-}
-
 export async function POST(request: NextRequest) {
   try {
     await requireOrgContext();
@@ -262,7 +263,7 @@ export async function POST(request: NextRequest) {
 
   const { messages = [], userMessage, browserSearchResult } = body;
 
-  // ── Fase 2: browser já fez o fetch DJEN e manda os resultados ───────────────
+  // ── Fase 2: browser enviou resultados → resposta em streaming SSE ─────────────
   if (browserSearchResult) {
     const {
       toolUseId, toolContent, items, total, totalBruto, classeFilter, params,
@@ -277,35 +278,85 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    const finalResponse = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      tools,
-      messages: messagesWithResult,
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        function emit(data: object) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        }
+
+        try {
+          const stream = client.messages.stream({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 1024,
+            system: SYSTEM_PROMPT,
+            tools,
+            messages: messagesWithResult,
+          });
+
+          stream.on('text', (text) => emit({ type: 'delta', text }));
+
+          const finalMsg = await stream.finalMessage();
+
+          if (finalMsg.stop_reason === 'tool_use') {
+            // Claude quer fazer outra busca — envia retry para o browser executar
+            const toolBlock = finalMsg.content.find(
+              (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+            );
+            if (toolBlock) {
+              emit({
+                type: 'retry',
+                searchParams: toolBlock.input,
+                toolUseId: toolBlock.id,
+                pendingMessages: [
+                  ...messagesWithResult,
+                  { role: 'assistant', content: finalMsg.content },
+                ],
+                originalMessages,
+                userMessage: originalUserMsg,
+              });
+            }
+          } else {
+            const fullText = finalMsg.content
+              .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+              .map((b) => b.text)
+              .join('');
+
+            const historyForClient: Anthropic.MessageParam[] = [
+              ...originalMessages,
+              { role: 'user', content: originalUserMsg },
+              { role: 'assistant', content: fullText },
+            ];
+
+            emit({
+              type: 'done',
+              message: fullText,
+              items,
+              total,
+              totalBruto,
+              params,
+              classeFilter,
+              messages: historyForClient,
+            });
+          }
+        } catch (err) {
+          emit({ type: 'error', message: err instanceof Error ? err.message : 'Erro desconhecido' });
+        } finally {
+          controller.close();
+        }
+      },
     });
 
-    const textBlock = finalResponse.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    const assistantMessage = textBlock?.text ?? '';
-
-    const historyForClient: Anthropic.MessageParam[] = [
-      ...originalMessages,
-      { role: 'user', content: originalUserMsg },
-      { role: 'assistant', content: assistantMessage },
-    ];
-
-    return NextResponse.json({
-      message: assistantMessage,
-      items,
-      total,
-      totalBruto,
-      params,
-      classeFilter,
-      messages: historyForClient,
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     });
   }
 
-  // ── Fase 1: primeira chamada — Claude decide o que buscar ────────────────────
+  // ── Fase 1: primeira chamada — Claude decide o que buscar ─────────────────────
   if (!userMessage?.trim()) {
     return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400 });
   }
@@ -323,7 +374,6 @@ export async function POST(request: NextRequest) {
     messages: conversationMessages,
   });
 
-  // Claude quer usar a ferramenta → devolve os parâmetros para o browser buscar
   if (response.stop_reason === 'tool_use') {
     const toolUseBlock = response.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
@@ -340,7 +390,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Claude respondeu sem usar ferramenta (raro, mas possível)
   const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
   const assistantMessage = textBlock?.text ?? '';
 

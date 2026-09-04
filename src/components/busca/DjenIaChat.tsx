@@ -45,6 +45,52 @@ interface ConvSummary {
   messageCount: number;
 }
 
+type LoadingPhase = 'thinking' | 'searching' | 'analyzing' | null;
+
+interface SseEvent {
+  type: string;
+  text?: string;
+  searchParams?: Record<string, unknown>;
+  toolUseId?: string;
+  pendingMessages?: unknown[];
+  originalMessages?: unknown[];
+  userMessage?: string;
+  message?: string;
+  items?: unknown[];
+  total?: number;
+  totalBruto?: number;
+  params?: Record<string, unknown> | null;
+  classeFilter?: string | null;
+  messages?: ApiMessage[];
+}
+
+// ─── SSE Parser ──────────────────────────────────────────────────────────────
+
+async function* parseSSE(response: Response): AsyncGenerator<SseEvent> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() ?? '';
+      for (const part of parts) {
+        for (const line of part.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const json = line.slice(6).trim();
+          if (!json) continue;
+          try { yield JSON.parse(json) as SseEvent; } catch { /* skip malformed */ }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +136,7 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
-// ─── Painel de resultados — item expandível (tema escuro) ─────────────────────
+// ─── Painel de resultados — item expandível ───────────────────────────────────
 
 function ResultItem({ item, onAbrirCrm }: { item: DjenItem; onAbrirCrm: (item: DjenItem) => void }) {
   const [expanded, setExpanded] = useState(false);
@@ -218,6 +264,29 @@ const SUGESTOES = [
   'Processos de cobrança no Tribunal de Justiça do RJ',
 ];
 
+// ─── Skeleton de carregamento de conversa ─────────────────────────────────────
+
+function ConversationSkeleton() {
+  const lines = [
+    { side: 'start', width: '58%' },
+    { side: 'end', width: '42%' },
+    { side: 'start', width: '72%' },
+    { side: 'end', width: '36%' },
+    { side: 'start', width: '65%' },
+  ];
+  return (
+    <div className="space-y-5 py-2">
+      {lines.map((l, i) => (
+        <div key={i} className={`flex gap-3 items-end ${l.side === 'end' ? 'justify-end' : 'justify-start'} animate-pulse`}>
+          {l.side === 'start' && <div className="w-7 h-7 rounded-full bg-white/8 shrink-0" />}
+          <div className="h-9 rounded-2xl bg-white/8" style={{ width: l.width }} />
+          {l.side === 'end' && <div className="w-7 h-7 rounded-full bg-purple-600/20 shrink-0" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: () => void }) {
@@ -225,12 +294,15 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
   const [apiMessages, setApiMessages] = useState<ApiMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>(null);
+  const [streamingText, setStreamingText] = useState('');
   const [crmItem, setCrmItem] = useState<DjenItem | null>(null);
 
   // Histórico
   const [history, setHistory] = useState<ConvSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
+  const [conversationLoading, setConversationLoading] = useState(false);
 
   // Painel de resultados
   const [panelItems, setPanelItems] = useState<DjenItem[]>([]);
@@ -257,8 +329,13 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
   useEffect(() => { void loadHistory(); }, [loadHistory]);
 
   useEffect(() => {
+    if (!isLoading) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [isLoading, streamingText]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   async function saveConversation(msgs: ChatMessage[], apiMsgs: ApiMessage[], convId: string | null): Promise<string> {
     const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 120) ?? 'Conversa';
@@ -289,12 +366,15 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
     setInput('');
     setPanelItems([]);
     setPanelLabel('');
+    setStreamingText('');
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   async function loadConversation(conv: ConvSummary) {
+    setConversationLoading(true);
     setMessages([]);
     setPanelItems([]);
+    setCurrentConvId(null);
     try {
       const res = await fetch(`/api/djen-nacional/conversations/${conv.id}`);
       if (!res.ok) return;
@@ -316,7 +396,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
         setPanelLabel(String(lastWithItems.params?.texto ?? ''));
       }
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
-    } catch {}
+    } catch { /* silent */ } finally {
+      setConversationLoading(false);
+    }
   }
 
   async function deleteConversation(id: string, e: React.MouseEvent) {
@@ -372,67 +454,184 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
     const userText = text.trim();
     if (!userText || isLoading) return;
     setInput('');
+
     const convId = currentConvId;
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', text: userText }];
     setMessages(nextMessages);
     setIsLoading(true);
+    setLoadingPhase('thinking');
+    setStreamingText('');
+
     try {
+      // ── Fase 1: Claude decide o que buscar ─────────────────────────────────
       const res1 = await fetch('/api/djen-nacional/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userMessage: userText, messages: apiMessages }),
       });
+
       if (!res1.ok) {
         const err = await res1.json().catch(() => ({})) as { error?: string };
         const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: err.error ?? 'Erro ao consultar a IA.' }];
         setMessages(finalMsgs);
         const newId = await saveConversation(finalMsgs, apiMessages, convId);
-        if (!currentConvId) setCurrentConvId(newId);
+        if (!convId) setCurrentConvId(newId);
         return;
       }
+
       const phase1 = await res1.json() as {
-        status?: string; searchParams?: Record<string, unknown>; toolUseId?: string;
-        pendingMessages?: ApiMessage[]; originalMessages?: ApiMessage[]; userMessage?: string;
-        message?: string; items?: unknown[]; total?: number; totalBruto?: number;
-        params?: Record<string, unknown> | null; classeFilter?: string | null; messages?: ApiMessage[];
+        status?: string;
+        searchParams?: Record<string, unknown>;
+        toolUseId?: string;
+        pendingMessages?: unknown[];
+        originalMessages?: unknown[];
+        userMessage?: string;
+        message?: string;
+        items?: unknown[];
+        total?: number;
+        totalBruto?: number;
+        params?: Record<string, unknown> | null;
+        classeFilter?: string | null;
+        messages?: ApiMessage[];
       };
+
+      // Resposta direta (sem ferramenta — raro)
       if (phase1.status !== 'need_browser_search') {
         const items = (phase1.items ?? []).map(mapItem);
         const newApiMsgs = phase1.messages ?? [];
         const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: phase1.message ?? '', items, total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined }];
-        setMessages(finalMsgs); setApiMessages(newApiMsgs);
+        setMessages(finalMsgs);
+        setApiMessages(newApiMsgs);
         if (items.length > 0) { setPanelItems(items); setPanelTotal(phase1.total ?? items.length); setPanelTotalBruto(phase1.totalBruto ?? phase1.total ?? items.length); setPanelLabel(userText); }
         const newId = await saveConversation(finalMsgs, newApiMsgs, convId);
-        if (!currentConvId) setCurrentConvId(newId);
+        if (!convId) setCurrentConvId(newId);
         return;
       }
-      let djenResult: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null };
-      try { djenResult = await fetchDjenBrowser(phase1.searchParams ?? {}); } catch { djenResult = { items: [], total: 0, totalBruto: 0, classeFilter: null }; }
-      const toolContent = buildToolContent(djenResult, phase1.searchParams ?? {});
-      const res2 = await fetch('/api/djen-nacional/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ browserSearchResult: { toolUseId: phase1.toolUseId, toolContent, items: djenResult.items, total: djenResult.total, totalBruto: djenResult.totalBruto, classeFilter: djenResult.classeFilter, params: phase1.searchParams, pendingMessages: phase1.pendingMessages, userMessage: phase1.userMessage, originalMessages: phase1.originalMessages } }),
-      });
-      if (!res2.ok) {
-        const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro ao processar resposta da IA.' }];
+
+      // ── Fase 2: loop de busca + resposta streaming SSE ──────────────────────
+      let pending = {
+        searchParams: phase1.searchParams ?? {} as Record<string, unknown>,
+        toolUseId: phase1.toolUseId!,
+        pendingMessages: phase1.pendingMessages!,
+        originalMessages: phase1.originalMessages!,
+        userMessage: phase1.userMessage!,
+      };
+
+      let finalPhase2: SseEvent | null = null;
+      let shouldExit = false;
+      let retryCount = 0;
+      const MAX_RETRIES = 4;
+
+      while (!finalPhase2 && !shouldExit && retryCount < MAX_RETRIES) {
+        retryCount++;
+        setLoadingPhase('searching');
+
+        let djenResult: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null };
+        try {
+          djenResult = await fetchDjenBrowser(pending.searchParams);
+        } catch {
+          djenResult = { items: [], total: 0, totalBruto: 0, classeFilter: null };
+        }
+
+        setLoadingPhase('analyzing');
+        setStreamingText('');
+
+        const toolContent = buildToolContent(djenResult, pending.searchParams);
+
+        const res2 = await fetch('/api/djen-nacional/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            browserSearchResult: {
+              toolUseId: pending.toolUseId,
+              toolContent,
+              items: djenResult.items,
+              total: djenResult.total,
+              totalBruto: djenResult.totalBruto,
+              classeFilter: djenResult.classeFilter,
+              params: pending.searchParams,
+              pendingMessages: pending.pendingMessages,
+              userMessage: pending.userMessage,
+              originalMessages: pending.originalMessages,
+            },
+          }),
+        });
+
+        if (!res2.ok) {
+          const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro ao processar resposta da IA.' }];
+          setMessages(errMsgs);
+          const newId = await saveConversation(errMsgs, apiMessages, convId);
+          if (!convId) setCurrentConvId(newId);
+          shouldExit = true;
+          break;
+        }
+
+        for await (const event of parseSSE(res2)) {
+          if (event.type === 'delta') {
+            setStreamingText((prev) => prev + (event.text ?? ''));
+          } else if (event.type === 'retry') {
+            // Claude quer fazer outra busca — continua o loop automaticamente
+            setStreamingText('');
+            pending = {
+              searchParams: (event.searchParams ?? {}) as Record<string, unknown>,
+              toolUseId: event.toolUseId!,
+              pendingMessages: event.pendingMessages!,
+              originalMessages: event.originalMessages!,
+              userMessage: event.userMessage!,
+            };
+            break; // sai do for-await, while continua
+          } else if (event.type === 'done') {
+            finalPhase2 = event;
+            break;
+          } else if (event.type === 'error') {
+            shouldExit = true;
+            break;
+          }
+        }
+      }
+
+      // Esgotou retries sem resposta
+      if (!finalPhase2 && !shouldExit) {
+        const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Não foi possível completar a busca. Tente reformular a consulta.' }];
         setMessages(errMsgs);
         const newId = await saveConversation(errMsgs, apiMessages, convId);
-        if (!currentConvId) setCurrentConvId(newId);
+        if (!convId) setCurrentConvId(newId);
         return;
       }
-      const phase2 = await res2.json() as { message: string; items: unknown[]; total: number; totalBruto: number; params: Record<string, unknown> | null; classeFilter: string | null; messages: ApiMessage[] };
-      const items = (phase2.items ?? []).map(mapItem);
-      const newApiMsgs = phase2.messages ?? [];
-      const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: phase2.message, items, total: phase2.total, totalBruto: phase2.totalBruto, params: phase2.params ?? undefined }];
-      setMessages(finalMsgs); setApiMessages(newApiMsgs);
-      if (items.length > 0) { setPanelItems(items); setPanelTotal(phase2.total); setPanelTotalBruto(phase2.totalBruto); setPanelLabel(userText); }
-      const newId = await saveConversation(finalMsgs, newApiMsgs, convId);
-      if (!currentConvId) setCurrentConvId(newId);
+
+      if (finalPhase2) {
+        const items = (finalPhase2.items ?? []).map(mapItem);
+        const newApiMsgs = finalPhase2.messages ?? [];
+        const finalMsgs: ChatMessage[] = [
+          ...nextMessages,
+          {
+            role: 'assistant',
+            text: finalPhase2.message ?? '',
+            items,
+            total: finalPhase2.total,
+            totalBruto: finalPhase2.totalBruto,
+            params: finalPhase2.params ?? undefined,
+          },
+        ];
+        setMessages(finalMsgs);
+        setApiMessages(newApiMsgs);
+        if (items.length > 0) {
+          setPanelItems(items);
+          setPanelTotal(finalPhase2.total ?? items.length);
+          setPanelTotalBruto(finalPhase2.totalBruto ?? finalPhase2.total ?? items.length);
+          setPanelLabel(userText);
+        }
+        const newId = await saveConversation(finalMsgs, newApiMsgs, convId);
+        if (!convId) setCurrentConvId(newId);
+      }
     } catch {
       const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' }];
       setMessages(errMsgs);
-      try { const newId = await saveConversation(errMsgs, apiMessages, convId); if (!currentConvId) setCurrentConvId(newId); } catch {}
+      try { const newId = await saveConversation(errMsgs, apiMessages, convId); if (!convId) setCurrentConvId(newId); } catch { /* silent */ }
     } finally {
       setIsLoading(false);
+      setLoadingPhase(null);
+      setStreamingText('');
       inputRef.current?.focus();
     }
   }
@@ -451,7 +650,6 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
 
         {/* ── Coluna de histórico (esquerda) ─────────────────────────────────── */}
         <div className="w-70 shrink-0 border-r border-white/10 flex flex-col">
-          {/* Nova conversa */}
           <div className="p-2 border-b border-white/10">
             <button
               type="button"
@@ -463,14 +661,19 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
             </button>
           </div>
 
-          {/* Lista de conversas */}
           <div className="flex-1 overflow-y-auto p-2">
             {history.length > 0 && (
               <p className="px-2 pb-1.5 pt-1 text-[10px] font-bold tracking-widest uppercase text-white/30">
                 Histórico
               </p>
             )}
-            {historyLoading && <p className="text-xs text-white/30 text-center py-4">Carregando…</p>}
+            {historyLoading && (
+              <div className="space-y-1 px-1 pt-1">
+                {[70, 55, 80, 60].map((w, i) => (
+                  <div key={i} className="h-8 rounded-lg bg-white/5 animate-pulse" style={{ width: `${w}%` }} />
+                ))}
+              </div>
+            )}
             {!historyLoading && history.length === 0 && (
               <p className="text-xs text-white/30 text-center py-8 px-2">Nenhuma conversa ainda</p>
             )}
@@ -503,7 +706,6 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
 
         {/* ── Chat principal (centro) ─────────────────────────────────────────── */}
         <div className="flex flex-col flex-1 min-h-0">
-          {/* Header do chat */}
           <div className="flex items-center gap-2 px-5 py-3 border-b border-white/10 shrink-0">
             <span className="text-purple-400 text-sm">✦</span>
             <span className="text-sm font-semibold text-white/80 flex-1">Assistente de Busca DJEN</span>
@@ -521,7 +723,7 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
           {/* Mensagens */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {/* Estado inicial */}
-            {messages.length === 0 && (
+            {messages.length === 0 && !conversationLoading && (
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
                 <div>
                   <div className="w-14 h-14 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-4 ring-1 ring-purple-500/30">
@@ -547,6 +749,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
               </div>
             )}
 
+            {/* Skeleton ao carregar conversa */}
+            {conversationLoading && <ConversationSkeleton />}
+
             {/* Mensagens */}
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -563,7 +768,6 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
                   }`}>
                     {msg.text}
                   </div>
-                  {/* Badge de resultados */}
                   {msg.role === 'assistant' && msg.items && msg.items.length > 0 && (
                     <button
                       type="button"
@@ -588,19 +792,37 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
               </div>
             ))}
 
-            {/* Loading */}
+            {/* Loading / Streaming */}
             {isLoading && (
               <div className="flex gap-3 justify-start">
-                <div className="w-7 h-7 rounded-full bg-purple-500/25 ring-1 ring-purple-500/30 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-purple-500/25 ring-1 ring-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
                   <span className="text-purple-400 text-xs">✦</span>
                 </div>
-                <div className="bg-[#1c2033] border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3">
-                  <div className="flex gap-1 items-center">
-                    <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" />
+                {streamingText ? (
+                  <div className="max-w-[80%] bg-[#1c2033] border border-white/10 rounded-2xl rounded-tl-sm px-4 py-2.5">
+                    <p className="text-sm leading-relaxed text-white/80 whitespace-pre-wrap">
+                      {streamingText}
+                      <span className="inline-block w-[2px] h-[1.1em] bg-purple-400/70 animate-pulse ml-0.5 align-text-bottom rounded-full" />
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-[#1c2033] border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex gap-1">
+                        <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" />
+                      </div>
+                      {loadingPhase && (
+                        <span className="text-xs text-white/35">
+                          {loadingPhase === 'thinking' && 'Pensando…'}
+                          {loadingPhase === 'searching' && 'Buscando no DJEN Nacional…'}
+                          {loadingPhase === 'analyzing' && 'Analisando resultados…'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <div ref={bottomRef} />
