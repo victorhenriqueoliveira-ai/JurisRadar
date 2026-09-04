@@ -361,9 +361,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
         const data = await res.json() as { conversations: ConvSummary[] };
         setHistory(data.conversations);
         if (autoLoadLast && data.conversations.length > 0) {
-          // setAsActive=false: mostra mensagens mas não ativa a conversa
-          // → próximo envio cria uma nova conversa
-          await loadConversationById(data.conversations[0], false);
+          // setAsActive=true: ativa a última conversa ao carregar
+          // → o usuário continua onde parou; para nova conversa, clica em "+ Novo"
+          await loadConversationById(data.conversations[0], true);
         }
       }
     } finally {
@@ -505,7 +505,7 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
 
   async function send(text: string) {
     const userText = text.trim();
-    if (!userText || isLoading) return;
+    if (!userText || isLoading || conversationLoading) return;
     setInput('');
 
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', text: userText }];
@@ -577,6 +577,8 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
       let shouldExit = false;
       let retryCount = 0;
       const MAX_RETRIES = 4;
+      // items mantidos localmente — não vêm mais pelo SSE (payload gigante corrompía JSON)
+      let finalDjenItems: unknown[] = [];
 
       while (!finalPhase2 && !shouldExit && retryCount < MAX_RETRIES) {
         retryCount++;
@@ -585,8 +587,10 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
         let djenResult: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null };
         try {
           djenResult = await fetchDjenBrowser(pending.searchParams);
+          finalDjenItems = djenResult.items;
         } catch {
           djenResult = { items: [], total: 0, totalBruto: 0, classeFilter: null };
+          finalDjenItems = [];
         }
 
         setLoadingPhase('analyzing');
@@ -657,7 +661,7 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
       }
 
       if (finalPhase2) {
-        const items = (finalPhase2.items ?? []).map(mapItem);
+        const items = finalDjenItems.map(mapItem);
         const newApiMsgs = finalPhase2.messages ?? [];
         const aiMsg: ChatMessage = {
           role: 'assistant',
@@ -898,7 +902,7 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
               <button
                 type="button"
                 onClick={() => void send(input)}
-                disabled={isLoading || !input.trim()}
+                disabled={isLoading || conversationLoading || !input.trim()}
                 className="px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors shrink-0"
               >
                 Enviar
