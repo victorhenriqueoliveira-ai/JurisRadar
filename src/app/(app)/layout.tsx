@@ -29,7 +29,7 @@ export default async function AppLayout({
       <div className="flex flex-col flex-1 overflow-hidden">
         <AppHeader session={session} />
         <TrialBanner trialEndsAt={trialEndsAtDate} status={subscriptionStatus} />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-6 flex flex-col">{children}</main>
       </div>
     </div>
   );

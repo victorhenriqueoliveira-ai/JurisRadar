@@ -836,7 +836,7 @@ function DjenNacionalBuscaContent() {
     <>
       {crmItem && <CrmModal item={crmItem} onClose={() => setCrmItem(null)} />}
 
-      <div className="space-y-6">
+      <div className="flex flex-col flex-1 gap-4 min-h-0">
         {/* Toggle de abas */}
         <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
           <button
