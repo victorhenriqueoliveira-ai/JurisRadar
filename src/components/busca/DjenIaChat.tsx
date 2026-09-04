@@ -113,7 +113,12 @@ function mapItem(raw: any): DjenItem {
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function formatDate(iso: string): string {
@@ -390,30 +395,38 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
           apiMessages,
         }),
       });
+      if (!res.ok) throw new Error(`Falha ao criar conversa: ${res.status}`);
       const data = await res.json() as { conversation: { id: string } };
       const newId = data.conversation.id;
       setCurrentConvId(newId);
       void loadHistory();
       return newId;
     } else {
-      await fetch(`/api/djen-nacional/conversations/${existingId}`, {
+      const res = await fetch(`/api/djen-nacional/conversations/${existingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newMessages: [{ role: 'user', text: userText }], apiMessages }),
       });
+      if (!res.ok) throw new Error(`Falha ao salvar mensagem: ${res.status}`);
       void loadHistory();
       return existingId;
     }
   }
 
-  // Adiciona mensagem da IA à conversa existente
+  // Adiciona mensagem da IA à conversa — com 1 retry automático em falha transitória
   async function appendAiMessage(msg: ChatMessage, newApiMsgs: ApiMessage[], convId: string | null): Promise<void> {
     if (!convId) return;
-    await fetch(`/api/djen-nacional/conversations/${convId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newMessages: [msg], apiMessages: newApiMsgs }),
-    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`/api/djen-nacional/conversations/${convId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newMessages: [msg], apiMessages: newApiMsgs }),
+        });
+        if (res.ok) { void loadHistory(); return; }
+      } catch { /* rede — tenta novamente */ }
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
+    }
     void loadHistory();
   }
 
