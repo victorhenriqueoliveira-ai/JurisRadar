@@ -847,7 +847,7 @@ function DjenNacionalBuscaContent() {
         <DjenIaChat onSwitchToManual={() => setActiveTab('manual')} />
       )}
 
-      <div className={`flex flex-col flex-1 gap-4 min-h-0 p-6 ${activeTab === 'ia' ? 'hidden' : ''}`}>
+      <div className={`flex flex-col flex-1 gap-4 min-h-0 p-6 overflow-y-auto ${activeTab === 'ia' ? 'hidden' : ''}`}>
         {/* Busca Manual — intacta */}
         {activeTab === 'manual' && <>
         <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-1">
