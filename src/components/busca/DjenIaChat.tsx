@@ -337,26 +337,44 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  async function saveConversation(msgs: ChatMessage[], apiMsgs: ApiMessage[], convId: string | null): Promise<string> {
-    const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 120) ?? 'Conversa';
-    if (!convId) {
+  // Salva mensagem do usuário imediatamente ao enviar (cria conversa ou adiciona à existente)
+  async function saveUserMessage(userText: string): Promise<string> {
+    const existingId = currentConvId;
+    if (!existingId) {
       const res = await fetch('/api/djen-nacional/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, messages: msgs, apiMessages: apiMsgs }),
+        body: JSON.stringify({
+          title: userText.slice(0, 120),
+          messages: [{ role: 'user', text: userText }],
+          apiMessages,
+        }),
       });
       const data = await res.json() as { conversation: { id: string } };
+      const newId = data.conversation.id;
+      setCurrentConvId(newId);
       void loadHistory();
-      return data.conversation.id;
+      return newId;
     } else {
-      await fetch(`/api/djen-nacional/conversations/${convId}`, {
+      await fetch(`/api/djen-nacional/conversations/${existingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newMessages: msgs.slice(-2), apiMessages: apiMsgs }),
+        body: JSON.stringify({ newMessages: [{ role: 'user', text: userText }], apiMessages }),
       });
       void loadHistory();
-      return convId;
+      return existingId;
     }
+  }
+
+  // Adiciona mensagem da IA à conversa existente
+  async function appendAiMessage(msg: ChatMessage, newApiMsgs: ApiMessage[], convId: string | null): Promise<void> {
+    if (!convId) return;
+    await fetch(`/api/djen-nacional/conversations/${convId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newMessages: [msg], apiMessages: newApiMsgs }),
+    });
+    void loadHistory();
   }
 
   function startNewConversation() {
@@ -455,12 +473,17 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
     if (!userText || isLoading) return;
     setInput('');
 
-    const convId = currentConvId;
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', text: userText }];
     setMessages(nextMessages);
     setIsLoading(true);
     setLoadingPhase('thinking');
     setStreamingText('');
+
+    // Salva a mensagem do usuário IMEDIATAMENTE — conversa aparece no histórico antes da IA responder
+    let convId: string | null = null;
+    try {
+      convId = await saveUserMessage(userText);
+    } catch { convId = currentConvId; }
 
     try {
       // ── Fase 1: Claude decide o que buscar ─────────────────────────────────
@@ -472,10 +495,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
 
       if (!res1.ok) {
         const err = await res1.json().catch(() => ({})) as { error?: string };
-        const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: err.error ?? 'Erro ao consultar a IA.' }];
-        setMessages(finalMsgs);
-        const newId = await saveConversation(finalMsgs, apiMessages, convId);
-        if (!convId) setCurrentConvId(newId);
+        const aiMsg: ChatMessage = { role: 'assistant', text: err.error ?? 'Erro ao consultar a IA.' };
+        setMessages([...nextMessages, aiMsg]);
+        await appendAiMessage(aiMsg, apiMessages, convId);
         return;
       }
 
@@ -499,12 +521,11 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
       if (phase1.status !== 'need_browser_search') {
         const items = (phase1.items ?? []).map(mapItem);
         const newApiMsgs = phase1.messages ?? [];
-        const finalMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: phase1.message ?? '', items, total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined }];
-        setMessages(finalMsgs);
+        const aiMsg: ChatMessage = { role: 'assistant', text: phase1.message ?? '', items, total: phase1.total, totalBruto: phase1.totalBruto, params: phase1.params ?? undefined };
+        setMessages([...nextMessages, aiMsg]);
         setApiMessages(newApiMsgs);
         if (items.length > 0) { setPanelItems(items); setPanelTotal(phase1.total ?? items.length); setPanelTotalBruto(phase1.totalBruto ?? phase1.total ?? items.length); setPanelLabel(userText); }
-        const newId = await saveConversation(finalMsgs, newApiMsgs, convId);
-        if (!convId) setCurrentConvId(newId);
+        await appendAiMessage(aiMsg, newApiMsgs, convId);
         return;
       }
 
@@ -558,10 +579,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
         });
 
         if (!res2.ok) {
-          const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro ao processar resposta da IA.' }];
-          setMessages(errMsgs);
-          const newId = await saveConversation(errMsgs, apiMessages, convId);
-          if (!convId) setCurrentConvId(newId);
+          const aiMsg: ChatMessage = { role: 'assistant', text: 'Erro ao processar resposta da IA.' };
+          setMessages([...nextMessages, aiMsg]);
+          await appendAiMessage(aiMsg, apiMessages, convId);
           shouldExit = true;
           break;
         }
@@ -592,28 +612,24 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
 
       // Esgotou retries sem resposta
       if (!finalPhase2 && !shouldExit) {
-        const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Não foi possível completar a busca. Tente reformular a consulta.' }];
-        setMessages(errMsgs);
-        const newId = await saveConversation(errMsgs, apiMessages, convId);
-        if (!convId) setCurrentConvId(newId);
+        const aiMsg: ChatMessage = { role: 'assistant', text: 'Não foi possível completar a busca. Tente reformular a consulta.' };
+        setMessages([...nextMessages, aiMsg]);
+        await appendAiMessage(aiMsg, apiMessages, convId);
         return;
       }
 
       if (finalPhase2) {
         const items = (finalPhase2.items ?? []).map(mapItem);
         const newApiMsgs = finalPhase2.messages ?? [];
-        const finalMsgs: ChatMessage[] = [
-          ...nextMessages,
-          {
-            role: 'assistant',
-            text: finalPhase2.message ?? '',
-            items,
-            total: finalPhase2.total,
-            totalBruto: finalPhase2.totalBruto,
-            params: finalPhase2.params ?? undefined,
-          },
-        ];
-        setMessages(finalMsgs);
+        const aiMsg: ChatMessage = {
+          role: 'assistant',
+          text: finalPhase2.message ?? '',
+          items,
+          total: finalPhase2.total,
+          totalBruto: finalPhase2.totalBruto,
+          params: finalPhase2.params ?? undefined,
+        };
+        setMessages([...nextMessages, aiMsg]);
         setApiMessages(newApiMsgs);
         if (items.length > 0) {
           setPanelItems(items);
@@ -621,13 +637,12 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
           setPanelTotalBruto(finalPhase2.totalBruto ?? finalPhase2.total ?? items.length);
           setPanelLabel(userText);
         }
-        const newId = await saveConversation(finalMsgs, newApiMsgs, convId);
-        if (!convId) setCurrentConvId(newId);
+        await appendAiMessage(aiMsg, newApiMsgs, convId);
       }
     } catch {
-      const errMsgs: ChatMessage[] = [...nextMessages, { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' }];
-      setMessages(errMsgs);
-      try { const newId = await saveConversation(errMsgs, apiMessages, convId); if (!convId) setCurrentConvId(newId); } catch { /* silent */ }
+      const aiMsg: ChatMessage = { role: 'assistant', text: 'Erro de conexão. Verifique sua internet e tente novamente.' };
+      setMessages([...nextMessages, aiMsg]);
+      try { await appendAiMessage(aiMsg, apiMessages, convId); } catch { /* silent */ }
     } finally {
       setIsLoading(false);
       setLoadingPhase(null);
@@ -721,7 +736,7 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
           </div>
 
           {/* Mensagens */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
             {/* Estado inicial */}
             {messages.length === 0 && !conversationLoading && (
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
