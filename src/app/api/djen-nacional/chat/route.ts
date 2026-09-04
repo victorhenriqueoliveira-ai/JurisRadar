@@ -127,30 +127,38 @@ interface BuscaResult {
   params: BuscaInput;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function fetchPjePage(
   input: BuscaInput,
   offset: number,
-  loteSize: number
+  loteSize: number,
+  retries = 2
 ): Promise<{ items: RawItem[]; count: number }> {
   const params = new URLSearchParams({ limit: String(loteSize), offset: String(offset) });
   if (input.texto) params.set('texto', input.texto);
   if (input.data) params.set('dataDisponibilizacao', input.data);
   if (input.tipoComunicacao) params.set('tipoComunicacao', input.tipoComunicacao);
 
-  const res = await fetch(`${DJEN_BASE}?${params}`, {
-    cache: 'no-store',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
-      'Accept': 'application/json, text/plain, */*',
-      'Accept-Language': 'pt-BR,pt;q=0.9',
-      'Referer': 'https://comunica.pje.jus.br/',
-      'Origin': 'https://comunica.pje.jus.br',
-    },
-  });
-
-  if (!res.ok) throw new Error(`API retornou ${res.status}`);
-  const data = await res.json() as { items?: RawItem[]; count?: number };
-  return { items: data.items ?? [], count: data.count ?? 0 };
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) await sleep(800 * attempt);
+    const res = await fetch(`${DJEN_BASE}?${params}`, {
+      cache: 'no-store',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'pt-BR,pt;q=0.9',
+        'Referer': 'https://comunica.pje.jus.br/',
+        'Origin': 'https://comunica.pje.jus.br',
+      },
+    });
+    if (res.ok) {
+      const data = await res.json() as { items?: RawItem[]; count?: number };
+      return { items: data.items ?? [], count: data.count ?? 0 };
+    }
+    if (res.status !== 403 && res.status !== 429) throw new Error(`API retornou ${res.status}`);
+  }
+  throw new Error('API retornou 403 após tentativas — tente novamente em alguns segundos');
 }
 
 async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
@@ -162,20 +170,15 @@ async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
     return { items, total: count, totalBruto: count, classeFilter: null, params: input };
   }
 
-  // Com filtro de classe: busca até 500 e filtra localmente
-  const MAX_ITEMS = 500;
+  // Com filtro de classe: busca até 200 sequencialmente para evitar rate limiting
+  const MAX_ITEMS = 200;
   const { items: firstItems, count: totalBruto } = await fetchPjePage(input, 0, 100);
   const allItems: RawItem[] = [...firstItems];
 
   if (totalBruto > 100) {
-    const offsets: number[] = [];
-    for (let off = 100; off < Math.min(totalBruto, MAX_ITEMS); off += 100) offsets.push(off);
-
-    for (let i = 0; i < offsets.length; i += 5) {
-      const grupo = offsets.slice(i, i + 5);
-      const batches = await Promise.all(grupo.map((o) => fetchPjePage(input, o, 100)));
-      batches.forEach((b) => allItems.push(...b.items));
-    }
+    await sleep(400);
+    const { items: secondItems } = await fetchPjePage(input, 100, Math.min(100, MAX_ITEMS - 100));
+    allItems.push(...secondItems);
   }
 
   const classe = input.classeProcessual!.trim().toLowerCase();
