@@ -8,6 +8,7 @@ const navItems = [
   {
     group: 'BUSCAS',
     links: [
+      { href: '/busca/ia', label: '✦ Busca IA Unificada', highlight: true },
       { href: '/djen-nacional', label: 'DJEN Nacional' },
       { href: '/search', label: 'DataJud / CNJ' },
       { href: '/dje', label: 'DJe TJSP' },
@@ -33,6 +34,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           </p>
           {section.links.map((link) => {
             const isActive = pathname === link.href;
+            const hl = (link as { highlight?: boolean }).highlight;
             return (
               <Link
                 key={link.href}
@@ -40,8 +42,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={onNavigate}
                 className={`block px-3 py-2 rounded-md text-sm transition-colors ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    ? hl ? 'bg-purple-100 text-purple-700 font-semibold' : 'bg-blue-50 text-blue-700 font-medium'
+                    : hl ? 'text-purple-700 font-medium hover:bg-purple-50' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
                 {link.label}
