@@ -10,6 +10,7 @@
 import { serve } from 'inngest/next';
 import { inngest } from '@/inngest/client';
 import { djeIndexer } from '@/inngest/dje-indexer';
+import { djeBackfill } from '@/inngest/dje-backfill';
 import { djeProcessoMatcher } from '@/inngest/dje-processo-matcher';
 import { djenNacionalScheduler } from '@/inngest/djen-nacional-scheduler';
 import { djenNacionalWorker } from '@/inngest/djen-nacional-worker';
@@ -23,7 +24,7 @@ import { garantiaFallbackCron } from '@/inngest/garantia-fallback-cron';
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
-    djeIndexer, djeProcessoMatcher,
+    djeIndexer, djeBackfill, djeProcessoMatcher,
     djenNacionalScheduler, djenNacionalWorker,
     syncProcessosScheduler, syncProcessosWorker,
     notificacaoDispatcher, alertasPrazo,

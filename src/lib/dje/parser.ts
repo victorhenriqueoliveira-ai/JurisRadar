@@ -14,12 +14,13 @@
  *     ex.: "8ª Câmara de Direito Privado"
  */
 
-import { createRequire } from 'module';
 import type { DjePublication } from './types';
 
-const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>;
+// pdf-parse é importado lazily dentro de extractTextFromPdf para evitar que o
+// require() no nível de módulo trave a inicialização do Next.js / Inngest route handler.
+// (pdf-parse lê um PDF de teste durante o import, o que bloqueia o event loop)
+type PdfParseResult = { text: string };
+type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
 
 // ── Regex CNJ ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,11 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   }
 
   try {
+    // Import lazy: evita travar o event loop no startup do módulo
+    const { createRequire } = await import('module');
+    const req = createRequire(import.meta.url);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = req('pdf-parse') as PdfParseFn;
     const { text } = await pdfParse(buffer);
     return normalizeText(text);
   } catch (error) {
