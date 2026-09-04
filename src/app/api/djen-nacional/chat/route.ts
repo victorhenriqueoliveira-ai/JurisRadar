@@ -23,9 +23,10 @@ Exemplos que funcionam:
 ## Parâmetros da ferramenta buscar_djen
 
 - \`texto\`: palavras que devem aparecer no corpo da publicação (AND implícito). Use localidade + tipo de ação quando possível.
+- \`siglaTribunal\`: **use sempre que o usuário mencionar uma cidade ou estado**. Ex: São Paulo/SP → "TJSP", Rio de Janeiro/RJ → "TJRJ", Minas Gerais/MG → "TJMG", Paraná/PR → "TJPR", Rio Grande do Sul/RS → "TJRS", Bahia/BA → "TJBA", Ceará/CE → "TJCE". Essencial para a API funcionar.
 - \`tipoComunicacao\`: "Intimação", "Citação" ou "Edital" (opcional)
 - \`data\`: data de disponibilização no formato YYYY-MM-DD (opcional)
-- \`classeProcessual\`: filtro local por nomeClasse após buscar (busca até 500 itens). Use quando o advogado pedir tipo de ação específico.
+- \`classeProcessual\`: filtro local por nomeClasse após buscar (busca até 200 itens). Use quando o advogado pedir tipo de ação específico.
 - \`limit\`: quantos retornar sem filtro de classe (padrão 20)
 
 ## Classes processuais reais no DJEN (pós CPC/2015)
@@ -82,7 +83,12 @@ const tools: Anthropic.Tool[] = [
         classeProcessual: {
           type: 'string',
           description:
-            'Filtro local por classe processual (nomeClasse). Busca até 500 publicações e filtra. Ex: "cobrança", "Execução de Título", "Busca e Apreensão".',
+            'Filtro local por classe processual (nomeClasse). Busca até 200 publicações e filtra. Ex: "cobrança", "Execução de Título", "Busca e Apreensão".',
+        },
+        siglaTribunal: {
+          type: 'string',
+          description:
+            'Sigla do tribunal (obrigatório quando a comarca pertence a um estado específico). Ex: "TJSP" para São Paulo, "TJRJ" para Rio de Janeiro, "TJMG" para Minas Gerais. Use sempre que o usuário mencionar uma cidade ou estado.',
         },
         limit: {
           type: 'number',
@@ -101,6 +107,7 @@ interface BuscaInput {
   tipoComunicacao?: string;
   data?: string;
   classeProcessual?: string;
+  siglaTribunal?: string;
   limit?: number;
 }
 
@@ -139,6 +146,7 @@ async function fetchPjePage(
   if (input.texto) params.set('texto', input.texto);
   if (input.data) params.set('dataDisponibilizacao', input.data);
   if (input.tipoComunicacao) params.set('tipoComunicacao', input.tipoComunicacao);
+  if (input.siglaTribunal) params.set('siglaTribunal', input.siglaTribunal);
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) await sleep(800 * attempt);
