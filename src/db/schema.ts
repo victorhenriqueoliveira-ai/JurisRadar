@@ -674,8 +674,7 @@ export const comunicacoesCliente = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     clienteId: uuid('cliente_id')
-      .notNull()
-      .references(() => clientes.id, { onDelete: 'cascade' }),
+      .references(() => clientes.id, { onDelete: 'set null' }),
     processoId: uuid('processo_id').references(() => processos.id, { onDelete: 'set null' }),
     canal: text('canal').notNull(),
     mensagem: text('mensagem').notNull(),

@@ -26,11 +26,11 @@ vi.mock('@/components/ui/sheet', () => ({
   SheetDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
 }));
 
-vi.mock('./MovimentacaoTimeline', () => ({
+vi.mock('../MovimentacaoTimeline', () => ({
   MovimentacaoTimeline: () => <div />,
 }));
 
-vi.mock('./NotasList', () => ({
+vi.mock('../NotasList', () => ({
   NotasList: () => <div />,
 }));
 

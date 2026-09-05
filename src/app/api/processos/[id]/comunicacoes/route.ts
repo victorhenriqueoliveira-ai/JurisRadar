@@ -10,7 +10,7 @@ import { requireOrgContext } from '@/lib/org-context';
 import { UnauthorizedError } from '@/lib/errors';
 import { listarPorProcesso, verificarProcessoOrg } from '@/services/comunicacao-cliente';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let ctx;
   try {
     ctx = await requireOrgContext();
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 
-  const processoId = params.id;
+  const { id: processoId } = await params;
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10)));
