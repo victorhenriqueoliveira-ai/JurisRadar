@@ -295,6 +295,11 @@ export const eventosCalendario = pgTable(
     alertadoT5: boolean('alertado_t5').notNull().default(false),
     alertadoT2: boolean('alertado_t2').notNull().default(false),
     alertadoT1: boolean('alertado_t1').notNull().default(false),
+    // v2: campos adicionados pela task_16
+    horaInicio: text('hora_inicio'),
+    horaFim: text('hora_fim'),
+    responsavelId: uuid('responsavel_id').references(() => users.id),
+    origem: text('origem').notNull().default('manual'),
   },
   (t) => ({
     orgIdDataIdx: index('eventos_calendario_org_id_data_idx').on(t.orgId, t.data),
@@ -316,6 +321,8 @@ export const eventosAgenda = pgTable(
     horaFim: text('hora_fim'),
     tipo: text('tipo').notNull().default('pessoal'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    // v2: campo adicionado pela task_16
+    responsavelId: uuid('responsavel_id').references(() => users.id),
   },
   (t) => ({
     orgIdDataIdx: index('eventos_agenda_org_id_data_idx').on(t.orgId, t.data),
@@ -627,6 +634,59 @@ export const buscaIaMessages = pgTable(
   },
   (t) => ({
     conversationIdx: index('idx_busca_ia_messages_conversation').on(t.conversationId, t.createdAt),
+  }),
+);
+
+// ── CRM v2 — Comunicação com cliente ─────────────────────────────────────────
+
+/**
+ * Clientes dos escritórios (partes representadas).
+ * Unique constraint por (org_id, cpf_cnpj) garante upsert sem duplicatas.
+ */
+export const clientes = pgTable(
+  'clientes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    nome: text('nome').notNull(),
+    email: text('email'),
+    whatsapp: text('whatsapp'),
+    cpfCnpj: text('cpf_cnpj'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgIdIdx: index('idx_clientes_org_id').on(t.orgId),
+    uniqueOrgCpfCnpj: unique('clientes_org_id_cpf_cnpj_unique').on(t.orgId, t.cpfCnpj),
+  }),
+);
+
+/**
+ * Histórico de comunicações enviadas ao cliente via WhatsApp ou e-mail.
+ * canal: 'whatsapp' | 'email'
+ */
+export const comunicacoesCliente = pgTable(
+  'comunicacoes_cliente',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    clienteId: uuid('cliente_id')
+      .references(() => clientes.id, { onDelete: 'set null' }),
+    processoId: uuid('processo_id').references(() => processos.id, { onDelete: 'set null' }),
+    canal: text('canal').notNull(),
+    mensagem: text('mensagem').notNull(),
+    enviadoPor: uuid('enviado_por')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    processoIdIdx: index('idx_comunicacoes_processo_id').on(t.processoId),
+    clienteIdIdx: index('idx_comunicacoes_cliente_id').on(t.clienteId),
+    orgIdIdx: index('idx_comunicacoes_org_id').on(t.orgId, t.createdAt),
   }),
 );
 

@@ -18,3 +18,6 @@ export type { ResumoDiarioProps, Movimentacao, PrazoProximo } from './ResumoDiar
 
 export { ReenvioCobranca } from './ReenvioCobranca'
 export type { ReenvioCobrancaProps } from './ReenvioCobranca'
+
+export { NotificacaoCliente } from './NotificacaoCliente'
+export type { EmailClienteParams } from './NotificacaoCliente'
