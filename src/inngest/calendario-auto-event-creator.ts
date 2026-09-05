@@ -17,8 +17,11 @@ import type { NotificacaoNovaPayload } from './notificacao-dispatcher';
 const TIPOS_CALENDARIO = ['intimacao', 'audiencia'] as const;
 
 export const calendarioAutoEventCreator = inngest.createFunction(
-  { id: 'calendario-auto-event-creator', name: 'Calendário — Auto Event Creator (DJE/DJEN)' },
-  { event: 'notificacao/nova' },
+  {
+    id: 'calendario-auto-event-creator',
+    name: 'Calendário — Auto Event Creator (DJE/DJEN)',
+    triggers: [{ event: 'notificacao/nova' }],
+  },
   async ({ event, step }) => {
     const payload = event.data as NotificacaoNovaPayload;
     const { tipo, processoId, orgId, titulo } = payload;
