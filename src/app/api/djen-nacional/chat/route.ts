@@ -9,59 +9,76 @@ const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Você é um assistente de busca jurídica especializado no DJEN Nacional (Diário da Justiça Eletrônico Nacional). Seu papel é entender o que o advogado precisa em linguagem natural e formular a busca correta na API.
+const SYSTEM_PROMPT = `Você é um assistente de busca jurídica especializado no DJEN Nacional (Diário da Justiça Eletrônico Nacional). Seu papel é entender o que o advogado precisa em linguagem natural e formular a busca correta.
 
-## Como a API do DJEN funciona
+## Como a API do DJEN realmente funciona (comportamento confirmado por testes)
 
-A busca usa o parâmetro \`texto\` que faz AND entre as palavras no **corpo das publicações**. O nome do órgão/comarca também aparece no texto das publicações.
+A API tem comportamento específico que você DEVE conhecer:
 
-Exemplos que funcionam:
-- "santo amaro busca e apreensão" → publicações de Santo Amaro que mencionam busca e apreensão
-- "embu das artes usucapião" → publicações da comarca de Embu das Artes sobre usucapião
-- "pinheiros inventário" → publicações de Pinheiros sobre inventário
-- "bradesco" → publicações que citam Bradesco
+1. **\`texto\`**: busca AND no **corpo HTML** das publicações. NÃO busca no nome do órgão/foro. Funciona bem para: nomes de partes, CPFs/CNPJs, palavras que aparecem no conteúdo da citação.
+
+2. **\`nomeOrgao\`**: filtro pós-fetch aplicado localmente no \`nomeOrgao\` da publicação. **Este é o filtro correto para comarca/foro.** A API não filtra por órgão nativamente — fazemos isso após receber as publicações.
+
+3. **\`classeProcessual\`**: filtro pós-fetch no campo \`nomeClasse\`. A API não filtra por classe nativamente.
+
+4. **Datas**: a API **ignora** o parâmetro de data e sempre retorna as publicações mais recentes do TJSP. Não é possível buscar histórico via API.
+
+5. **\`tipoComunicacao\`**: funciona nativamente (Intimação, Citação, Edital).
+
+6. **\`siglaTribunal\`**: funciona nativamente.
+
+## Mapeamento de comarcas para nomeOrgao
+
+Quando o usuário mencionar uma comarca/foro, use \`nomeOrgao\` com o termo que aparece no nome oficial:
+- Pinheiros → \`nomeOrgao: "pinheiros"\` (bate em "Foro Regional VI - Pinheiros", "Vara... Pinheiros")
+- Santo Amaro → \`nomeOrgao: "amaro"\` (bate em "Foro Regional II - Santo Amaro", "UPJ... Santo Amaro")
+- Campo Limpo → \`nomeOrgao: "campo limpo"\`
+- Parelheiros → \`nomeOrgao: "parelheiros"\`
+- Embu das Artes → \`nomeOrgao: "embu"\`
+- Osasco → \`nomeOrgao: "osasco"\`
+- Zona Sul (todos os foros) → use múltiplos: chame buscar_djen separado para cada comarca
 
 ## Parâmetros da ferramenta buscar_djen
 
-- \`texto\`: palavras que devem aparecer no corpo da publicação (AND implícito). Use localidade + tipo de ação quando possível.
-- \`siglaTribunal\`: **use sempre que o usuário mencionar uma cidade ou estado**. Cidades de SP → "TJSP". Ex: Pinheiros, Santo Amaro, Embu das Artes, Campo Limpo, Parelheiros, Osasco → sempre \`siglaTribunal: "TJSP"\`. Essencial para a API funcionar.
-- \`tipoComunicacao\`: "Intimação", "Citação" ou "Edital" (opcional)
-- \`data\`: data de disponibilização no formato YYYY-MM-DD (opcional)
-- \`classeProcessual\`: filtro local por nomeClasse após buscar (busca até 200 itens). Use quando o advogado pedir tipo de ação específico.
-- \`limit\`: quantos retornar sem filtro de classe (padrão 20)
+- \`texto\`: palavras no **corpo** da publicação (nome de parte, CPF, palavra específica). Opcional — não use para comarca.
+- \`nomeOrgao\`: substring do nome do órgão/foro para filtrar comarca. Ex: "amaro", "pinheiros", "osasco".
+- \`classeProcessual\`: substring do nomeClasse para filtrar tipo de ação. Ex: "Busca e Apreensão", "Inventário", "cobrança".
+- \`tipoComunicacao\`: "Intimação", "Citação" ou "Edital".
+- \`siglaTribunal\`: sempre "TJSP" para SP. Obrigatório.
+- \`limit\`: resultados sem filtros pós-fetch (padrão 20, máximo 100). Ignorado quando há nomeOrgao ou classeProcessual.
 
-## Siglas de tribunais por estado
+## Classes processuais reais
 
-São Paulo/SP → "TJSP" | Rio de Janeiro/RJ → "TJRJ" | Minas Gerais/MG → "TJMG" | Paraná/PR → "TJPR" | Rio Grande do Sul/RS → "TJRS" | Bahia/BA → "TJBA" | Ceará/CE → "TJCE"
-
-## Classes processuais reais no DJEN (pós CPC/2015)
-
-- "busca e apreensão de veículo" → \`classeProcessual: "Busca e Apreensão"\`
+- "busca e apreensão" → \`classeProcessual: "Busca e Apreensão"\`
 - "usucapião" → \`classeProcessual: "Usucapião"\` + \`tipoComunicacao: "Edital"\`
 - "inventário" → \`classeProcessual: "Inventário"\`
 - "interdição" → \`classeProcessual: "Interdição"\`
 - "alvará judicial" → \`classeProcessual: "Alvará"\`
-- "ação de cobrança" → \`classeProcessual: "cobrança"\` (pega classes que contêm essa palavra)
+- "ação de cobrança" → \`classeProcessual: "cobrança"\`
 - "execução de dívida" → \`classeProcessual: "Execução de Título"\`
 - "despejo" → \`classeProcessual: "Despejo"\`
-- processos cíveis gerais → \`classeProcessual: "Procedimento Comum"\`
 
-## Estratégia de busca
+## Siglas de tribunais
 
-1. Sempre execute buscar_djen antes de responder
-2. Se retornar 0 resultados:
-   - Tente com termos mais simples (ex: "embu" em vez de "embu das artes")
-   - Remova o filtro de classe e tente só pelo texto
-   - Execute a nova busca IMEDIATAMENTE, sem pedir confirmação ao usuário
-3. Se a busca alternativa também falhar, explique e dê sugestões concretas
-4. Você pode chamar buscar_djen mais de uma vez para refinar — FAÇA ISSO AUTOMATICAMENTE
+São Paulo/SP → "TJSP" | Rio de Janeiro/RJ → "TJRJ" | Minas Gerais/MG → "TJMG" | Paraná/PR → "TJPR" | RS → "TJRS" | BA → "TJBA" | CE → "TJCE"
+
+## Estratégia de busca — siga esta ordem
+
+1. **Primeira busca**: siglaTribunal + nomeOrgao (comarca) + classeProcessual (tipo) + tipoComunicacao se relevante
+2. **Se 0 resultados** (AUTOMATICAMENTE):
+   - Tente sem \`classeProcessual\` mas mantendo \`nomeOrgao\`
+   - Ou tente \`nomeOrgao\` mais curto (ex: "amaro" → "santo")
+3. **Se ainda 0**: tente só \`classeProcessual\` sem \`nomeOrgao\`
+4. Só após 3 tentativas informe o usuário
+
+Você pode chamar buscar_djen até 4 vezes — FAÇA ISSO AUTOMATICAMENTE sem pedir confirmação.
 
 ## Tom e formato
 
 - Respostas curtas e diretas, em português
-- Informe quantas publicações foram encontradas e de quais tribunais/órgãos
-- Se encontrar resultados, faça um breve resumo do que são (ex: "5 editais de usucapião na Vara de Embu das Artes")
-- Se não encontrar, seja claro e proativo nas sugestões
+- Informe quantas publicações foram encontradas e de quais órgãos
+- Se encontrar, liste os órgãos/comarcas que apareceram (ex: "8 citações: 5 de Santo Amaro, 3 de Osasco")
+- Se não encontrar, explique e sugira alternativas concretas
 - Data de hoje: ${new Date().toLocaleDateString('pt-BR')}`;
 
 // ─── Tool Definition ──────────────────────────────────────────────────────────
@@ -76,30 +93,28 @@ const tools: Anthropic.Tool[] = [
       properties: {
         texto: {
           type: 'string',
-          description: 'Termos de busca no corpo das publicações. AND implícito entre palavras.',
+          description: 'Palavras que devem aparecer no CORPO da publicação (nome de parte, CPF, palavra específica). NÃO use para filtrar por comarca — use nomeOrgao para isso.',
+        },
+        nomeOrgao: {
+          type: 'string',
+          description: 'Substring do nome do órgão/foro para filtrar por comarca (filtro pós-fetch). Ex: "amaro" filtra "Foro Regional II - Santo Amaro". Use: "pinheiros", "amaro", "campo limpo", "parelheiros", "embu", "osasco".',
         },
         tipoComunicacao: {
           type: 'string',
           enum: ['Intimação', 'Citação', 'Edital'],
           description: 'Filtro por tipo de comunicação judicial',
         },
-        data: {
-          type: 'string',
-          description: 'Data de disponibilização no formato YYYY-MM-DD',
-        },
         classeProcessual: {
           type: 'string',
-          description:
-            'Filtro local por classe processual (nomeClasse). Busca até 200 publicações e filtra. Ex: "cobrança", "Execução de Título", "Busca e Apreensão".',
+          description: 'Substring do nomeClasse para filtrar tipo de ação (filtro pós-fetch). Ex: "Busca e Apreensão", "Inventário", "cobrança", "Usucapião", "Alvará".',
         },
         siglaTribunal: {
           type: 'string',
-          description:
-            'Sigla do tribunal (obrigatório quando a comarca pertence a um estado específico). Ex: "TJSP" para São Paulo, "TJRJ" para Rio de Janeiro, "TJMG" para Minas Gerais. Use sempre que o usuário mencionar uma cidade ou estado.',
+          description: 'Sigla do tribunal. Sempre "TJSP" para São Paulo. Obrigatório quando o usuário mencionar uma cidade ou estado.',
         },
         limit: {
           type: 'number',
-          description: 'Máximo de resultados sem filtro de classe (padrão: 20, máximo: 100)',
+          description: 'Máximo de resultados quando não há filtros pós-fetch (padrão: 20, máximo: 100). Ignorado quando nomeOrgao ou classeProcessual estão ativos.',
         },
       },
       required: [],
@@ -111,8 +126,8 @@ const tools: Anthropic.Tool[] = [
 
 interface BuscaInput {
   texto?: string;
+  nomeOrgao?: string;
   tipoComunicacao?: string;
-  data?: string;
   classeProcessual?: string;
   siglaTribunal?: string;
   limit?: number;
@@ -191,35 +206,53 @@ async function fetchPjePage(
   throw new Error('API retornou 403 após tentativas — tente novamente em alguns segundos');
 }
 
+const MAX_ITEMS = 500;
+
 async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
   const useClassFilter = Boolean(input.classeProcessual?.trim());
+  const useOrgaoFilter = Boolean(input.nomeOrgao?.trim());
+  const usePostFetch = useClassFilter || useOrgaoFilter;
 
-  if (!useClassFilter) {
+  // Sem filtros pós-fetch: busca simples paginada
+  if (!usePostFetch) {
     const loteSize = Math.min(input.limit ?? 20, 100);
     const { items, count } = await fetchPjePage(input, 0, loteSize);
     return { items, total: count, totalBruto: count, classeFilter: null, params: input };
   }
 
-  const MAX_ITEMS = 200;
+  // Com filtros pós-fetch: busca 500 itens para ter amostra representativa
   const { items: firstItems, count: totalBruto } = await fetchPjePage(input, 0, 100);
   const allItems: RawItem[] = [...firstItems];
 
-  if (totalBruto > 100) {
-    await sleep(400);
-    const { items: secondItems } = await fetchPjePage(input, 100, Math.min(100, MAX_ITEMS - 100));
-    allItems.push(...secondItems);
+  const pages = Math.min(Math.ceil(MAX_ITEMS / 100), Math.ceil(totalBruto / 100));
+  for (let page = 1; page < pages && allItems.length < MAX_ITEMS; page++) {
+    await sleep(300);
+    const { items } = await fetchPjePage(input, page * 100, 100);
+    allItems.push(...items);
   }
 
-  const classe = input.classeProcessual!.trim().toLowerCase();
-  const filtered = allItems.filter((item) =>
-    (item.nomeClasse ?? '').toLowerCase().includes(classe)
-  );
+  // Filtro pós-fetch por nomeOrgao (substring, case-insensitive)
+  let filtered = allItems;
+  if (useOrgaoFilter) {
+    const orgao = input.nomeOrgao!.trim().toLowerCase();
+    filtered = filtered.filter((item) =>
+      (item.nomeOrgao ?? '').toLowerCase().includes(orgao)
+    );
+  }
+
+  // Filtro pós-fetch por classeProcessual (substring, case-insensitive)
+  if (useClassFilter) {
+    const classe = input.classeProcessual!.trim().toLowerCase();
+    filtered = filtered.filter((item) =>
+      (item.nomeClasse ?? '').toLowerCase().includes(classe)
+    );
+  }
 
   return {
     items: filtered,
     total: filtered.length,
     totalBruto,
-    classeFilter: input.classeProcessual!,
+    classeFilter: useClassFilter ? input.classeProcessual! : null,
     params: input,
   };
 }

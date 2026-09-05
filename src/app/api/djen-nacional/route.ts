@@ -3,6 +3,13 @@ import { z } from 'zod';
 
 const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const TRIBUNAL = 'TJSP';
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'pt-BR,pt;q=0.9',
+  'Referer': 'https://comunica.pje.jus.br/',
+  'Origin': 'https://comunica.pje.jus.br',
+};
 
 const QuerySchema = z.object({
   texto: z.string().min(2).max(300).optional(),
@@ -16,6 +23,45 @@ const QuerySchema = z.object({
 }).refine((d) => d.texto || d.nomeParte || d.numeroProcesso, {
   message: 'Informe um termo de busca, nome da parte ou número do processo',
 });
+
+type RawItem = Record<string, unknown>;
+
+function normalizarItem(item: RawItem) {
+  return {
+    id: item.id,
+    data: item.data_disponibilizacao,
+    tribunal: item.siglaTribunal,
+    tipo: item.tipoComunicacao,
+    orgao: item.nomeOrgao,
+    classe: item.nomeClasse,
+    numeroProcesso: item.numeroprocessocommascara ?? item.numero_processo,
+    partes: item.destinatarios,
+    advogados: item.destinatarioadvogados,
+    link: item.link,
+    texto: item.texto,
+  };
+}
+
+async function fetchDjen(baseParams: URLSearchParams, data?: string): Promise<{ items: RawItem[]; count: number }> {
+  const params = new URLSearchParams(baseParams);
+  if (data) params.set('dataDisponibilizacao', data);
+  const res = await fetch(`${DJEN_BASE}?${params}`, { cache: 'no-store', headers: HEADERS });
+  if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+  const json = await res.json() as { items?: RawItem[]; count?: number };
+  return { items: json.items ?? [], count: json.count ?? 0 };
+}
+
+function diasUteisNoRange(dateFrom: string, dateTo: string, max = 10): string[] {
+  const dias: string[] = [];
+  const fim = new Date(dateTo + 'T12:00:00Z');
+  const cursor = new Date(dateFrom + 'T12:00:00Z');
+  while (cursor <= fim && dias.length < max) {
+    const dow = cursor.getUTCDay();
+    if (dow !== 0 && dow !== 6) dias.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dias;
+}
 
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
@@ -36,69 +82,63 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 422 });
   }
 
-  // Combina texto livre + nome da parte em um único campo de busca
   const termoBusca = [parsed.texto, parsed.nomeParte].filter(Boolean).join(' ');
 
-  const params = new URLSearchParams({ siglaTribunal: TRIBUNAL });
+  const baseParams = new URLSearchParams({ siglaTribunal: TRIBUNAL });
   if (parsed.numeroProcesso) {
-    params.set('numeroProcesso', parsed.numeroProcesso.replace(/[.\-]/g, ''));
+    baseParams.set('numeroProcesso', parsed.numeroProcesso.replace(/[.\-]/g, ''));
   } else {
-    if (termoBusca) params.set('texto', termoBusca);
-    // A API só aceita uma data; se houver intervalo, usa a data de início como âncora
-    if (parsed.dataInicio) params.set('dataDisponibilizacao', parsed.dataInicio);
-    else if (parsed.dataFim) params.set('dataDisponibilizacao', parsed.dataFim);
+    if (termoBusca) baseParams.set('texto', termoBusca);
+    if (parsed.tipoComunicacao) baseParams.set('tipoComunicacao', parsed.tipoComunicacao);
   }
-  if (parsed.tipoComunicacao) params.set('tipoComunicacao', parsed.tipoComunicacao);
-  params.set('limit', String(parsed.limit));
-  params.set('offset', String(parsed.offset));
+  baseParams.set('limit', String(parsed.limit));
+  baseParams.set('offset', String(parsed.offset));
 
   try {
-    const res = await fetch(`${DJEN_BASE}?${params}`, {
-      cache: 'no-store',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-        'Referer': 'https://comunica.pje.jus.br/',
-        'Origin': 'https://comunica.pje.jus.br',
-      },
-    });
+    const temRange = parsed.dataInicio && parsed.dataFim && parsed.dataInicio !== parsed.dataFim;
+    const diffDias = temRange
+      ? (new Date(parsed.dataFim!).getTime() - new Date(parsed.dataInicio!).getTime()) / 86400000
+      : 0;
 
-    if (!res.ok) {
-      return NextResponse.json({ error: `DJEN retornou ${res.status}` }, { status: 502 });
-    }
-
-    const data = await res.json();
-
-    let items = (data.items ?? []) as Record<string, unknown>[];
-
-    // Filtro local por data fim (a API não suporta intervalo nativo)
-    if (parsed.dataFim && parsed.dataInicio && parsed.dataInicio !== parsed.dataFim) {
-      items = items.filter((item) => {
-        const d = String(item.data_disponibilizacao ?? '');
-        return d >= parsed.dataInicio! && d <= parsed.dataFim!;
+    // Range curto (≤14 dias): itera dia a dia para cobertura total
+    if (temRange && diffDias <= 14) {
+      const dias = diasUteisNoRange(parsed.dataInicio!, parsed.dataFim!);
+      const allItems: RawItem[] = [];
+      let totalCount = 0;
+      for (const dia of dias) {
+        const { items, count } = await fetchDjen(baseParams, dia);
+        allItems.push(...items);
+        totalCount += count;
+        if (items.length > 0) await new Promise((r) => setTimeout(r, 200));
+      }
+      return NextResponse.json({
+        total: totalCount,
+        items: allItems.map(normalizarItem),
+        offset: parsed.offset,
+        limit: parsed.limit,
       });
     }
 
+    // Range longo (>14 dias) ou sem range: busca única com data âncora ou sem data
+    const dataAncora = parsed.dataInicio ?? parsed.dataFim;
+    const { items, count } = await fetchDjen(baseParams, dataAncora);
+
+    // Filtro local por dataFim se houver range longo
+    const itemsFiltrados = temRange
+      ? items.filter((item) => {
+          const d = String(item.data_disponibilizacao ?? '').slice(0, 10);
+          return d >= parsed.dataInicio! && d <= parsed.dataFim!;
+        })
+      : items;
+
     return NextResponse.json({
-      total: data.count ?? 0,
-      items: items.map((item) => ({
-        id: item.id,
-        data: item.data_disponibilizacao,
-        tribunal: item.siglaTribunal,
-        tipo: item.tipoComunicacao,
-        orgao: item.nomeOrgao,
-        classe: item.nomeClasse,
-        numeroProcesso: item.numeroprocessocommascara ?? item.numero_processo,
-        partes: item.destinatarios,
-        advogados: item.destinatarioadvogados,
-        link: item.link,
-        texto: item.texto,
-      })),
+      total: count,
+      items: itemsFiltrados.map(normalizarItem),
       offset: parsed.offset,
       limit: parsed.limit,
     });
-  } catch {
-    return NextResponse.json({ error: 'Erro ao consultar DJEN' }, { status: 502 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro ao consultar DJEN';
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

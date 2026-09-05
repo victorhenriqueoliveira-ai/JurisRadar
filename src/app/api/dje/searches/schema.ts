@@ -15,6 +15,7 @@ export const DjeSearchSchema = z
     dateTo: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'dateTo deve estar no formato YYYY-MM-DD'),
+    court: z.string().min(2).max(100).optional(),
     name: z.string().max(100).optional(),
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(50),

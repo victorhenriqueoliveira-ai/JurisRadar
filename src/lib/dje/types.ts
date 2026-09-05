@@ -33,6 +33,8 @@ export interface DjeSearchParams {
   dateFrom: string;
   /** Data final no formato "YYYY-MM-DD" */
   dateTo: string;
+  /** Filtro parcial por nome do foro/vara (ILIKE). Ex: "pinheiros", "santo amaro" */
+  court?: string;
 }
 
 /** Resultado individual de uma busca no DJE */

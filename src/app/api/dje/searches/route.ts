@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 422 });
   }
 
-  const { term, dateFrom, dateTo, name, page, limit } = parsed;
-  const params = { term, dateFrom, dateTo };
+  const { term, dateFrom, dateTo, court, name, page, limit } = parsed;
+  const params = { term, dateFrom, dateTo, court };
 
   const { results, total } = await searchPublications(params, page, limit, userId);
   const searchId = await createDjeSearch(userId, params, name, total, orgId);
