@@ -690,6 +690,58 @@ export const comunicacoesCliente = pgTable(
   }),
 );
 
+// ── Tabelas Workspace ─────────────────────────────────────────────────────────
+
+/** Tarefas do escritório */
+export const tarefas = pgTable('tarefas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  titulo: text('titulo').notNull(),
+  processoRef: text('processo_ref'),
+  prioridade: text('prioridade').notNull().default('media'),
+  prazo: date('prazo'),
+  status: text('status').notNull().default('pendente'),
+  criadoPorId: uuid('criado_por_id').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Cards do Kanban por escritório */
+export const kanbanCards = pgTable('kanban_cards', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  titulo: text('titulo').notNull(),
+  coluna: text('coluna').notNull().default('a_fazer'),
+  prioridade: text('prioridade').notNull().default('media'),
+  tag: text('tag'),
+  prazo: text('prazo'),
+  responsavelId: uuid('responsavel_id').references(() => users.id),
+  ordem: integer('ordem').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Consultorias do escritório */
+export const consultorias = pgTable('consultorias', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  titulo: text('titulo').notNull(),
+  clienteId: uuid('cliente_id').references(() => clientes.id, { onDelete: 'set null' }),
+  valorEstimado: numeric('valor_estimado', { precision: 12, scale: 2 }),
+  data: date('data'),
+  status: text('status').notNull().default('pendente'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Casos / Investigações do escritório */
+export const casos = pgTable('casos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  titulo: text('titulo').notNull(),
+  clienteId: uuid('cliente_id').references(() => clientes.id, { onDelete: 'set null' }),
+  responsavelId: uuid('responsavel_id').references(() => users.id),
+  status: text('status').notNull().default('ativo'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 /**
  * Anexos de processos — referências a arquivos no Vercel Blob.
  * Limite por arquivo: 10 MB. Quota por escritório: 500 MB.
