@@ -126,18 +126,16 @@ export async function insertPublications(
  * @param userId - ID do usuário (reservado para futuro controle de acesso)
  * @returns Resultados paginados e total de ocorrências
  */
-/**
- * Constrói uma tsquery ORando cada palavra individualmente.
- *
- * O dicionário português stems de forma inconsistente adjetivos como
- * "alimentícia" → "alimentíc" (não bate com "aliment"). OR por palavra
- * garante que qualquer forma seja encontrada.
- */
-function buildTsquery(term: string) {
+// AND entre todas as palavras — mais preciso. Usado como estratégia primária.
+function buildTsqueryAnd(term: string) {
+  return sql`plainto_tsquery('portuguese', ${term})`;
+}
+
+// OR entre palavras individuais — fallback para termos com stemming inconsistente
+// (ex: "alimentícia" → "alimentíc" não bate com "aliment")
+function buildTsqueryOr(term: string) {
   const words = term.trim().split(/\s+/).filter((w) => w.length > 0);
-  if (words.length === 0) {
-    return sql`plainto_tsquery('portuguese', ${term})`;
-  }
+  if (words.length === 0) return sql`plainto_tsquery('portuguese', ${term})`;
   let query = sql`plainto_tsquery('portuguese', ${words[0]})`;
   for (let i = 1; i < words.length; i++) {
     query = sql`(${query} || plainto_tsquery('portuguese', ${words[i]}))`;
@@ -151,21 +149,40 @@ export async function searchPublications(
   limit: number,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _userId: string,
-): Promise<{ results: DjeSearchResult[]; total: number }> {
+): Promise<{ results: DjeSearchResult[]; total: number; usedFallback?: boolean }> {
   const offset = (page - 1) * limit;
-  const tsquery = buildTsquery(params.term);
+  const courtFilter = params.court?.trim()
+    ? sql`AND court ILIKE ${'%' + params.court.trim() + '%'}`
+    : sql``;
 
-  // Contagem total — sem ts_headline para performance
-  const countResult = await db.execute(sql`
+  // Tenta AND primeiro (preciso), cai em OR se retornar zero (cobre stemming inconsistente)
+  let tsquery = buildTsqueryAnd(params.term);
+  let usedFallback = false;
+
+  let countResult = await db.execute(sql`
     SELECT COUNT(*) as total
     FROM dje_publications
     WHERE search_vector @@ ${tsquery}
       AND publication_date BETWEEN ${params.dateFrom} AND ${params.dateTo}
+      ${courtFilter}
   `);
-  const total = Number((countResult.rows[0] as { total: string }).total);
+  let total = Number((countResult.rows[0] as { total: string }).total);
+
+  if (total === 0 && params.term.trim().split(/\s+/).length > 1) {
+    tsquery = buildTsqueryOr(params.term);
+    usedFallback = true;
+    countResult = await db.execute(sql`
+      SELECT COUNT(*) as total
+      FROM dje_publications
+      WHERE search_vector @@ ${tsquery}
+        AND publication_date BETWEEN ${params.dateFrom} AND ${params.dateTo}
+        ${courtFilter}
+    `);
+    total = Number((countResult.rows[0] as { total: string }).total);
+  }
 
   if (total === 0) {
-    return { results: [], total: 0 };
+    return { results: [], total: 0, usedFallback };
   }
 
   // Resultados paginados com snippet (ts_headline aplicado apenas aqui)
@@ -182,6 +199,7 @@ export async function searchPublications(
     FROM dje_publications
     WHERE search_vector @@ ${tsquery}
       AND publication_date BETWEEN ${params.dateFrom} AND ${params.dateTo}
+      ${courtFilter}
     ORDER BY publication_date DESC
     LIMIT ${limit} OFFSET ${offset}
   `);
@@ -206,7 +224,7 @@ export async function searchPublications(
     snippet: row.snippet,
   }));
 
-  return { results, total };
+  return { results, total, usedFallback };
 }
 
 // ── Histórico de Buscas DJE ───────────────────────────────────────────────────

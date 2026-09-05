@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ArrowDownToLine } from 'lucide-react';
 import { DashboardFinanceiro } from '@/components/financeiro/DashboardFinanceiro';
 import { HonorarioTable } from '@/components/financeiro/HonorarioTable';
 import { CobrancaForm } from '@/components/financeiro/CobrancaForm';
@@ -19,13 +19,14 @@ const TIPOS_HONORARIO = [
   'Outro',
 ];
 
-type Tab = 'honorarios' | 'cobrancas' | 'assinaturas' | 'inadimplentes';
+type Tab = 'honorarios' | 'cobrancas' | 'assinaturas' | 'inadimplentes' | 'saldo';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'honorarios', label: 'Honorários' },
   { id: 'cobrancas', label: 'Cobranças' },
   { id: 'assinaturas', label: 'Assinaturas' },
   { id: 'inadimplentes', label: 'Inadimplentes' },
+  { id: 'saldo', label: 'Saldo & Repasses' },
 ];
 
 function NovoHonorarioModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
@@ -164,6 +165,168 @@ function NovaCobrancaModal({ onClose, onSaved }: { onClose: () => void; onSaved:
         </div>
       </div>
     </div>
+  );
+}
+
+const EXTRATO_MOCK = [
+  { id: '1', descricao: 'Recebimento — Processo 1234/2026', valor: 5000, tipo: 'entrada' as const, data: '2026-08-28', status: 'Concluído' },
+  { id: '2', descricao: 'Saque realizado', valor: -2000, tipo: 'saida' as const, data: '2026-08-20', status: 'Concluído' },
+  { id: '3', descricao: 'Recebimento — Honorários consultoria', valor: 1800, tipo: 'entrada' as const, data: '2026-08-15', status: 'Concluído' },
+  { id: '4', descricao: 'Saque realizado', valor: -1000, tipo: 'saida' as const, data: '2026-08-05', status: 'Concluído' },
+];
+
+function SaqueModal({ onClose }: { onClose: () => void }) {
+  const [valor, setValor] = useState('');
+  const [conta, setConta] = useState('');
+  const [done, setDone] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setDone(true);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-bold text-[#0f2d5e]">Sacar saldo</h2>
+          <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="px-6 py-5">
+          {done ? (
+            <div className="text-center py-4">
+              <div className="text-4xl mb-3">✓</div>
+              <p className="font-bold text-[#16a34a] text-lg">Saque solicitado!</p>
+              <p className="text-sm text-[#6b7280] mt-1">O valor será processado em até 1 dia útil.</p>
+              <button type="button" onClick={onClose} className="mt-5 px-6 py-2.5 bg-[#0f2d5e] text-white text-sm font-semibold rounded-xl">
+                Fechar
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Valor a sacar (R$)</label>
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="decimal"
+                  required
+                  value={valor}
+                  onChange={(e) => setValor(e.target.value)}
+                  placeholder="0,00"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Conta destino</label>
+                <input
+                  type="text"
+                  required
+                  value={conta}
+                  onChange={(e) => setConta(e.target.value)}
+                  placeholder="Banco, Ag, CC"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={onClose} className="flex-1 py-2 px-4 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-1 py-2 px-4 text-sm font-medium text-white bg-[#0f2d5e] rounded-lg hover:bg-[#1a3f7a] transition-colors">
+                  Confirmar saque
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SaldoRepasses() {
+  const [showSaque, setShowSaque] = useState(false);
+
+  return (
+    <>
+      {showSaque && <SaqueModal onClose={() => setShowSaque(false)} />}
+      <div className="space-y-6">
+        {/* 3 colunas de KPI */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Col 1: navy dark — saldo disponível */}
+          <div className="rounded-2xl bg-[#0f2d5e] p-5 text-white flex flex-col gap-3">
+            <p className="text-xs font-medium opacity-70">Saldo disponível para saque</p>
+            <p className="text-3xl font-extrabold tabular-nums">R$ 24.180,00</p>
+            <button
+              type="button"
+              onClick={() => setShowSaque(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-[#0f2d5e] text-sm font-bold rounded-xl hover:bg-gray-100 transition-colors w-fit"
+            >
+              <ArrowDownToLine className="w-4 h-4" />
+              Sacar agora
+            </button>
+          </div>
+
+          {/* Col 2: a liberar */}
+          <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <p className="text-xs text-[#9ca3af] mb-1">A liberar (em processamento)</p>
+              <p className="text-3xl font-extrabold tabular-nums text-[#d97706]">R$ 6.900,00</p>
+            </div>
+            <p className="text-xs text-[#9ca3af] mt-3">Cai em até 2 dias úteis</p>
+          </div>
+
+          {/* Col 3: total sacado */}
+          <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <p className="text-xs text-[#9ca3af] mb-1">Total já sacado</p>
+              <p className="text-3xl font-extrabold tabular-nums text-[#0f2d5e]">R$ 118.400,00</p>
+            </div>
+            <p className="text-xs text-[#9ca3af] mt-3">Desde o início</p>
+          </div>
+        </div>
+
+        {/* Extrato — 4 colunas: Data, Descrição, Valor, Status */}
+        <div className="bg-white border border-[#e5e7eb] rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-[#e5e7eb]">
+            <h3 className="text-sm font-bold text-[#0f2d5e]">Extrato</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[#e5e7eb] bg-gray-50">
+                <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Data</th>
+                <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Descrição</th>
+                <th className="text-right px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Valor</th>
+                <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {EXTRATO_MOCK.map((item) => (
+                <tr key={item.id} className="border-b border-[#f1f5f9]">
+                  <td className="px-5 py-3.5 text-[#9ca3af] shrink-0 whitespace-nowrap">
+                    {item.data.split('-').reverse().join('/')}
+                  </td>
+                  <td className="px-5 py-3.5 text-[#374151]">{item.descricao}</td>
+                  <td className={`px-5 py-3.5 text-right font-semibold tabular-nums whitespace-nowrap ${
+                    item.tipo === 'entrada' ? 'text-[#16a34a]' : 'text-[#dc2626]'
+                  }`}>
+                    {item.tipo === 'entrada' ? '+' : ''}
+                    {item.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-green-700">
+                      {item.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -334,6 +497,12 @@ export default function FinanceiroPage() {
         {activeTab === 'inadimplentes' && (
           <section>
             <RelatorioInadimplentes />
+          </section>
+        )}
+
+        {activeTab === 'saldo' && (
+          <section>
+            <SaldoRepasses />
           </section>
         )}
       </div>

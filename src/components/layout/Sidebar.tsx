@@ -12,9 +12,14 @@ import {
   Newspaper,
   CalendarClock,
   Wallet,
-  Bell,
-  Settings,
   ChevronRight,
+  CheckSquare,
+  Scale,
+  Users,
+  Briefcase,
+  UserCircle,
+  Building2,
+  FileText,
 } from 'lucide-react';
 
 type NavSubItem = {
@@ -45,9 +50,18 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Produtividade',
+    items: [
+      { href: '/tarefas', label: 'Tarefas', icon: CheckSquare },
+      { href: '/kanban', label: 'Kanban', icon: Kanban },
+    ],
+  },
+  {
     title: 'Processos',
     items: [
-      { href: '/crm', label: 'CRM', icon: Kanban },
+      { href: '/crm', label: 'CRM', icon: Scale },
+      { href: '/processos', label: 'Processos', icon: FileText },
+      { href: '/casos', label: 'Casos / Investigações', icon: Search },
     ],
   },
   {
@@ -58,8 +72,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'DJEN Nacional',
         icon: Radar,
         children: [
-          { href: '/busca/djen-nacional', label: 'Busca Manual' , icon: Search
-          },
+          { href: '/busca/djen-nacional', label: 'Busca Manual', icon: Search },
           { href: '/busca/djen-nacional?mode=ia', label: 'Busca com IA', accent: true },
         ],
       },
@@ -68,8 +81,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'DataJud / CNJ',
         icon: Database,
         children: [
-          { href: '/busca/datajud', label: 'Busca Manual' , icon: Search
-          },
+          { href: '/busca/datajud', label: 'Busca Manual', icon: Search },
         ],
       },
       {
@@ -77,7 +89,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'DJe TJSP',
         icon: Newspaper,
         children: [
-          { href: '/busca/dje', label: 'Busca Manual' , icon: Search},
+          { href: '/busca/dje', label: 'Busca Manual', icon: Search },
         ],
       },
       {
@@ -85,9 +97,15 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'PJe Nacional',
         icon: Search,
         children: [
-          { href: '/busca/pje', label: 'Busca Manual' , icon: Search},
+          { href: '/busca/pje', label: 'Busca Manual', icon: Search },
         ],
       },
+    ],
+  },
+  {
+    title: 'Relacionamentos',
+    items: [
+      { href: '/clientes', label: 'Clientes & Empresas', icon: Users },
     ],
   },
   {
@@ -100,13 +118,14 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Financeiro',
     items: [
       { href: '/financeiro', label: 'Honorários', icon: Wallet },
+      { href: '/consultorias', label: 'Consultorias', icon: Briefcase },
     ],
   },
   {
-    title: 'Sistema',
+    title: 'Escritório',
     items: [
-      { href: '/notificacoes', label: 'Notificações', icon: Bell },
-      { href: '/configuracoes', label: 'Configurações', icon: Settings },
+      { href: '/configuracoes/escritorio', label: 'Equipe & Plano', icon: Building2 },
+      { href: '/perfil', label: 'Meu perfil', icon: UserCircle },
     ],
   },
 ];
