@@ -25,5 +25,5 @@
 | 19 | ComunicacaoClienteService + API /api/comunicacoes/* e /api/clientes | completed | high | task_16, task_18 |
 | 20 | calendarioAutoEventCreator — Inngest function de auto-criação de eventos via DJE/DJEN | completed | medium | task_16 |
 | 21 | API Calendário — endpoints GET/POST/PUT/DELETE com validação de drag em prazo fatal | completed | high | task_16, task_17 |
-| 22 | Frontend Calendário — DnD addon, Tooltip hover e modo Foco do dia | pending | high | task_17, task_21 |
-| 23 | Frontend CRM — Aba Comunicações no painel do processo | pending | high | task_16, task_19 |
+| 22 | Frontend Calendário — DnD addon, Tooltip hover e modo Foco do dia | completed | high | task_17, task_21 |
+| 23 | Frontend CRM — Aba Comunicações no painel do processo | completed | high | task_16, task_19 |

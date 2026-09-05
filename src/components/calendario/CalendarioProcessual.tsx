@@ -1,22 +1,16 @@
 'use client';
 
-/**
- * CalendarioProcessual — componente principal do calendário processual.
- *
- * Visualizações: month (mensal), week (semanal), agenda (lista).
- * Ao clicar em um evento, abre o ProcessoSheet com detalhes do processo.
- * Suporte a swipe horizontal no mobile para navegar entre semanas/meses.
- */
-
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Calendar, dateFnsLocalizer, Views, View } from 'react-big-calendar';
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { format, parse, startOfWeek, getDay, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { EventoCalendarioItem } from '@/services/calendario';
-import { resolverCorEvento } from '@/lib/calendario-utils';
+import { resolverEstiloEvento } from '@/lib/calendario-utils';
 import { EventoCalendario } from './EventoCalendario';
+import { FocoDoDia } from './FocoDoDia';
 
-// Configuração do localizador com date-fns + pt-BR
 const locales = { 'pt-BR': ptBR };
 
 const localizer = dateFnsLocalizer({
@@ -27,7 +21,6 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// Mensagens em português
 const messages = {
   allDay: 'Dia todo',
   previous: 'Anterior',
@@ -44,7 +37,6 @@ const messages = {
   showMore: (total: number) => `+${total} mais`,
 };
 
-// Tipo de evento para o react-big-calendar
 export interface CalendarioEvento {
   id: string;
   title: string;
@@ -55,7 +47,9 @@ export interface CalendarioEvento {
   processoId?: string;
   numeroCnj?: string;
   tribunal?: string | null;
+  horaInicio?: string | null;
   pessoal?: boolean;
+  fonte?: string;
 }
 
 export interface CalendarioProcessualProps {
@@ -70,7 +64,11 @@ interface EventoAgenda {
   horaFim?: string | null;
   tipo: string;
   descricao?: string | null;
+  fonte?: string;
 }
+
+// DnD-enabled Calendar
+const DnDCalendar = withDragAndDrop<CalendarioEvento>(Calendar);
 
 function mapEventos(eventos: EventoCalendarioItem[]): CalendarioEvento[] {
   return eventos.map((ev) => {
@@ -101,7 +99,9 @@ function mapEventosAgenda(eventos: EventoAgenda[]): CalendarioEvento[] {
       end,
       tipo: ev.tipo,
       data: ev.data,
+      horaInicio: ev.horaInicio,
       pessoal: true,
+      fonte: ev.fonte ?? 'agenda',
     };
   });
 }
@@ -216,6 +216,15 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
   const [novoEventoDialog, setNovoEventoDialog] = useState(false);
   const [novoEventoData, setNovoEventoData] = useState<string | undefined>();
   const [processEventos, setProcessEventos] = useState<EventoCalendarioItem[]>(eventos);
+  const [focoDoDia, setFocoDoDia] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  function showToast(text: string, ok = false) {
+    setToastMsg({ text, ok });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
+  }
 
   const fetchEventosForDate = useCallback(async (d: Date) => {
     const ano = d.getFullYear();
@@ -237,21 +246,61 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
   }, [fetchEventosForDate]);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
-  // Swipe horizontal para mobile
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
-  // Busca eventos pessoais ao montar
+  // Busca eventos de agenda pessoal ao montar
   useEffect(() => {
     const hoje = new Date();
     const ano = hoje.getFullYear();
     const mes = hoje.getMonth();
-    const de = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
-    const ate = new Date(ano, mes + 2, 0).toISOString().slice(0, 10);
-    fetch(`/api/calendario/eventos?de=${de}&ate=${ate}`)
+    const start = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
+    const end = new Date(ano, mes + 2, 0).toISOString().slice(0, 10);
+    fetch(`/api/calendario/eventos?start=${start}&end=${end}`)
       .then((r) => r.json())
-      .then((d) => setEventosAgendaList(d.data ?? []))
+      .then((d) => {
+        // filtra apenas eventos de agenda para evitar duplicação com process events
+        const agenda = (d.data ?? []).filter((e: EventoAgenda) => e.fonte === 'agenda' || !e.fonte);
+        setEventosAgendaList(agenda);
+      })
       .catch(() => {});
+  }, []);
+
+  // Drag & Drop handler
+  const handleEventDrop = useCallback(async ({ event, start }: { event: CalendarioEvento; start: Date | string }) => {
+    if (!event.fonte) return;
+    const novaData = new Date(start).toISOString().slice(0, 10);
+
+    // Optimistic update
+    setEventosAgendaList((prev) =>
+      prev.map((ev) => ev.id === event.id ? { ...ev, data: novaData } : ev),
+    );
+
+    try {
+      const res = await fetch(`/api/calendario/eventos/${event.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fonte: event.fonte, data: novaData, tipo: event.tipo }),
+      });
+
+      if (res.status === 422) {
+        const json = await res.json();
+        showToast(json.error ?? 'Prazo fatal não pode ser movido para data passada.');
+        setEventosAgendaList((prev) =>
+          prev.map((ev) => ev.id === event.id ? { ...ev, data: event.data } : ev),
+        );
+      } else if (!res.ok) {
+        showToast('Erro ao mover evento.');
+        setEventosAgendaList((prev) =>
+          prev.map((ev) => ev.id === event.id ? { ...ev, data: event.data } : ev),
+        );
+      }
+    } catch {
+      showToast('Erro de conexão ao mover evento.');
+      setEventosAgendaList((prev) =>
+        prev.map((ev) => ev.id === event.id ? { ...ev, data: event.data } : ev),
+      );
+    }
   }, []);
 
   const eventosCalendario = [
@@ -259,26 +308,27 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
     ...mapEventosAgenda(eventosAgendaList),
   ];
 
-  // Estilo personalizado por evento
+  // Estilo personalizado por tipo + urgência (task_17)
   const eventStyleGetter = useCallback((event: CalendarioEvento) => {
-    const cor = event.pessoal ? '#7c3aed' : resolverCorEvento(event.tipo, event.data);
-    return {
-      style: {
-        backgroundColor: cor,
-        borderColor: cor,
-        color: '#fff',
-        borderRadius: '0.25rem',
-        border: 'none',
-        padding: '0.125rem 0.375rem',
-        fontSize: '0.75rem',
-        cursor: event.pessoal ? 'default' : 'pointer',
-      },
+    const estilo = resolverEstiloEvento(event.tipo, event.data);
+    const style: React.CSSProperties = {
+      color: '#fff',
+      borderRadius: '0.25rem',
+      border: 'none',
+      padding: '0.125rem 0.375rem',
+      fontSize: '0.75rem',
+      cursor: event.pessoal ? 'default' : 'pointer',
+      backgroundColor: event.pessoal ? '#7c3aed' : estilo.style.backgroundColor,
     };
+    if (!event.pessoal) {
+      if (estilo.style.borderLeft) style.borderLeft = estilo.style.borderLeft;
+      if (estilo.style.opacity !== undefined) style.opacity = estilo.style.opacity;
+    }
+    return { style };
   }, []);
 
-  // Clique em evento → buscar processo e abrir sheet (somente eventos de processo)
   const handleSelectEvent = useCallback(async (event: CalendarioEvento) => {
-    if (event.pessoal) return; // eventos pessoais não abrem sheet
+    if (event.pessoal) return;
     setEventoSelecionado(event);
     setSheetAberta(true);
     setCarregandoProcesso(true);
@@ -291,13 +341,12 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
         setProcesso(json.data ?? json);
       }
     } catch {
-      // falha silenciosa — sheet abre sem dados completos
+      // falha silenciosa
     } finally {
       setCarregandoProcesso(false);
     }
   }, []);
 
-  // Clique em slot vazio → abrir dialog de novo evento
   const handleSelectSlot = useCallback((slotInfo: { start: Date }) => {
     const data = slotInfo.start.toISOString().slice(0, 10);
     setNovoEventoData(data);
@@ -309,7 +358,6 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
     setNovoEventoDialog(false);
   }
 
-  // Swipe horizontal para mobile
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -318,30 +366,20 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       if (touchStartX.current === null || touchStartY.current === null) return;
-
       const deltaX = e.changedTouches[0].clientX - touchStartX.current;
       const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-
-      // Só conta como swipe horizontal se Δx > Δy (movimento predominantemente horizontal)
       if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY)) return;
-
       if (deltaX < 0) {
-        // Swipe para esquerda → avançar
-        const next = view === Views.MONTH ? addMonths(date, 1) : addWeeks(date, 1);
-        handleNavigate(next);
+        handleNavigate(view === Views.MONTH ? addMonths(date, 1) : addWeeks(date, 1));
       } else {
-        // Swipe para direita → recuar
-        const prev = view === Views.MONTH ? subMonths(date, 1) : subWeeks(date, 1);
-        handleNavigate(prev);
+        handleNavigate(view === Views.MONTH ? subMonths(date, 1) : subWeeks(date, 1));
       }
-
       touchStartX.current = null;
       touchStartY.current = null;
     },
-    [view],
+    [view, date, handleNavigate],
   );
 
-  // Lazy import do ProcessoSheet para evitar SSR
   const [ProcessoSheet, setProcessoSheet] =
     useState<React.ComponentType<import('@/components/crm/ProcessoSheet').ProcessoSheetProps> | null>(null);
 
@@ -353,8 +391,22 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Botão novo evento */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <button
+          type="button"
+          onClick={() => setFocoDoDia((prev) => !prev)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.375rem',
+            padding: '0.5rem 1rem', borderRadius: '0.5rem',
+            background: focoDoDia ? '#0f2d5e' : '#f3f4f6',
+            border: 'none',
+            color: focoDoDia ? '#fff' : '#374151',
+            fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          {focoDoDia ? '← Calendário' : '🎯 Foco do dia'}
+        </button>
         <button
           type="button"
           onClick={() => { setNovoEventoData(undefined); setNovoEventoDialog(true); }}
@@ -369,78 +421,114 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
         </button>
       </div>
 
-      <div
-        ref={wrapperRef}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        style={{ height: '75vh', minHeight: 500, position: 'relative' }}
-        data-testid="calendario-processual"
-      >
-        <Calendar
-          localizer={localizer}
-          events={eventosCalendario}
-          startAccessor="start"
-          endAccessor="end"
-          view={view}
-          onView={(v) => setView(v)}
-          date={date}
-          onNavigate={handleNavigate}
-          messages={messages}
-          culture="pt-BR"
-          style={{ height: '100%' }}
-          eventPropGetter={eventStyleGetter}
-          onSelectEvent={handleSelectEvent}
-          onSelectSlot={handleSelectSlot}
-          components={{
-            event: (props) => (
-              <EventoCalendario
-                event={{
-                  title: props.event.title,
-                  tipo: props.event.tipo,
-                  data: props.event.data,
-                  processoId: props.event.processoId ?? '',
-                  numeroCnj: props.event.numeroCnj,
-                }}
-              />
-            ),
-          }}
-          views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
-          popup
-          selectable
-        />
+      {/* Foco do dia */}
+      {focoDoDia && <FocoDoDia />}
 
-        {ProcessoSheet && (
-          <ProcessoSheet
-            processo={
-              carregandoProcesso
-                ? {
-                    id: eventoSelecionado?.processoId ?? '',
-                    numeroCnj: eventoSelecionado?.numeroCnj ?? 'Carregando...',
-                    tribunal: eventoSelecionado?.tribunal ?? undefined,
-                  }
-                : processo
-            }
-            open={sheetAberta}
-            onOpenChange={setSheetAberta}
+      {/* Calendário */}
+      {!focoDoDia && (
+        <div
+          ref={wrapperRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={{ height: '75vh', minHeight: 500, position: 'relative' }}
+          data-testid="calendario-processual"
+        >
+          <DnDCalendar
+            localizer={localizer}
+            events={eventosCalendario}
+            startAccessor="start"
+            endAccessor="end"
+            view={view}
+            onView={(v) => setView(v)}
+            date={date}
+            onNavigate={handleNavigate}
+            messages={messages}
+            culture="pt-BR"
+            style={{ height: '100%' }}
+            eventPropGetter={eventStyleGetter}
+            onSelectEvent={handleSelectEvent}
+            onSelectSlot={handleSelectSlot}
+            draggableAccessor={(event) => Boolean(event.fonte)}
+            onEventDrop={handleEventDrop}
+            resizable={false}
+            components={{
+              event: (props) => (
+                <EventoCalendario
+                  event={{
+                    title: props.event.title,
+                    tipo: props.event.tipo,
+                    data: props.event.data,
+                    processoId: props.event.processoId ?? '',
+                    numeroCnj: props.event.numeroCnj,
+                    horaInicio: props.event.horaInicio,
+                    fonte: props.event.fonte,
+                  }}
+                />
+              ),
+            }}
+            views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
+            popup
+            selectable
           />
-        )}
-      </div>
+
+          {ProcessoSheet && (
+            <ProcessoSheet
+              processo={
+                carregandoProcesso
+                  ? {
+                      id: eventoSelecionado?.processoId ?? '',
+                      numeroCnj: eventoSelecionado?.numeroCnj ?? 'Carregando...',
+                      tribunal: eventoSelecionado?.tribunal ?? undefined,
+                    }
+                  : processo
+              }
+              open={sheetAberta}
+              onOpenChange={setSheetAberta}
+            />
+          )}
+        </div>
+      )}
 
       {/* Legenda */}
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.75rem', fontSize: '0.75rem', color: '#6b7280' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-          <span style={{ width: '0.75rem', height: '0.75rem', borderRadius: '0.125rem', background: '#dc2626', display: 'inline-block' }} />
-          Prazo urgente
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-          <span style={{ width: '0.75rem', height: '0.75rem', borderRadius: '0.125rem', background: '#2563eb', display: 'inline-block' }} />
-          Audiência / Processo
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-          <span style={{ width: '0.75rem', height: '0.75rem', borderRadius: '0.125rem', background: '#7c3aed', display: 'inline-block' }} />
-          Evento pessoal
-        </span>
-      </div>
+      {!focoDoDia && (
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.75rem', fontSize: '0.75rem', color: '#6b7280' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <span style={{ width: '0.75rem', height: '0.75rem', borderRadius: '0.125rem', background: '#dc2626', display: 'inline-block' }} />
+            Prazo urgente
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <span style={{ width: '0.75rem', height: '0.75rem', borderRadius: '0.125rem', background: '#2563eb', display: 'inline-block' }} />
+            Audiência / Processo
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <span style={{ width: '0.75rem', height: '0.75rem', borderRadius: '0.125rem', background: '#7c3aed', display: 'inline-block' }} />
+            Evento pessoal
+          </span>
+        </div>
+      )}
+
+      {/* Toast de feedback DnD */}
+      {toastMsg && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            bottom: '1.5rem',
+            right: '1.5rem',
+            zIndex: 99999,
+            padding: '0.75rem 1.25rem',
+            borderRadius: '0.5rem',
+            background: toastMsg.ok ? '#16a34a' : '#dc2626',
+            color: '#fff',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            maxWidth: '340px',
+          }}
+        >
+          {toastMsg.text}
+        </div>
+      )}
 
       {novoEventoDialog && (
         <NovoEventoDialog

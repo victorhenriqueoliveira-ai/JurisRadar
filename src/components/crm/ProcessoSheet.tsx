@@ -16,6 +16,295 @@ import { PagamentoList, type Pagamento } from '@/components/financeiro/Pagamento
 import { AnexoUpload } from '@/components/processos/AnexoUpload';
 import { AnexoList } from '@/components/processos/AnexoList';
 
+// ── Comunicações Tab ──────────────────────────────────────────────────────────
+
+interface Comunicacao {
+  id: string;
+  canal: 'email' | 'whatsapp';
+  mensagem: string;
+  enviadoPor: string;
+  createdAt: string;
+}
+
+function ComunicacoesTab({ processo }: { processo: ProcessoDetalhe }) {
+  const [historico, setHistorico] = React.useState<Comunicacao[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [modalAberto, setModalAberto] = React.useState(false);
+  const [canal, setCanal] = React.useState<'email' | 'whatsapp'>('whatsapp');
+  const [mensagem, setMensagem] = React.useState('');
+  const [clienteId, setClienteId] = React.useState('');
+  const [clienteEmail, setClienteEmail] = React.useState('');
+  const [clienteTelefone, setClienteTelefone] = React.useState('');
+  const [enviando, setEnviando] = React.useState(false);
+  const [toastMsg, setToastMsg] = React.useState<string | null>(null);
+  const toastTimer = React.useRef<ReturnType<typeof setTimeout>>();
+
+  function showToast(msg: string) {
+    setToastMsg(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
+  }
+
+  const fetchHistorico = React.useCallback(async () => {
+    if (!processo.id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/processos/${processo.id}/comunicacoes`);
+      if (res.ok) {
+        const json = await res.json();
+        setHistorico(json.comunicacoes ?? []);
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [processo.id]);
+
+  React.useEffect(() => { fetchHistorico(); }, [fetchHistorico]);
+
+  // Pré-preenche mensagem ao abrir modal
+  React.useEffect(() => {
+    if (modalAberto) {
+      const dataHoje = new Date().toLocaleDateString('pt-BR');
+      const base = canal === 'whatsapp'
+        ? `Olá! Informamos que houve movimentação no processo ${processo.numeroCnj} em ${dataHoje}. Entre em contato para mais detalhes.`
+        : `Prezado(a), informamos sobre uma atualização no processo ${processo.numeroCnj} em ${dataHoje}. Para dúvidas, entre em contato.`;
+      setMensagem(base);
+    }
+  }, [modalAberto, canal, processo.numeroCnj]);
+
+  async function handleEnviar() {
+    if (!mensagem.trim()) return;
+    setEnviando(true);
+    try {
+      if (canal === 'whatsapp') {
+        if (!clienteTelefone.trim()) {
+          showToast('Informe o telefone do cliente.');
+          setEnviando(false);
+          return;
+        }
+        const res = await fetch('/api/comunicacoes/whatsapp-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId: clienteId || 'sem-id',
+            telefone: clienteTelefone,
+            mensagem,
+            processoId: processo.id,
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          window.open(json.url, '_blank', 'noopener,noreferrer');
+          showToast('Link WhatsApp aberto em nova aba.');
+          setModalAberto(false);
+          await fetchHistorico();
+        } else {
+          const json = await res.json();
+          showToast(json.error ?? 'Erro ao gerar link WhatsApp.');
+        }
+      } else {
+        if (!clienteEmail.trim()) {
+          showToast('Informe o e-mail do cliente.');
+          setEnviando(false);
+          return;
+        }
+        const res = await fetch('/api/comunicacoes/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId: clienteId || 'sem-id',
+            clienteEmail,
+            processoId: processo.id,
+            processoNumCnj: processo.numeroCnj,
+            tipoEvento: 'Atualização processual',
+            dataEvento: new Date().toLocaleDateString('pt-BR'),
+            mensagemPersonalizada: mensagem,
+            nomeAdvogado: processo.responsavelNome ?? '',
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          showToast(json.enviado ? 'E-mail enviado com sucesso.' : 'E-mail registrado (falha no envio externo).');
+          setModalAberto(false);
+          await fetchHistorico();
+        } else {
+          const json = await res.json();
+          showToast(json.error ?? 'Erro ao enviar e-mail.');
+        }
+      }
+    } catch {
+      showToast('Erro de conexão.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const inputCls: React.CSSProperties = {
+    width: '100%', padding: '0.375rem 0.625rem', border: '1px solid #e5e7eb',
+    borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#111827',
+    background: '#fff', boxSizing: 'border-box',
+  };
+
+  return (
+    <div data-testid="comunicacoes-section" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          onClick={() => setModalAberto(true)}
+          style={{
+            background: '#0f2d5e', border: 'none', borderRadius: '0.375rem',
+            padding: '0.375rem 0.875rem', fontSize: '0.8125rem', fontWeight: 600,
+            color: '#fff', cursor: 'pointer',
+          }}
+        >
+          Notificar Cliente
+        </button>
+      </div>
+
+      {loading ? (
+        <p style={{ fontSize: '0.8125rem', color: '#6b7280', margin: 0 }}>Carregando…</p>
+      ) : historico.length === 0 ? (
+        <p data-testid="comunicacoes-empty" style={{ fontSize: '0.8125rem', color: '#9ca3af', margin: 0 }}>
+          Nenhuma comunicação enviada ainda.
+        </p>
+      ) : (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+          {historico.map((com) => (
+            <li
+              key={com.id}
+              style={{
+                display: 'flex', gap: '0.625rem', alignItems: 'flex-start',
+                padding: '0.5rem 0.625rem', background: '#f9fafb',
+                borderRadius: '0.5rem', border: '1px solid #f3f4f6',
+              }}
+            >
+              <span
+                aria-label={com.canal}
+                style={{ fontSize: '1rem', flexShrink: 0, marginTop: '0.125rem' }}
+              >
+                {com.canal === 'whatsapp' ? '📱' : '✉️'}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {com.mensagem}
+                </p>
+                <p style={{ margin: '0.125rem 0 0', fontSize: '0.6875rem', color: '#6b7280' }}>
+                  {new Date(com.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                  {com.enviadoPor && ` · ${com.enviadoPor}`}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Modal Notificar Cliente */}
+      {modalAberto && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setModalAberto(false); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setModalAberto(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Notificar cliente"
+          tabIndex={-1}
+        >
+          <div style={{ background: '#fff', borderRadius: '1rem', padding: '1.5rem', width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f2d5e' }}>Notificar Cliente</h2>
+              <button type="button" onClick={() => setModalAberto(false)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#9ca3af' }}>×</button>
+            </div>
+
+            {/* Seletor de canal */}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {(['whatsapp', 'email'] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCanal(c)}
+                  style={{
+                    flex: 1, padding: '0.5rem', borderRadius: '0.5rem', fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer',
+                    border: canal === c ? '2px solid #0f2d5e' : '2px solid #e5e7eb',
+                    background: canal === c ? '#eff6ff' : '#fff',
+                    color: canal === c ? '#0f2d5e' : '#6b7280',
+                  }}
+                >
+                  {c === 'whatsapp' ? '📱 WhatsApp' : '✉️ E-mail'}
+                </button>
+              ))}
+            </div>
+
+            {/* Campos de contato */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {canal === 'whatsapp' ? (
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Telefone *</label>
+                  <input
+                    type="tel"
+                    placeholder="+55 11 99999-9999"
+                    value={clienteTelefone}
+                    onChange={(e) => setClienteTelefone(e.target.value)}
+                    style={inputCls}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>E-mail do cliente *</label>
+                  <input
+                    type="email"
+                    placeholder="cliente@exemplo.com"
+                    value={clienteEmail}
+                    onChange={(e) => setClienteEmail(e.target.value)}
+                    style={inputCls}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Mensagem</label>
+                <textarea
+                  rows={4}
+                  value={mensagem}
+                  onChange={(e) => setMensagem(e.target.value)}
+                  style={{ ...inputCls, resize: 'vertical' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setModalAberto(false)} style={{ padding: '0.5rem 1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem', background: 'transparent', fontSize: '0.875rem', cursor: 'pointer', color: '#374151' }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleEnviar} disabled={enviando} style={{ padding: '0.5rem 1.25rem', border: 'none', borderRadius: '0.5rem', background: '#0f2d5e', color: '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: enviando ? 'not-allowed' : 'pointer', opacity: enviando ? 0.7 : 1 }}>
+                {enviando ? 'Enviando…' : canal === 'whatsapp' ? 'Abrir WhatsApp' : 'Enviar E-mail'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toastMsg && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 99999,
+            padding: '0.75rem 1.25rem', borderRadius: '0.5rem',
+            background: '#0f2d5e', color: '#fff', fontSize: '0.875rem',
+            fontWeight: 500, boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          }}
+        >
+          {toastMsg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Processo Sheet ────────────────────────────────────────────────────────────
+
 export interface Parte {
   polo: string;
   nome: string;
@@ -67,7 +356,7 @@ export function ProcessoSheet({
   onAddNota,
   onDeleteNota,
 }: ProcessoSheetProps) {
-  const [activeTab, setActiveTab] = useState<'movimentacoes' | 'notas' | 'financeiro' | 'anexos'>('movimentacoes');
+  const [activeTab, setActiveTab] = useState<'movimentacoes' | 'notas' | 'financeiro' | 'anexos' | 'comunicacoes'>('movimentacoes');
   const [anexosRefreshTrigger, setAnexosRefreshTrigger] = useState(0);
   const [editingHonorario, setEditingHonorario] = useState(false);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
@@ -313,6 +602,9 @@ export function ProcessoSheet({
               <button type="button" style={tabStyle('anexos')} onClick={() => setActiveTab('anexos')}>
                 Anexos
               </button>
+              <button type="button" style={tabStyle('comunicacoes')} onClick={() => setActiveTab('comunicacoes')}>
+                Comunicações
+              </button>
             </div>
 
             {/* Content */}
@@ -483,6 +775,9 @@ export function ProcessoSheet({
                     refreshTrigger={anexosRefreshTrigger}
                   />
                 </div>
+              )}
+              {activeTab === 'comunicacoes' && (
+                <ComunicacoesTab processo={processo} />
               )}
             </div>
           </>
