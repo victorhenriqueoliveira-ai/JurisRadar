@@ -4,9 +4,13 @@ import { listTarefas } from '@/services/tarefas';
 import TarefasList from './TarefasList';
 
 async function TarefasContent() {
-  const ctx = await requireOrgContext();
-  const tarefas = await listTarefas(ctx);
-  return <TarefasList initialData={tarefas} />;
+  try {
+    const ctx = await requireOrgContext();
+    const tarefas = await listTarefas(ctx);
+    return <TarefasList initialData={tarefas} />;
+  } catch {
+    return <TarefasList initialData={[]} />;
+  }
 }
 
 export default function TarefasPage() {

@@ -4,9 +4,13 @@ import { listCasos } from '@/services/casos';
 import CasosList from './CasosList';
 
 async function CasosContent() {
-  const ctx = await requireOrgContext();
-  const casos = await listCasos(ctx);
-  return <CasosList initialData={casos} />;
+  try {
+    const ctx = await requireOrgContext();
+    const casos = await listCasos(ctx);
+    return <CasosList initialData={casos} />;
+  } catch {
+    return <CasosList initialData={[]} />;
+  }
 }
 
 export default function CasosPage() {

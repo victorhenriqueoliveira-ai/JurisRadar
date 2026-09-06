@@ -4,9 +4,13 @@ import { listKanbanCards } from '@/services/kanban';
 import KanbanBoard from './KanbanBoard';
 
 async function KanbanContent() {
-  const ctx = await requireOrgContext();
-  const data = await listKanbanCards(ctx);
-  return <KanbanBoard initialData={data} />;
+  try {
+    const ctx = await requireOrgContext();
+    const data = await listKanbanCards(ctx);
+    return <KanbanBoard initialData={data} />;
+  } catch {
+    return <KanbanBoard initialData={{ a_fazer: [], em_andamento: [], aguardando: [], concluido: [] }} />;
+  }
 }
 
 export default function KanbanPage() {

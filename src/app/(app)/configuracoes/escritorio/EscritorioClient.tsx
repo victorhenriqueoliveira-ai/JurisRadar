@@ -12,7 +12,6 @@ interface MembroRow {
   email: string | null;
   role: string;
   isSelf: boolean;
-  createdAt: Date | null;
 }
 
 interface PlanoRow {
