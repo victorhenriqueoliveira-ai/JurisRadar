@@ -20,6 +20,7 @@ export interface DashboardData {
   distribuicaoStatus: { status: string; count: number }[]
   distribuicaoArea: { area: string; count: number }[]
   evolucaoMensal: { mes: string; novos: number; encerrados: number }[]
+  distribuicaoTribunal: { tribunal: string; count: number }[]
 }
 
 export interface PrazoUrgente {
@@ -184,7 +185,23 @@ export async function aggregateDashboard(
     count: r.count,
   }))
 
-  // 6. Distribuição por área do direito
+  // 6. Distribuição por tribunal (top 5)
+  const distribuicaoTribunalRows = await db
+    .select({
+      tribunal: processos.tribunal,
+      count: sql<number>`cast(count(*) as int)`,
+    })
+    .from(processos)
+    .where(and(scopeCondition, isNull(processos.arquivadoAt)))
+    .groupBy(processos.tribunal)
+    .orderBy(sql`count(*) desc`)
+    .limit(5)
+
+  const distribuicaoTribunal = distribuicaoTribunalRows
+    .filter((r) => r.tribunal !== null)
+    .map((r) => ({ tribunal: r.tribunal as string, count: r.count }))
+
+  // 7. Distribuição por área do direito
   const distribuicaoAreaRows = await db
     .select({
       area: processos.areaDireito,
@@ -252,6 +269,7 @@ export async function aggregateDashboard(
     distribuicaoStatus,
     distribuicaoArea,
     evolucaoMensal,
+    distribuicaoTribunal,
   }
 }
 

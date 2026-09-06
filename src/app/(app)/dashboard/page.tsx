@@ -116,6 +116,7 @@ async function DashboardContent() {
       distribuicaoStatus: [],
       distribuicaoArea: [],
       evolucaoMensal: [],
+      distribuicaoTribunal: [],
     }
     prazos = []
     movimentacoes = []
@@ -124,6 +125,23 @@ async function DashboardContent() {
   return (
     <div className="flex flex-col gap-6">
       <KpiCards data={dashData} />
+
+      {dashData.distribuicaoTribunal.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider">Por tribunal</span>
+          {dashData.distribuicaoTribunal.map(({ tribunal, count }) => (
+            <span
+              key={tribunal}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-[#e2e8f0] text-[#374151]"
+              style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}
+            >
+              <span className="text-[#0f2d5e] font-bold">{tribunal}</span>
+              <span className="text-[#9ca3af]">·</span>
+              <span>{count}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
