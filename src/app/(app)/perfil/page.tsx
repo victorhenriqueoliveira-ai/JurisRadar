@@ -3,10 +3,16 @@ import { requireOrgContext } from '@/lib/org-context';
 import { getPerfilUsuario } from '@/services/perfil';
 import PerfilForm from './PerfilForm';
 
+const EMPTY_PERFIL = { id: '', name: null, email: null, oabNumero: null, oabEstado: null };
+
 async function PerfilContent() {
-  const ctx = await requireOrgContext();
-  const perfil = await getPerfilUsuario(ctx);
-  return <PerfilForm initialData={perfil} />;
+  try {
+    const ctx = await requireOrgContext();
+    const perfil = await getPerfilUsuario(ctx);
+    return <PerfilForm initialData={perfil} />;
+  } catch {
+    return <PerfilForm initialData={EMPTY_PERFIL} />;
+  }
 }
 
 export default function PerfilPage() {

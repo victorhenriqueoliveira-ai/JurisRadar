@@ -27,7 +27,6 @@ export async function getEquipe(ctx: OrgContext) {
       role: orgMembers.role,
       name: users.name,
       email: users.email,
-      createdAt: null as Date | null,
     })
     .from(orgMembers)
     .leftJoin(users, eq(orgMembers.userId, users.id))

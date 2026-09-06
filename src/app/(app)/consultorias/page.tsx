@@ -4,9 +4,13 @@ import { listConsultorias } from '@/services/consultorias';
 import ConsultoriasList from './ConsultoriasList';
 
 async function ConsultoriasContent() {
-  const ctx = await requireOrgContext();
-  const consultorias = await listConsultorias(ctx);
-  return <ConsultoriasList initialData={consultorias} />;
+  try {
+    const ctx = await requireOrgContext();
+    const consultorias = await listConsultorias(ctx);
+    return <ConsultoriasList initialData={consultorias} />;
+  } catch {
+    return <ConsultoriasList initialData={[]} />;
+  }
 }
 
 export default function ConsultoriasPage() {

@@ -4,9 +4,13 @@ import { listClientes } from '@/services/clientes';
 import ClientesList from './ClientesList';
 
 async function ClientesContent() {
-  const ctx = await requireOrgContext();
-  const clientes = await listClientes(ctx);
-  return <ClientesList initialData={clientes} />;
+  try {
+    const ctx = await requireOrgContext();
+    const clientes = await listClientes(ctx);
+    return <ClientesList initialData={clientes} />;
+  } catch {
+    return <ClientesList initialData={[]} />;
+  }
 }
 
 export default function ClientesPage() {
