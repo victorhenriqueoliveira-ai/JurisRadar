@@ -1,35 +1,29 @@
-/**
- * GET  /api/clientes — lista clientes da org
- * POST /api/clientes — cria ou atualiza (upsert) um cliente por (org_id, cpf_cnpj)
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { requireOrgContext, UnauthorizedError } from '@/lib/org-context'
-import { listClientes, createCliente } from '@/services/clientes'
+import { getPerfilUsuario, updatePerfilUsuario } from '@/services/perfil'
 import { ValidationError } from '@/lib/errors'
 
 export async function GET() {
   try {
     const ctx = await requireOrgContext()
-    const data = await listClientes(ctx)
-    return NextResponse.json(data)
+    const perfil = await getPerfilUsuario(ctx)
+    return NextResponse.json(perfil)
   } catch (e) {
     if (e instanceof UnauthorizedError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function PATCH(req: NextRequest) {
   try {
     const ctx = await requireOrgContext()
     const body = await req.json() as Record<string, string>
-    const cliente = await createCliente(ctx, {
-      nome: body.nome ?? '',
-      email: body.email,
-      whatsapp: body.whatsapp,
-      cpfCnpj: body.cpfCnpj,
+    const perfil = await updatePerfilUsuario(ctx, {
+      name: body.name,
+      oabNumero: body.oabNumero,
+      oabEstado: body.oabEstado,
     })
-    return NextResponse.json({ id: cliente.id }, { status: 201 })
+    return NextResponse.json(perfil)
   } catch (e) {
     if (e instanceof UnauthorizedError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 })
