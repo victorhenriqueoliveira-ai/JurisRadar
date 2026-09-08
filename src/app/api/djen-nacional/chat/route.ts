@@ -21,7 +21,7 @@ A API tem comportamento específico que você DEVE conhecer:
 
 3. **\`classeProcessual\`**: filtro pós-fetch no campo \`nomeClasse\`. A API não filtra por classe nativamente.
 
-4. **Datas**: a API **ignora** o parâmetro de data e sempre retorna as publicações mais recentes do TJSP. Não é possível buscar histórico via API.
+4. **Datas**: use \`dataInicio\` e \`dataFim\` (formato YYYY-MM-DD) para busca histórica. Ex: buscar publicações de janeiro de 2026 → \`dataInicio: "2026-01-01", dataFim: "2026-01-31"\`. Quando o usuário pedir busca de um período ou data específica, SEMPRE passe os dois campos.
 
 5. **\`tipoComunicacao\`**: funciona nativamente (Intimação, Citação, Edital).
 
@@ -116,6 +116,14 @@ const tools: Anthropic.Tool[] = [
           type: 'number',
           description: 'Máximo de resultados quando não há filtros pós-fetch (padrão: 20, máximo: 100). Ignorado quando nomeOrgao ou classeProcessual estão ativos.',
         },
+        dataInicio: {
+          type: 'string',
+          description: 'Data inicial de disponibilização no formato YYYY-MM-DD. Ex: "2026-01-01". Use para busca histórica.',
+        },
+        dataFim: {
+          type: 'string',
+          description: 'Data final de disponibilização no formato YYYY-MM-DD. Ex: "2026-09-07". Use para busca histórica.',
+        },
       },
       required: [],
     },
@@ -131,6 +139,8 @@ interface BuscaInput {
   classeProcessual?: string;
   siglaTribunal?: string;
   limit?: number;
+  dataInicio?: string;
+  dataFim?: string;
 }
 
 interface RawItem {
@@ -187,6 +197,8 @@ async function fetchPjePage(
   if (input.texto) params.set('texto', input.texto);
   if (input.tipoComunicacao) params.set('tipoComunicacao', input.tipoComunicacao);
   if (input.siglaTribunal) params.set('siglaTribunal', input.siglaTribunal);
+  if (input.dataInicio) params.set('dataDisponibilizacaoInicio', input.dataInicio);
+  if (input.dataFim) params.set('dataDisponibilizacaoFim', input.dataFim);
 
   let lastError: Error | null = null;
 
