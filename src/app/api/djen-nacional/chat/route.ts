@@ -173,37 +173,66 @@ interface BrowserSearchResult {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Status que valem retry: gateway timeout, bad gateway, serviço indisponível, rate limit
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+const FETCH_TIMEOUT_MS = 20_000;
+const MAX_RETRIES = 3;
+
 async function fetchPjePage(
   input: BuscaInput,
   offset: number,
   loteSize: number,
-  retries = 2
 ): Promise<{ items: RawItem[]; count: number }> {
   const params = new URLSearchParams({ limit: String(loteSize), offset: String(offset) });
   if (input.texto) params.set('texto', input.texto);
-  if (input.data) params.set('dataDisponibilizacao', input.data);
   if (input.tipoComunicacao) params.set('tipoComunicacao', input.tipoComunicacao);
   if (input.siglaTribunal) params.set('siglaTribunal', input.siglaTribunal);
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) await sleep(800 * attempt);
-    const res = await fetch(`${DJEN_BASE}?${params}`, {
-      cache: 'no-store',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-        'Referer': 'https://comunica.pje.jus.br/',
-        'Origin': 'https://comunica.pje.jus.br',
-      },
-    });
-    if (res.ok) {
-      const data = await res.json() as { items?: RawItem[]; count?: number };
-      return { items: data.items ?? [], count: data.count ?? 0 };
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) await sleep(1000 * 2 ** (attempt - 1)); // 1s → 2s → 4s
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(`${DJEN_BASE}?${params}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'pt-BR,pt;q=0.9',
+          'Referer': 'https://comunica.pje.jus.br/',
+          'Origin': 'https://comunica.pje.jus.br',
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json() as { items?: RawItem[]; count?: number };
+        return { items: data.items ?? [], count: data.count ?? 0 };
+      }
+
+      if (!RETRYABLE_STATUSES.has(res.status)) {
+        throw new Error(`API retornou ${res.status}`);
+      }
+
+      lastError = new Error(`API retornou ${res.status}`);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        lastError = new Error(`API não respondeu em ${FETCH_TIMEOUT_MS / 1000}s`);
+      } else if (err instanceof Error && !RETRYABLE_STATUSES.has(Number((err as { status?: number }).status))) {
+        throw err; // erro não retriável (ex: 400, 403)
+      } else {
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+    } finally {
+      clearTimeout(timeout);
     }
-    if (res.status !== 403 && res.status !== 429) throw new Error(`API retornou ${res.status}`);
   }
-  throw new Error('API retornou 403 após tentativas — tente novamente em alguns segundos');
+
+  throw lastError ?? new Error('Erro desconhecido ao acessar o DJEN');
 }
 
 const MAX_ITEMS = 500;

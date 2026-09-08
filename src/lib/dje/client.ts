@@ -11,6 +11,9 @@
  * O parâmetro tpDownload=D é obrigatório; sem ele o servidor retorna HTML de erro.
  * A data deve ser enviada no formato DD/MM/YYYY com as barras codificadas como %2F.
  * Resposta de sucesso: Content-Type application/octet-stream, PDF com magic bytes %PDF.
+ *
+ * NOTA: A URL acima está INATIVA desde 22/07/2025 (nuDiario 4247).
+ * O TJSP migrou para o DEJESP (ver searchDejesp abaixo).
  */
 
 // ── Erros tipados ─────────────────────────────────────────────────────────────
@@ -163,4 +166,134 @@ export async function downloadCaderno(caderno: 2 | 3, date: string): Promise<Buf
       `DJE: falha ao baixar caderno ${caderno} em ${date} após ${MAX_RETRIES} tentativas`,
     )
   );
+}
+
+// ── DEJESP — busca full-text (novo portal TJSP) ───────────────────────────────
+
+const DEJESP_API = 'https://www.tjsp.jus.br/atcapi/dje/v1';
+
+/**
+ * Última edição com cadernos judiciais no DEJESP.
+ * Após 2025-07-22, apenas o Caderno 1 Administrativo está disponível.
+ */
+export const DEJESP_JUDICIAL_CUTOFF = '2025-07-22';
+
+export interface DejespSearchParams {
+  term: string;
+  dateFrom: string;
+  dateTo: string;
+  /** Filtro post-fetch: foro/vara que deve aparecer na página da publicação */
+  court?: string;
+  skip?: number;
+  take?: number;
+}
+
+export interface DejespPageResult {
+  /** ID original da API: "{date}-{idEdicao}-{idVolume}-{idCaderno}-{page}" */
+  id: string;
+  publicationDate: string;
+  /** Números de processo extraídos do texto da página (CNJ format) */
+  processNumbers: string[];
+  /** Texto completo da página — contém múltiplos processos */
+  texto: string;
+  /** true se o filtro de foro foi aplicado e bateu */
+  courtMatched: boolean;
+}
+
+export interface DejespSearchResult {
+  pages: DejespPageResult[];
+  /** Total retornado pela API (antes do filtro court) */
+  totalFromApi: number;
+  /** Total após aplicar filtro court (se fornecido) */
+  total: number;
+  /** true se dateTo foi truncado ao cutoff judicial */
+  truncatedToJudicialCutoff: boolean;
+}
+
+const PROCESSO_REGEX = /PROCESSO\s*:\s*(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/g;
+
+function extractProcessNumbers(texto: string): string[] {
+  const matches = [...texto.matchAll(PROCESSO_REGEX)];
+  return matches.map((m) => m[1]);
+}
+
+/**
+ * Busca publicações no DEJESP (portal TJSP) via full-text search.
+ *
+ * Cobre dados judiciais até 22/07/2025 (última edição com cadernos judiciais).
+ * O filtro `court` é aplicado post-fetch: verifica se o nome do foro/vara
+ * aparece em qualquer parte do texto da página.
+ */
+export async function searchDejesp(params: DejespSearchParams): Promise<DejespSearchResult> {
+  const { term, court } = params;
+  const skip = params.skip ?? 0;
+  const take = params.take ?? 20;
+
+  // Aplica cutoff: dados judiciais só existem até 22/07/2025
+  const effectiveDateTo =
+    params.dateTo > DEJESP_JUDICIAL_CUTOFF ? DEJESP_JUDICIAL_CUTOFF : params.dateTo;
+  const truncated = params.dateTo > DEJESP_JUDICIAL_CUTOFF;
+
+  // Se o range completo é após o cutoff, retorna vazio
+  if (params.dateFrom > DEJESP_JUDICIAL_CUTOFF) {
+    return { pages: [], totalFromApi: 0, total: 0, truncatedToJudicialCutoff: true };
+  }
+
+  const body = {
+    dataInicio: params.dateFrom,
+    dataFim: effectiveDateTo,
+    palavrasChave: term,
+    skip,
+    take,
+  };
+
+  const response = await fetch(`${DEJESP_API}/caderno/paginado/pesquisa-avancada`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
+      Referer: 'https://www.tjsp.jus.br/atc/dejesp/',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new DjeUnavailableError(
+      `DEJESP: erro HTTP ${response.status} na busca por "${term}"`,
+    );
+  }
+
+  const data = (await response.json()) as {
+    dados: Array<{ id: string; texto: string }>;
+    totalElementos: number;
+    totalPaginas: number;
+  };
+
+  const rawPages = data.dados ?? [];
+  const totalFromApi = data.totalElementos ?? 0;
+
+  // Extrai data da publicação do campo id: "{date}-{rest}"
+  const pages: DejespPageResult[] = rawPages
+    .map((item) => {
+      const datePart = item.id?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? '';
+      const processNumbers = extractProcessNumbers(item.texto ?? '');
+      const courtMatched = court
+        ? (item.texto ?? '').toLowerCase().includes(court.toLowerCase())
+        : true;
+      return {
+        id: item.id,
+        publicationDate: datePart,
+        processNumbers,
+        texto: item.texto ?? '',
+        courtMatched,
+      };
+    })
+    .filter((p) => p.courtMatched);
+
+  return {
+    pages,
+    totalFromApi,
+    total: court ? pages.length : totalFromApi,
+    truncatedToJudicialCutoff: truncated,
+  };
 }

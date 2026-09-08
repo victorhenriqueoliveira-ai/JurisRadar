@@ -18,7 +18,7 @@
 
 import { eq, and } from 'drizzle-orm';
 import { inngest } from './client';
-import { downloadCaderno } from '@/lib/dje/client';
+import { downloadCaderno, DEJESP_JUDICIAL_CUTOFF } from '@/lib/dje/client';
 import { extractTextFromPdf, segmentPublications } from '@/lib/dje/parser';
 import {
   createDjeEdition,
@@ -59,6 +59,14 @@ async function editionAlreadyCompleted(date: string, caderno: 2 | 3): Promise<bo
  */
 export async function processCaderno(caderno: 2 | 3, date: string): Promise<void> {
   console.log(`[dje-indexer] step started: caderno-${caderno} date=${date}`);
+
+  // Guard: cadernos judiciais indisponíveis após o cutoff do DEJESP
+  if (date > DEJESP_JUDICIAL_CUTOFF) {
+    console.log(
+      `[dje-indexer] caderno-${caderno} data ${date} após cutoff judicial ${DEJESP_JUDICIAL_CUTOFF} — pulando sem criar entrada`,
+    );
+    return;
+  }
 
   // Verificação de idempotência
   const alreadyDone = await editionAlreadyCompleted(date, caderno);

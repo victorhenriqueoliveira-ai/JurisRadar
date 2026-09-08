@@ -34,3 +34,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# worktrees temporários
+.worktrees/
+
+# tarballs de pacotes (usar pnpm install)
+*.tgz
+
+# npm lock (projeto usa pnpm)
+package-lock.json
