@@ -464,29 +464,53 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
   async function fetchDjenBrowser(params: Record<string, unknown>): Promise<{ items: unknown[]; total: number; totalBruto: number; classeFilter: string | null }> {
     const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
     const useClassFilter = Boolean((params.classeProcessual as string)?.trim());
+    const useOrgaoFilter = Boolean((params.nomeOrgao as string)?.trim());
+    const usePostFetch = useClassFilter || useOrgaoFilter;
+
     async function fetchPage(offset: number, lote: number) {
       const p = new URLSearchParams({ limit: String(lote), offset: String(offset) });
       if (params.texto) p.set('texto', params.texto as string);
-      if (params.data) p.set('dataDisponibilizacao', params.data as string);
+      if (params.dataInicio) p.set('dataDisponibilizacaoInicio', params.dataInicio as string);
+      if (params.dataFim) p.set('dataDisponibilizacaoFim', params.dataFim as string);
       if (params.tipoComunicacao) p.set('tipoComunicacao', params.tipoComunicacao as string);
       if (params.siglaTribunal) p.set('siglaTribunal', params.siglaTribunal as string);
       const r = await fetch(`${DJEN_BASE}?${p}`);
       if (!r.ok) throw new Error(`DJEN ${r.status}`);
       return r.json() as Promise<{ items?: unknown[]; count?: number }>;
     }
-    if (!useClassFilter) {
+
+    if (!usePostFetch) {
       const lote = Math.min((params.limit as number) ?? 20, 100);
       const d = await fetchPage(0, lote);
       return { items: d.items ?? [], total: d.count ?? 0, totalBruto: d.count ?? 0, classeFilter: null };
     }
+
+    // Com filtros pós-fetch: busca até 500 itens e filtra localmente
     const first = await fetchPage(0, 100);
     const totalBruto = first.count ?? 0;
     let all: unknown[] = [...(first.items ?? [])];
-    if (totalBruto > 100) { await new Promise((r) => setTimeout(r, 300)); const second = await fetchPage(100, Math.min(100, 100)); all = [...all, ...(second.items ?? [])]; }
-    const classe = (params.classeProcessual as string).trim().toLowerCase();
+    const MAX_ITEMS = 500;
+    const pages = Math.min(Math.ceil(MAX_ITEMS / 100), Math.ceil(totalBruto / 100));
+    for (let page = 1; page < pages && all.length < MAX_ITEMS; page++) {
+      await new Promise((r) => setTimeout(r, 300));
+      const next = await fetchPage(page * 100, 100);
+      all = [...all, ...(next.items ?? [])];
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filtered = all.filter((item: any) => ((item.nomeClasse as string) ?? '').toLowerCase().includes(classe));
-    return { items: filtered, total: filtered.length, totalBruto, classeFilter: params.classeProcessual as string };
+    let filtered: unknown[] = all;
+    if (useOrgaoFilter) {
+      const orgao = (params.nomeOrgao as string).trim().toLowerCase();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      filtered = filtered.filter((item: any) => ((item.nomeOrgao as string) ?? '').toLowerCase().includes(orgao));
+    }
+    if (useClassFilter) {
+      const classe = (params.classeProcessual as string).trim().toLowerCase();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      filtered = filtered.filter((item: any) => ((item.nomeClasse as string) ?? '').toLowerCase().includes(classe));
+    }
+
+    return { items: filtered, total: filtered.length, totalBruto, classeFilter: params.classeProcessual as string ?? null };
   }
 
   function buildToolContent(result: { items: unknown[]; total: number; totalBruto: number; classeFilter: string | null }, params: Record<string, unknown>): string {
@@ -643,7 +667,7 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
             finalPhase2 = event;
             break;
           } else if (event.type === 'error') {
-            const errMsg: ChatMessage = { role: 'assistant', text: 'Erro ao processar a busca. Tente novamente.' };
+            const errMsg: ChatMessage = { role: 'assistant', text: event.message?.includes('504') || event.message?.includes('não respondeu') ? 'O DJEN está temporariamente indisponível. Tente novamente em alguns minutos.' : 'Erro ao processar a busca. Tente novamente.' };
             setMessages([...nextMessages, errMsg]);
             try { await appendAiMessage(errMsg, apiMessages, convId); } catch { /* silent */ }
             shouldExit = true;
