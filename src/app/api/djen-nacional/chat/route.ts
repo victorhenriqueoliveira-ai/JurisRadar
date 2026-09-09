@@ -21,7 +21,7 @@ A API tem comportamento específico que você DEVE conhecer:
 
 3. **\`classeProcessual\`**: filtro pós-fetch no campo \`nomeClasse\`. A API não filtra por classe nativamente.
 
-4. **Datas**: use \`dataInicio\` e \`dataFim\` (formato YYYY-MM-DD) para busca histórica. Ex: buscar publicações de janeiro de 2026 → \`dataInicio: "2026-01-01", dataFim: "2026-01-31"\`. Quando o usuário pedir busca de um período ou data específica, SEMPRE passe os dois campos.
+4. **Datas**: use \`dataInicio\` e \`dataFim\` (formato YYYY-MM-DD) somente quando o usuário especificar um período. **NUNCA adicione datas por padrão** — sem data, a API retorna tudo disponível. Ex: buscar publicações de janeiro de 2026 → \`dataInicio: "2026-01-01", dataFim: "2026-01-31"\`. Quando o usuário pedir busca de um período ou data específica, SEMPRE passe os dois campos. Quando não pedir, OMITA os dois campos.
 
 5. **\`tipoComunicacao\`**: funciona nativamente (Intimação, Citação, Edital).
 
