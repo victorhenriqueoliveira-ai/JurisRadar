@@ -194,7 +194,10 @@ async function fetchPjePage(
   loteSize: number,
 ): Promise<{ items: RawItem[]; count: number }> {
   const params = new URLSearchParams({ limit: String(loteSize), offset: String(offset) });
-  if (input.texto) params.set('texto', input.texto);
+  // Se classeProcessual está presente mas texto não, usa a classe como texto para
+  // pré-filtrar na API (aumenta precisão antes do filtro pós-fetch por nomeOrgao)
+  const textoEfetivo = input.texto || (input.classeProcessual && !input.texto ? input.classeProcessual : undefined);
+  if (textoEfetivo) params.set('texto', textoEfetivo);
   if (input.tipoComunicacao) params.set('tipoComunicacao', input.tipoComunicacao);
   if (input.siglaTribunal) params.set('siglaTribunal', input.siglaTribunal);
   if (input.dataInicio) params.set('dataDisponibilizacaoInicio', input.dataInicio);
