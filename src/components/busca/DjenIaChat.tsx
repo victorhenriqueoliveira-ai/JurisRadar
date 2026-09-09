@@ -469,7 +469,9 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
 
     async function fetchPage(offset: number, lote: number) {
       const p = new URLSearchParams({ limit: String(lote), offset: String(offset) });
-      if (params.texto) p.set('texto', params.texto as string);
+      // Se classeProcessual presente mas texto não, usa a classe como texto para pré-filtrar na API
+      const textoEfetivo = (params.texto as string) || (useClassFilter && !params.texto ? (params.classeProcessual as string) : undefined);
+      if (textoEfetivo) p.set('texto', textoEfetivo);
       if (params.dataInicio) p.set('dataDisponibilizacaoInicio', params.dataInicio as string);
       if (params.dataFim) p.set('dataDisponibilizacaoFim', params.dataFim as string);
       if (params.tipoComunicacao) p.set('tipoComunicacao', params.tipoComunicacao as string);
