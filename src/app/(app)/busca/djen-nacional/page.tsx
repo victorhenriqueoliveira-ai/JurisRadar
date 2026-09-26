@@ -12,7 +12,9 @@ const formSchema = z.object({
   numeroProcesso: z.string().optional(),
   texto: z.string().optional(),
   nomeParte: z.string().optional(),
-  data: z.string().optional(),
+  nomeOrgao: z.string().optional(),
+  dataInicio: z.string().optional(),
+  dataFim: z.string().optional(),
   tipoComunicacao: z.string().optional(),
   classeProcessual: z.string().optional(),
   siglaTribunal: z.string().optional(),
@@ -48,9 +50,22 @@ const LIMIT = 20;
 
 const TIPOS = [
   { value: '', label: 'Todos os tipos' },
-  { value: 'Intimação', label: 'Intimação' },
+  { value: 'Lista de distribuição', label: 'Distribuição (casos novos)' },
   { value: 'Citação', label: 'Citação' },
+  { value: 'Intimação', label: 'Intimação' },
   { value: 'Edital', label: 'Edital' },
+];
+
+const FOROS_TJSP = [
+  { label: 'Foro Central Cível', valor: 'Foro Central Cível' },
+  { label: 'Santo Amaro', valor: 'amaro' },
+  { label: 'Pinheiros', valor: 'pinheiros' },
+  { label: 'Lapa', valor: 'lapa' },
+  { label: 'Santana', valor: 'santana' },
+  { label: 'Penha', valor: 'penha' },
+  { label: 'Itaquera', valor: 'itaquera' },
+  { label: 'Tatuapé', valor: 'tatuapé' },
+  { label: 'Osasco', valor: 'osasco' },
 ];
 
 // Credores/atores financeiros comuns nas publicações do DJEN
@@ -674,7 +689,7 @@ function DjenNacionalBuscaContent() {
 
   const { register, handleSubmit, getValues, watch, setValue } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { numeroProcesso: '', texto: '', nomeParte: '', data: '', tipoComunicacao: '', classeProcessual: '', siglaTribunal: '' },
+    defaultValues: { numeroProcesso: '', texto: '', nomeParte: '', nomeOrgao: '', dataInicio: '', dataFim: '', tipoComunicacao: '', classeProcessual: '', siglaTribunal: '' },
   });
 
   const byNumero = Boolean(watch('numeroProcesso')?.trim());
@@ -709,9 +724,9 @@ function DjenNacionalBuscaContent() {
     } else {
       const termoCombinado = [values.texto, values.nomeParte].filter(Boolean).join(' ');
       if (termoCombinado) params.set('texto', termoCombinado);
-      if (values.data) params.set('dataDisponibilizacao', values.data);
+      if (values.dataInicio) params.set('dataDisponibilizacaoInicio', values.dataInicio);
+      if (values.dataFim) params.set('dataDisponibilizacaoFim', values.dataFim);
     }
-    if (values.tipoComunicacao) params.set('tipoComunicacao', values.tipoComunicacao);
     if (values.siglaTribunal?.trim()) params.set('siglaTribunal', values.siglaTribunal.trim());
 
     const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
@@ -770,16 +785,20 @@ function DjenNacionalBuscaContent() {
 
   async function search(values: FormValues, page = 1) {
     const classe = values.classeProcessual?.trim();
-    setState({ status: 'loading', message: classe ? 'Buscando todas as publicações para filtrar por classe…' : undefined });
+    const orgao = values.nomeOrgao?.trim();
+    const tipo = values.tipoComunicacao?.trim();
+    const usePostFetch = Boolean(classe || orgao || tipo);
+    setState({ status: 'loading', message: usePostFetch ? 'Buscando publicações para aplicar filtros…' : undefined });
     setLastSearch(values);
     try {
       const searchTerms = [values.texto, values.nomeParte].filter(Boolean) as string[];
 
-      if (classe) {
+      if (usePostFetch) {
         const { items: allItems, totalBruto } = await fetchAll(values);
-        const filtered = allItems.filter((item) =>
-          item.classe.toLowerCase().includes(classe.toLowerCase())
-        );
+        let filtered = allItems;
+        if (orgao) filtered = filtered.filter((i) => i.orgao.toLowerCase().includes(orgao.toLowerCase()));
+        if (tipo) filtered = filtered.filter((i) => i.tipo.toLowerCase().includes(tipo.toLowerCase()));
+        if (classe) filtered = filtered.filter((i) => i.classe.toLowerCase().includes(classe.toLowerCase()));
         setState({
           status: 'success',
           items: filtered,
@@ -788,7 +807,7 @@ function DjenNacionalBuscaContent() {
           totalPages: 1,
           searchTerms,
           totalBruto,
-          classeFilter: classe,
+          classeFilter: classe || orgao || tipo || null,
         });
       } else {
         const offset = (page - 1) * LIMIT;
@@ -825,7 +844,9 @@ function DjenNacionalBuscaContent() {
         ...(values.numeroProcesso ? { numeroProcesso: values.numeroProcesso } : {}),
         ...(values.texto ? { texto: values.texto } : {}),
         ...(values.nomeParte ? { nomeParte: values.nomeParte } : {}),
-        ...(values.data ? { data: values.data } : {}),
+        ...(values.nomeOrgao ? { nomeOrgao: values.nomeOrgao } : {}),
+        ...(values.dataInicio ? { dataInicio: values.dataInicio } : {}),
+        ...(values.dataFim ? { dataFim: values.dataFim } : {}),
         ...(values.tipoComunicacao ? { tipoComunicacao: values.tipoComunicacao } : {}),
         ...(values.classeProcessual ? { classeProcessual: values.classeProcessual } : {}),
         ...(values.siglaTribunal ? { siglaTribunal: values.siglaTribunal } : {}),
@@ -840,7 +861,9 @@ function DjenNacionalBuscaContent() {
     if (params.numeroProcesso) setValue('numeroProcesso', params.numeroProcesso);
     if (params.texto) setValue('texto', params.texto);
     if (params.nomeParte) setValue('nomeParte', params.nomeParte);
-    if (params.data) setValue('data', params.data);
+    if (params.nomeOrgao) setValue('nomeOrgao', params.nomeOrgao);
+    if (params.dataInicio) setValue('dataInicio', params.dataInicio);
+    if (params.dataFim) setValue('dataFim', params.dataFim);
     if (params.tipoComunicacao) setValue('tipoComunicacao', params.tipoComunicacao);
     if (params.classeProcessual) setValue('classeProcessual', params.classeProcessual);
     if (params.siglaTribunal) setValue('siglaTribunal', params.siglaTribunal);
@@ -1018,22 +1041,61 @@ function DjenNacionalBuscaContent() {
             </p>
           </div>
 
+          <div>
+            <label htmlFor="nomeOrgao" className="block text-sm font-medium text-gray-700 mb-1">
+              Foro / Comarca <span className="text-gray-400 font-normal">(filtro pós-fetch — não pesquisa no texto)</span>
+            </label>
+            <input
+              id="nomeOrgao"
+              type="text"
+              placeholder="Ex: Foro Central Cível, amaro, pinheiros, osasco"
+              {...register('nomeOrgao')}
+              disabled={isLoading || byNumero}
+              className={inputCls}
+            />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {FOROS_TJSP.map((f) => (
+                <button
+                  key={f.valor}
+                  type="button"
+                  disabled={isLoading || byNumero}
+                  onClick={() => { setValue('nomeOrgao', f.valor); setValue('siglaTribunal', 'TJSP'); }}
+                  className="px-2.5 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-40"
+                >
+                  📍 {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="data" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Data de disponibilização
               </label>
-              <input
-                id="data"
-                type="date"
-                {...register('data')}
-                disabled={isLoading || byNumero}
-                className={inputCls}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  id="dataInicio"
+                  type="date"
+                  {...register('dataInicio')}
+                  disabled={isLoading || byNumero}
+                  className={inputCls}
+                  placeholder="De"
+                />
+                <span className="text-gray-400 text-xs shrink-0">até</span>
+                <input
+                  id="dataFim"
+                  type="date"
+                  {...register('dataFim')}
+                  disabled={isLoading || byNumero}
+                  className={inputCls}
+                  placeholder="Até"
+                />
+              </div>
             </div>
             <div>
               <label htmlFor="tipoComunicacao" className="block text-sm font-medium text-gray-700 mb-1">
-                Tipo
+                Tipo <span className="text-gray-400 font-normal">(filtro pós-fetch)</span>
               </label>
               <select
                 id="tipoComunicacao"
