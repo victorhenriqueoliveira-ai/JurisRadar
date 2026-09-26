@@ -465,12 +465,14 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
     const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
     const useClassFilter = Boolean((params.classeProcessual as string)?.trim());
     const useOrgaoFilter = Boolean((params.nomeOrgao as string)?.trim());
-    const usePostFetch = useClassFilter || useOrgaoFilter;
+    const useTipoFilter = Boolean((params.tipoComunicacao as string)?.trim());
+    const usePostFetch = useClassFilter || useOrgaoFilter || useTipoFilter;
 
     async function fetchPage(offset: number, lote: number) {
       const p = new URLSearchParams({ limit: String(lote), offset: String(offset) });
-      // Se classeProcessual presente mas texto não, usa a classe como texto para pré-filtrar na API
-      const textoEfetivo = (params.texto as string) || (useClassFilter && !params.texto ? (params.classeProcessual as string) : undefined);
+      // Injeta classeProcessual como texto só quando nomeOrgao presente E tipoComunicacao não está
+      const injetarClasse = useClassFilter && !params.texto && useOrgaoFilter && !params.tipoComunicacao;
+      const textoEfetivo = (params.texto as string) || (injetarClasse ? (params.classeProcessual as string) : undefined);
       if (textoEfetivo) p.set('texto', textoEfetivo);
       if (params.dataInicio) p.set('dataDisponibilizacaoInicio', params.dataInicio as string);
       if (params.dataFim) p.set('dataDisponibilizacaoFim', params.dataFim as string);
@@ -510,6 +512,11 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
       const classe = (params.classeProcessual as string).trim().toLowerCase();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       filtered = filtered.filter((item: any) => ((item.nomeClasse as string) ?? '').toLowerCase().includes(classe));
+    }
+    if (useTipoFilter) {
+      const tipo = (params.tipoComunicacao as string).trim().toLowerCase();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      filtered = filtered.filter((item: any) => ((item.tipoComunicacao as string) ?? '').toLowerCase().includes(tipo));
     }
 
     return { items: filtered, total: filtered.length, totalBruto, classeFilter: params.classeProcessual as string ?? null };

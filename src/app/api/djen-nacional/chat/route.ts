@@ -23,7 +23,11 @@ A API tem comportamento específico que você DEVE conhecer:
 
 4. **Datas**: use \`dataInicio\` e \`dataFim\` (formato YYYY-MM-DD) somente quando o usuário especificar um período. **NUNCA adicione datas por padrão** — sem data, a API retorna tudo disponível. Ex: buscar publicações de janeiro de 2026 → \`dataInicio: "2026-01-01", dataFim: "2026-01-31"\`. Quando o usuário pedir busca de um período ou data específica, SEMPRE passe os dois campos. Quando não pedir, OMITA os dois campos.
 
-5. **\`tipoComunicacao\`**: funciona nativamente (Intimação, Citação, Edital).
+5. **\`tipoComunicacao\`**: filtro pós-fetch (a API NÃO filtra nativamente). Valores reais:
+   - \`Citação\` — primeira notificação ao réu (ele ainda não sabe do processo)
+   - \`Intimação\` — notificações subsequentes em processos em andamento
+   - \`Edital\` — publicações públicas (usucapião, citação por edital)
+   - \`Lista de distribuição\` — casos NOVOS recém-distribuídos para um juiz. Use quando o usuário pedir "casos novos", "distribuição", "processos recém-ajuizados".
 
 6. **\`siglaTribunal\`**: funciona nativamente.
 
@@ -194,9 +198,10 @@ async function fetchPjePage(
   loteSize: number,
 ): Promise<{ items: RawItem[]; count: number }> {
   const params = new URLSearchParams({ limit: String(loteSize), offset: String(offset) });
-  // Se classeProcessual está presente mas texto não, usa a classe como texto para
-  // pré-filtrar na API (aumenta precisão antes do filtro pós-fetch por nomeOrgao)
-  const textoEfetivo = input.texto || (input.classeProcessual && !input.texto ? input.classeProcessual : undefined);
+  // Injeta classeProcessual como texto só quando nomeOrgao está presente E tipoComunicacao não está:
+  // nomeOrgao precisa de pré-filtro para achar comarca em pool de 10k; tipoComunicacao já filtra nativamente
+  const injetarClasseComoTexto = input.classeProcessual && !input.texto && input.nomeOrgao && !input.tipoComunicacao;
+  const textoEfetivo = input.texto || (injetarClasseComoTexto ? input.classeProcessual : undefined);
   if (textoEfetivo) params.set('texto', textoEfetivo);
   if (input.tipoComunicacao) params.set('tipoComunicacao', input.tipoComunicacao);
   if (input.siglaTribunal) params.set('siglaTribunal', input.siglaTribunal);
@@ -255,7 +260,8 @@ const MAX_ITEMS = 500;
 async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
   const useClassFilter = Boolean(input.classeProcessual?.trim());
   const useOrgaoFilter = Boolean(input.nomeOrgao?.trim());
-  const usePostFetch = useClassFilter || useOrgaoFilter;
+  const useTipoFilter = Boolean(input.tipoComunicacao?.trim());
+  const usePostFetch = useClassFilter || useOrgaoFilter || useTipoFilter;
 
   // Sem filtros pós-fetch: busca simples paginada
   if (!usePostFetch) {
@@ -289,6 +295,14 @@ async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
     const classe = input.classeProcessual!.trim().toLowerCase();
     filtered = filtered.filter((item) =>
       (item.nomeClasse ?? '').toLowerCase().includes(classe)
+    );
+  }
+
+  // Filtro pós-fetch por tipoComunicacao (a API não filtra nativamente)
+  if (useTipoFilter) {
+    const tipo = input.tipoComunicacao!.trim().toLowerCase();
+    filtered = filtered.filter((item) =>
+      (item.tipoComunicacao ?? '').toLowerCase().includes(tipo)
     );
   }
 
