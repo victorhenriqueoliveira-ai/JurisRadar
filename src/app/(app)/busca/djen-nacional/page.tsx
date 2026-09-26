@@ -737,7 +737,12 @@ function DjenNacionalBuscaContent() {
     }
     if (values.siglaTribunal?.trim()) params.set('siglaTribunal', values.siglaTribunal.trim());
 
-    const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
+    let res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
+    // Retry único em 429 (rate limit) com espera de 2s
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 2000));
+      res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`);
+    }
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as Record<string, string>;
       throw new Error(err?.error ?? `Erro ${res.status}`);
@@ -757,16 +762,20 @@ function DjenNacionalBuscaContent() {
 
     // Citação e Lista de distribuição são raras no DJEN (~4% e ~1%) — buscar mais itens
     const tipoLower = (tipoFiltro ?? '').toLowerCase();
-    const MAX_ITEMS = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t)) ? 5000 : 2000;
+    const isTipoRaro = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t));
+    const MAX_ITEMS = isTipoRaro ? 3000 : 2000;
+    // Tipos raros: requisições sequenciais com delay para evitar 429
+    const GROUP = isTipoRaro ? 1 : 3;
+    const DELAY_MS = isTipoRaro ? 400 : 0;
+
     const offsets: number[] = [];
     for (let off = 100; off < Math.min(totalBruto, MAX_ITEMS); off += 100) {
       offsets.push(off);
     }
 
-    // Busca em grupos de 5 paralelos para não sobrecarregar a API
-    const GROUP = 5;
     const allItems: DjenItem[] = [...firstItems];
     for (let i = 0; i < offsets.length; i += GROUP) {
+      if (i > 0 && DELAY_MS > 0) await new Promise((r) => setTimeout(r, DELAY_MS));
       const grupo = offsets.slice(i, i + GROUP);
       const batches = await Promise.all(grupo.map((o) => fetchPage(values, o, 100)));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
