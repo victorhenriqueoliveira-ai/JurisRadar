@@ -77,6 +77,8 @@ const CREDORES = [
   'Sicredi', 'Sicoob', 'Banrisul', 'Mercado Crédito',
 ];
 
+const TIPOS_SEM_TEXTO = ['citação', 'lista de distribuição'];
+
 const inputCls =
   'w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50';
 
@@ -694,6 +696,11 @@ function DjenNacionalBuscaContent() {
 
   const byNumero = Boolean(watch('numeroProcesso')?.trim());
   const isLoading = state.status === 'loading';
+  const tipoAtual = watch('tipoComunicacao') ?? '';
+  const textoAtual = watch('texto') ?? '';
+  const nomeParteAtual = watch('nomeParte') ?? '';
+  const tipoIgnoraTexto = TIPOS_SEM_TEXTO.some((t) => tipoAtual.toLowerCase().includes(t));
+  const avisarTextoIgnorado = tipoIgnoraTexto && Boolean((textoAtual || nomeParteAtual).trim());
 
   useEffect(() => {
     const np = searchParams.get('numeroProcesso');
@@ -713,10 +720,6 @@ function DjenNacionalBuscaContent() {
     if (sigla) setValue('siglaTribunal', sigla);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // A DJEN API retorna exclusivamente Intimações/Editais quando texto está presente.
-  // Para Citação e Lista de distribuição, nunca enviar texto — buscar sem filtro de texto e filtrar pós-fetch.
-  const TIPOS_SEM_TEXTO = ['citação', 'lista de distribuição'];
 
   async function fetchPage(values: FormValues, offset: number, loteSize = LIMIT) {
     const params = new URLSearchParams({
@@ -1002,6 +1005,11 @@ function DjenNacionalBuscaContent() {
                 </button>
               ))}
             </div>
+            {avisarTextoIgnorado && (
+              <p className="mt-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-md px-2.5 py-1.5">
+                ⚠ Para buscar <strong>{tipoAtual}</strong>, o campo "Palavra-chave" é ignorado (a API do DJEN não indexa {tipoAtual}s por texto). Use <strong>"Filtrar por classe processual"</strong> abaixo para filtrar por tipo de ação.
+              </p>
+            )}
           </div>
 
           <div>
