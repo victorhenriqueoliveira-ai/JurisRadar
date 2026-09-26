@@ -57,14 +57,14 @@ const TIPOS = [
 ];
 
 const FOROS_TJSP = [
-  { label: 'Foro Central Cível', valor: 'Foro Central Cível' },
+  { label: 'Foro Central', valor: 'Foro Central Cível' },
   { label: 'Santo Amaro', valor: 'amaro' },
   { label: 'Pinheiros', valor: 'pinheiros' },
   { label: 'Lapa', valor: 'lapa' },
   { label: 'Santana', valor: 'santana' },
   { label: 'Penha', valor: 'penha' },
   { label: 'Itaquera', valor: 'itaquera' },
-  { label: 'Tatuapé', valor: 'tatuapé' },
+  { label: 'Tatuape', valor: 'tatuape' },
   { label: 'Osasco', valor: 'osasco' },
 ];
 
@@ -935,40 +935,19 @@ function DjenNacionalBuscaContent() {
               disabled={isLoading || byNumero}
               className={inputCls}
             />
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {([
-                { label: 'Pinheiros', texto: 'Lapa', sigla: 'TJSP' },
-                { label: 'Santo Amaro', texto: 'Santo Amaro', sigla: 'TJSP' },
-                { label: 'Embu das Artes', texto: 'Embu das Artes', sigla: 'TJSP' },
-                { label: 'Campo Limpo', texto: 'Campo Limpo', sigla: 'TJSP' },
-                { label: 'Parelheiros', texto: 'Parelheiros', sigla: 'TJSP' },
-                { label: 'Osasco', texto: 'Osasco', sigla: 'TJSP' },
-              ] as { label: string; texto: string; sigla: string }[]).map((loc) => (
-                <button
-                  key={loc.label}
-                  type="button"
-                  disabled={isLoading || byNumero}
-                  onClick={() => { setValue('texto', loc.texto); setValue('siglaTribunal', loc.sigla); }}
-                  title={loc.texto !== loc.label ? `Busca por "${loc.texto}" (nome do fórum TJSP)` : undefined}
-                  className="px-2.5 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-40"
-                >
-                  📍 {loc.label}
-                </button>
-              ))}
-            </div>
             <p className="mt-1.5 text-xs text-gray-400">
-              Dica: no TJSP, o DJEN usa o nome do fórum (ex: Pinheiros → &quot;Lapa&quot;, pois o fórum é Foro Regional IV - Lapa). Os chips já ajustam automaticamente.
+              Use para buscar por nome de parte, CPF, credor (ex: &quot;Bradesco&quot;, &quot;Votorantim&quot;). Para filtrar por foro ou comarca, use o campo abaixo.
             </p>
           </div>
 
           <div>
             <label htmlFor="nomeParte" className="block text-sm font-medium text-gray-700 mb-1">
-              Filtro adicional no texto <span className="text-gray-400 font-normal">(opcional)</span>
+              Palavra-chave no texto <span className="text-gray-400 font-normal">(opcional — use OU busca principal OU este, não os dois)</span>
             </label>
             <input
               id="nomeParte"
               type="text"
-              placeholder="Ex: busca e apreensão, usucapião, inventário"
+              placeholder="Ex: busca e apreensão, usucapião, inventário, nome da parte"
               {...register('nomeParte')}
               disabled={isLoading || byNumero}
               className={inputCls}
