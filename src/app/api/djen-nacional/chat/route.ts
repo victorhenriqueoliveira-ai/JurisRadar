@@ -34,12 +34,17 @@ A API tem comportamento específico que você DEVE conhecer:
 ## Mapeamento de comarcas para nomeOrgao
 
 Quando o usuário mencionar uma comarca/foro, use \`nomeOrgao\` com o termo que aparece no nome oficial:
-- Pinheiros → \`nomeOrgao: "pinheiros"\` (bate em "Foro Regional VI - Pinheiros", "Vara... Pinheiros")
-- Santo Amaro → \`nomeOrgao: "amaro"\` (bate em "Foro Regional II - Santo Amaro", "UPJ... Santo Amaro")
-- Campo Limpo → \`nomeOrgao: "campo limpo"\`
-- Parelheiros → \`nomeOrgao: "parelheiros"\`
-- Embu das Artes → \`nomeOrgao: "embu"\`
+- Foro Central Cível (capital) → \`nomeOrgao: "Foro Central Cível"\` (bate em todas as UPJs do Foro Central)
+- Pinheiros → \`nomeOrgao: "pinheiros"\`
+- Santo Amaro → \`nomeOrgao: "amaro"\`
+- Lapa → \`nomeOrgao: "lapa"\`
+- Santana → \`nomeOrgao: "santana"\`
+- Penha → \`nomeOrgao: "penha"\`
+- Itaquera → \`nomeOrgao: "itaquera"\`
+- Tatuapé → \`nomeOrgao: "tatuapé"\`
 - Osasco → \`nomeOrgao: "osasco"\`
+- Campo Limpo → \`nomeOrgao: "campo limpo"\` (pode não estar no DJEN ainda)
+- Embu das Artes → \`nomeOrgao: "embu"\` (pode não estar no DJEN ainda)
 - Zona Sul (todos os foros) → use múltiplos: chame buscar_djen separado para cada comarca
 
 ## Parâmetros da ferramenta buscar_djen
