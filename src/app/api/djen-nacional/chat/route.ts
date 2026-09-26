@@ -110,8 +110,8 @@ const tools: Anthropic.Tool[] = [
         },
         tipoComunicacao: {
           type: 'string',
-          enum: ['Intimação', 'Citação', 'Edital'],
-          description: 'Filtro por tipo de comunicação judicial',
+          enum: ['Intimação', 'Citação', 'Edital', 'Lista de distribuição'],
+          description: 'Filtro por tipo de comunicação judicial. "Lista de distribuição" = casos novos recém-distribuídos.',
         },
         classeProcessual: {
           type: 'string',
@@ -197,18 +197,24 @@ const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_RETRIES = 3;
 
+// A DJEN API retorna exclusivamente Intimações/Editais quando texto está presente.
+// Para Citação e Lista de distribuição, NUNCA enviar texto — a API os exclui do índice de texto.
+const TIPOS_SEM_TEXTO = ['citação', 'lista de distribuição'];
+
 async function fetchPjePage(
   input: BuscaInput,
   offset: number,
   loteSize: number,
 ): Promise<{ items: RawItem[]; count: number }> {
   const params = new URLSearchParams({ limit: String(loteSize), offset: String(offset) });
-  // Injeta classeProcessual como texto só quando nomeOrgao está presente E tipoComunicacao não está:
-  // nomeOrgao precisa de pré-filtro para achar comarca em pool de 10k; tipoComunicacao já filtra nativamente
-  const injetarClasseComoTexto = input.classeProcessual && !input.texto && input.nomeOrgao && !input.tipoComunicacao;
-  const textoEfetivo = input.texto || (injetarClasseComoTexto ? input.classeProcessual : undefined);
-  if (textoEfetivo) params.set('texto', textoEfetivo);
-  if (input.tipoComunicacao) params.set('tipoComunicacao', input.tipoComunicacao);
+  const tipoLower = (input.tipoComunicacao ?? '').toLowerCase();
+  const skipTexto = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t));
+  if (!skipTexto) {
+    // Injeta classeProcessual como texto só quando nomeOrgao presente E tipoComunicacao ausente
+    const injetarClasseComoTexto = input.classeProcessual && !input.texto && input.nomeOrgao && !input.tipoComunicacao;
+    const textoEfetivo = input.texto || (injetarClasseComoTexto ? input.classeProcessual : undefined);
+    if (textoEfetivo) params.set('texto', textoEfetivo);
+  }
   if (input.siglaTribunal) params.set('siglaTribunal', input.siglaTribunal);
   if (input.dataInicio) params.set('dataDisponibilizacaoInicio', input.dataInicio);
   if (input.dataFim) params.set('dataDisponibilizacaoFim', input.dataFim);
@@ -260,8 +266,6 @@ async function fetchPjePage(
   throw lastError ?? new Error('Erro desconhecido ao acessar o DJEN');
 }
 
-const MAX_ITEMS = 500;
-
 async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
   const useClassFilter = Boolean(input.classeProcessual?.trim());
   const useOrgaoFilter = Boolean(input.nomeOrgao?.trim());
@@ -275,7 +279,11 @@ async function executarBusca(input: BuscaInput): Promise<BuscaResult> {
     return { items, total: count, totalBruto: count, classeFilter: null, params: input };
   }
 
-  // Com filtros pós-fetch: busca 500 itens para ter amostra representativa
+  // Citação e Lista de distribuição são raras (~4% e ~1%) — buscar mais itens para cobrir
+  const tipoLower = (input.tipoComunicacao ?? '').toLowerCase();
+  const MAX_ITEMS = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t)) ? 2000 : 500;
+
+  // Com filtros pós-fetch: busca itens para ter amostra representativa
   const { items: firstItems, count: totalBruto } = await fetchPjePage(input, 0, 100);
   const allItems: RawItem[] = [...firstItems];
 

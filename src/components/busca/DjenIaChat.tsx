@@ -468,12 +468,19 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
     const useTipoFilter = Boolean((params.tipoComunicacao as string)?.trim());
     const usePostFetch = useClassFilter || useOrgaoFilter || useTipoFilter;
 
+    // A DJEN API só retorna Intimações/Editais quando texto está presente — Citação e Lista de distribuição são excluídas do índice de texto
+    const TIPOS_SEM_TEXTO = ['citação', 'lista de distribuição'];
+    const tipoLower = ((params.tipoComunicacao as string) ?? '').toLowerCase();
+    const skipTexto = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t));
+
     async function fetchPage(offset: number, lote: number) {
       const p = new URLSearchParams({ limit: String(lote), offset: String(offset) });
-      // Injeta classeProcessual como texto só quando nomeOrgao presente E tipoComunicacao não está
-      const injetarClasse = useClassFilter && !params.texto && useOrgaoFilter && !params.tipoComunicacao;
-      const textoEfetivo = (params.texto as string) || (injetarClasse ? (params.classeProcessual as string) : undefined);
-      if (textoEfetivo) p.set('texto', textoEfetivo);
+      if (!skipTexto) {
+        // Injeta classeProcessual como texto só quando nomeOrgao presente E tipoComunicacao não está
+        const injetarClasse = useClassFilter && !params.texto && useOrgaoFilter && !params.tipoComunicacao;
+        const textoEfetivo = (params.texto as string) || (injetarClasse ? (params.classeProcessual as string) : undefined);
+        if (textoEfetivo) p.set('texto', textoEfetivo);
+      }
       if (params.dataInicio) p.set('dataDisponibilizacaoInicio', params.dataInicio as string);
       if (params.dataFim) p.set('dataDisponibilizacaoFim', params.dataFim as string);
       if (params.tipoComunicacao) p.set('tipoComunicacao', params.tipoComunicacao as string);
@@ -489,11 +496,13 @@ export default function DjenIaChat({ onSwitchToManual }: { onSwitchToManual?: ()
       return { items: d.items ?? [], total: d.count ?? 0, totalBruto: d.count ?? 0, classeFilter: null };
     }
 
-    // Com filtros pós-fetch: busca até 500 itens e filtra localmente
+    // Citação e Lista de distribuição são raras — buscar mais itens para cobrir
+    const MAX_ITEMS = skipTexto ? 2000 : 500;
+
+    // Com filtros pós-fetch: busca itens e filtra localmente
     const first = await fetchPage(0, 100);
     const totalBruto = first.count ?? 0;
     let all: unknown[] = [...(first.items ?? [])];
-    const MAX_ITEMS = 500;
     const pages = Math.min(Math.ceil(MAX_ITEMS / 100), Math.ceil(totalBruto / 100));
     for (let page = 1; page < pages && all.length < MAX_ITEMS; page++) {
       await new Promise((r) => setTimeout(r, 300));

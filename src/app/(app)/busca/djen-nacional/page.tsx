@@ -706,13 +706,17 @@ function DjenNacionalBuscaContent() {
     if (np) setValue('numeroProcesso', np);
     if (texto) setValue('texto', texto);
     if (nomeParte) setValue('nomeParte', nomeParte);
-    if (data) setValue('data', data);
+    if (data) setValue('dataInicio', data);
     if (tipo) setValue('tipoComunicacao', tipo);
     if (classe) setValue('classeProcessual', classe);
     const sigla = searchParams.get('siglaTribunal');
     if (sigla) setValue('siglaTribunal', sigla);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A DJEN API retorna exclusivamente Intimações/Editais quando texto está presente.
+  // Para Citação e Lista de distribuição, nunca enviar texto — buscar sem filtro de texto e filtrar pós-fetch.
+  const TIPOS_SEM_TEXTO = ['citação', 'lista de distribuição'];
 
   async function fetchPage(values: FormValues, offset: number, loteSize = LIMIT) {
     const params = new URLSearchParams({
@@ -722,8 +726,12 @@ function DjenNacionalBuscaContent() {
     if (values.numeroProcesso?.trim()) {
       params.set('numeroProcesso', values.numeroProcesso.replace(/[.\-/]/g, ''));
     } else {
-      const termoCombinado = [values.texto, values.nomeParte].filter(Boolean).join(' ');
-      if (termoCombinado) params.set('texto', termoCombinado);
+      const tipoLower = (values.tipoComunicacao ?? '').toLowerCase();
+      const skipTexto = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t));
+      if (!skipTexto) {
+        const termoCombinado = [values.texto, values.nomeParte].filter(Boolean).join(' ');
+        if (termoCombinado) params.set('texto', termoCombinado);
+      }
       if (values.dataInicio) params.set('dataDisponibilizacaoInicio', values.dataInicio);
       if (values.dataFim) params.set('dataDisponibilizacaoFim', values.dataFim);
     }
@@ -737,7 +745,7 @@ function DjenNacionalBuscaContent() {
     return res.json() as Promise<{ items?: unknown[]; count?: number }>;
   }
 
-  async function fetchAll(values: FormValues): Promise<{ items: DjenItem[]; totalBruto: number }> {
+  async function fetchAll(values: FormValues, tipoFiltro?: string): Promise<{ items: DjenItem[]; totalBruto: number }> {
     const first = await fetchPage(values, 0, 100);
     const totalBruto = first.count ?? 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -747,7 +755,9 @@ function DjenNacionalBuscaContent() {
       return { items: firstItems, totalBruto };
     }
 
-    const MAX_ITEMS = 2000;
+    // Citação e Lista de distribuição são raras no DJEN (~4% e ~1%) — buscar mais itens
+    const tipoLower = (tipoFiltro ?? '').toLowerCase();
+    const MAX_ITEMS = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t)) ? 5000 : 2000;
     const offsets: number[] = [];
     for (let off = 100; off < Math.min(totalBruto, MAX_ITEMS); off += 100) {
       offsets.push(off);
@@ -773,12 +783,12 @@ function DjenNacionalBuscaContent() {
       numeroProcesso: '',
       texto: bairro || '',
       nomeParte: 'busca e apreensão',
-      data: ontem(),
+      dataInicio: ontem(),
       tipoComunicacao: 'Citação',
     };
     setValue('numeroProcesso', '');
     setValue('nomeParte', 'busca e apreensão');
-    setValue('data', ontem());
+    setValue('dataInicio', ontem());
     setValue('tipoComunicacao', 'Citação');
     void search(valores, 1);
   }
@@ -788,13 +798,20 @@ function DjenNacionalBuscaContent() {
     const orgao = values.nomeOrgao?.trim();
     const tipo = values.tipoComunicacao?.trim();
     const usePostFetch = Boolean(classe || orgao || tipo);
-    setState({ status: 'loading', message: usePostFetch ? 'Buscando publicações para aplicar filtros…' : undefined });
+    const tipoLower = (tipo ?? '').toLowerCase();
+    const isTipoRaro = TIPOS_SEM_TEXTO.some((t) => tipoLower.includes(t));
+    const msgLoading = usePostFetch
+      ? isTipoRaro
+        ? `Buscando até 5.000 publicações para encontrar ${tipo}s (são raras no DJEN — pode demorar)…`
+        : 'Buscando publicações para aplicar filtros…'
+      : undefined;
+    setState({ status: 'loading', message: msgLoading });
     setLastSearch(values);
     try {
       const searchTerms = [values.texto, values.nomeParte].filter(Boolean) as string[];
 
       if (usePostFetch) {
-        const { items: allItems, totalBruto } = await fetchAll(values);
+        const { items: allItems, totalBruto } = await fetchAll(values, tipo);
         let filtered = allItems;
         if (orgao) filtered = filtered.filter((i) => i.orgao.toLowerCase().includes(orgao.toLowerCase()));
         if (tipo) filtered = filtered.filter((i) => i.tipo.toLowerCase().includes(tipo.toLowerCase()));
@@ -807,7 +824,7 @@ function DjenNacionalBuscaContent() {
           totalPages: 1,
           searchTerms,
           totalBruto,
-          classeFilter: classe || orgao || tipo || null,
+          classeFilter: classe || orgao || tipo || undefined,
         });
       } else {
         const offset = (page - 1) * LIMIT;
@@ -1016,7 +1033,7 @@ function DjenNacionalBuscaContent() {
               ))}
             </div>
             <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
-              ⚠ Com este filtro ativo, o sistema busca até 2.000 publicações na API e filtra localmente — pode demorar alguns segundos.
+              ⚠ Com este filtro ativo, o sistema busca até 2.000 publicações (5.000 para Citação/Distribuição) e filtra localmente — pode demorar alguns segundos.
             </p>
           </div>
 
