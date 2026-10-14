@@ -74,6 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
         icon: Sparkles,
         children: [
           { href: '/busca/distribuicao-tjsp', label: 'Busca Manual', icon: Search },
+          { href: '/busca/distribuicao-tjsp?mode=ia', label: 'Busca com IA', accent: true },
         ],
       },
       {

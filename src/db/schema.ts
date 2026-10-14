@@ -514,6 +514,43 @@ export const distribuicaoTjspProcessos = pgTable(
   }),
 );
 
+/** Conversas do assistente de IA da busca "Processos Novos" por usuário/org */
+export const distribuicaoTjspConversations = pgTable(
+  'distribuicao_tjsp_conversations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    // Histórico no formato Anthropic MessageParam[] para multi-turn
+    apiMessages: jsonb('api_messages').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgUserIdx: index('idx_distrib_tjsp_conversations_org_user').on(t.orgId, t.userId, t.updatedAt),
+  }),
+);
+
+/** Mensagens individuais de cada conversa da IA de "Processos Novos" */
+export const distribuicaoTjspMessages = pgTable(
+  'distribuicao_tjsp_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => distribuicaoTjspConversations.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'user' | 'assistant'>().notNull(),
+    text: text('text').notNull(),
+    // Processos retornados/enriquecidos nesta mensagem, para renderizar cards no chat
+    processos: jsonb('processos'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    conversationIdx: index('idx_distrib_tjsp_messages_conversation').on(t.conversationId, t.createdAt),
+  }),
+);
+
 // ── Tabelas CRM Jurídico ──────────────────────────────────────────────────────
 
 /**

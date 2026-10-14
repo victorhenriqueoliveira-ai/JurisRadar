@@ -3,7 +3,9 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useSearchParams } from 'next/navigation';
 import { z } from 'zod';
+import DistribuicaoTjspIaChat from '@/components/busca/DistribuicaoTjspIaChat';
 
 const formSchema = z
   .object({
@@ -339,10 +341,25 @@ function DistribuicaoTjspPageContent() {
   );
 }
 
+function BuscaDistribuicaoTjspModeSwitch() {
+  const searchParams = useSearchParams();
+  const mode = searchParams.get('mode');
+
+  if (mode === 'ia') {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-6">
+        <DistribuicaoTjspIaChat />
+      </div>
+    );
+  }
+
+  return <DistribuicaoTjspPageContent />;
+}
+
 export default function BuscaDistribuicaoTjspPage() {
   return (
     <Suspense>
-      <DistribuicaoTjspPageContent />
+      <BuscaDistribuicaoTjspModeSwitch />
     </Suspense>
   );
 }

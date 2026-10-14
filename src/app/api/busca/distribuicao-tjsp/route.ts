@@ -1,58 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOrgContext } from '@/lib/org-context';
 import { UnauthorizedError } from '@/lib/errors';
-import { searchDistribuicaoTjspProcessos, listDistribuicaoTjspDatasComEdicao } from '@/db/distribuicao-tjsp';
-import { processDia } from '@/inngest/distribuicao-tjsp-indexer';
-
-/** Janela padrão quando nenhuma data é informada: últimos 30 dias. */
-function defaultDateRange(): { dataInicio: string; dataFim: string } {
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setUTCDate(inicio.getUTCDate() - 30);
-  return {
-    dataInicio: inicio.toISOString().split('T')[0],
-    dataFim: fim.toISOString().split('T')[0],
-  };
-}
-
-function enumerateDates(dataInicio: string, dataFim: string): string[] {
-  const dates: string[] = [];
-  const cursor = new Date(`${dataInicio}T00:00:00Z`);
-  const end = new Date(`${dataFim}T00:00:00Z`);
-  while (cursor <= end) {
-    dates.push(cursor.toISOString().split('T')[0]);
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return dates;
-}
-
-/**
- * Teto de dias indexados "na hora" (sob demanda) por requisição de busca —
- * evita que um range de datas grande (ex.: um ano inteiro) trave a busca por
- * minutos. Dias além do teto ficam para o cron diário pegar depois e são
- * reportados em `diasNaoIndexados` na resposta.
- */
-const MAX_INDEXACAO_SOB_DEMANDA = 8;
-
-/**
- * Garante que todas as datas do range tenham ao menos uma tentativa de
- * indexação (sucesso ou falha definitiva, ex.: dia sem publicação). Datas sem
- * NENHUMA tentativa ainda são processadas agora, sequencialmente, até o teto.
- */
-async function ensureDatesIndexed(dataInicio: string, dataFim: string): Promise<{ diasNaoIndexados: string[] }> {
-  const todasAsDatas = enumerateDates(dataInicio, dataFim);
-  const datasComTentativa = new Set(await listDistribuicaoTjspDatasComEdicao(dataInicio, dataFim));
-  const faltantes = todasAsDatas.filter((d) => !datasComTentativa.has(d));
-
-  const aIndexarAgora = faltantes.slice(0, MAX_INDEXACAO_SOB_DEMANDA);
-  const diasNaoIndexados = faltantes.slice(MAX_INDEXACAO_SOB_DEMANDA);
-
-  for (const data of aIndexarAgora) {
-    await processDia(data); // isolado por dia — uma falha não impede as demais
-  }
-
-  return { diasNaoIndexados };
-}
+import { buscarProcessosNovos, defaultDateRange } from '@/lib/distribuicao-tjsp/search';
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,9 +23,7 @@ export async function GET(request: NextRequest) {
   const dataInicio = searchParams.get('dataInicio') ?? defaults.dataInicio;
   const dataFim = searchParams.get('dataFim') ?? defaults.dataFim;
 
-  const { diasNaoIndexados } = await ensureDatesIndexed(dataInicio, dataFim);
-
-  const { results, total } = await searchDistribuicaoTjspProcessos(
+  const { results, total, diasNaoIndexados } = await buscarProcessosNovos(
     { comarca, classe, dataInicio, dataFim },
     page,
     limit,
