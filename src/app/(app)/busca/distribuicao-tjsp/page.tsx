@@ -41,8 +41,8 @@ interface SearchResult {
 
 const LIMIT = 25;
 
-/** Classes mais comuns para prospecção — usado como sugestão inicial até carregar as reais do banco. */
-const CLASSES_SUGERIDAS_PADRAO = [
+/** Classes mais comuns para prospecção — atalhos rápidos no formulário. */
+const CLASSES_SUGERIDAS = [
   'Busca e Apreensão em Alienação Fiduciária',
   'Execução de Título Extrajudicial',
   'Usucapião',
@@ -70,7 +70,6 @@ function DistribuicaoTjspPageContent() {
   >({ status: 'idle' });
 
   const [comarcasSugeridas, setComarcasSugeridas] = useState<string[]>([]);
-  const [classesSugeridas, setClassesSugeridas] = useState<string[]>(CLASSES_SUGERIDAS_PADRAO);
 
   const {
     register,
@@ -90,9 +89,8 @@ function DistribuicaoTjspPageContent() {
   useEffect(() => {
     fetch('/api/busca/distribuicao-tjsp/filtros')
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { comarcas?: string[]; classes?: string[] } | null) => {
+      .then((data: { comarcas?: string[] } | null) => {
         if (data?.comarcas) setComarcasSugeridas(data.comarcas);
-        if (data?.classes && data.classes.length > 0) setClassesSugeridas(data.classes);
       })
       .catch(() => {});
   }, []);
@@ -193,7 +191,7 @@ function DistribuicaoTjspPageContent() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
             />
             <datalist id="classes-sugeridas">
-              {classesSugeridas.map((c) => (
+              {CLASSES_SUGERIDAS.map((c) => (
                 <option key={c} value={c} />
               ))}
             </datalist>
