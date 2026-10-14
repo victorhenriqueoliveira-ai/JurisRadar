@@ -20,6 +20,7 @@ import {
   UserCircle,
   Building2,
   FileText,
+  Sparkles,
 } from 'lucide-react';
 
 type NavSubItem = {
@@ -67,6 +68,14 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Buscas de casos',
     items: [
+      {
+        href: '/busca/distribuicao-tjsp',
+        label: 'Processos Novos',
+        icon: Sparkles,
+        children: [
+          { href: '/busca/distribuicao-tjsp', label: 'Busca Manual', icon: Search },
+        ],
+      },
       {
         href: '/busca/djen-nacional',
         label: 'DJEN Nacional',

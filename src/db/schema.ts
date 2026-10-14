@@ -467,6 +467,53 @@ export const djeSearches = pgTable(
   }),
 );
 
+// ── Tabelas Lista de Distribuição TJSP (processos novos/eproc) ────────────────
+
+/** Controla status de indexação por dia da Lista de Distribuição (eproc, 1ª Instância) */
+export const distribuicaoTjspEdicoes = pgTable(
+  'distribuicao_tjsp_edicoes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dataDistribuicao: date('data_distribuicao').notNull(),
+    codigoArquivo: text('codigo_arquivo'),
+    status: text('status')
+      .$type<'pending' | 'downloading' | 'parsing' | 'completed' | 'failed'>()
+      .notNull()
+      .default('pending'),
+    processCount: integer('process_count'),
+    errorMessage: text('error_message'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqueData: unique().on(t.dataDistribuicao),
+  }),
+);
+
+/** Processos novos extraídos da Lista de Distribuição TJSP (sem nome de partes — ver `link`) */
+export const distribuicaoTjspProcessos = pgTable(
+  'distribuicao_tjsp_processos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    edicaoId: uuid('edicao_id')
+      .notNull()
+      .references(() => distribuicaoTjspEdicoes.id),
+    numeroProcesso: text('numero_processo').notNull(),
+    comarca: text('comarca'),
+    vara: text('vara'),
+    classe: text('classe').notNull(),
+    dataDistribuicao: date('data_distribuicao').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    dataIdx: index('distrib_tjsp_data_idx').on(t.dataDistribuicao),
+    comarcaIdx: index('distrib_tjsp_comarca_idx').on(t.comarca),
+    classeIdx: index('distrib_tjsp_classe_idx').on(t.classe),
+    uniqueProcesso: unique().on(t.numeroProcesso),
+  }),
+);
+
 // ── Tabelas CRM Jurídico ──────────────────────────────────────────────────────
 
 /**
