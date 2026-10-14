@@ -196,6 +196,49 @@ export default function DistribuicaoTjspIaChat() {
     const novasMensagens: ChatMessage[] = [...messages, { role: 'user', text: texto }];
     setMessages(novasMensagens);
 
+    // Se a última mensagem salva for do usuário sem resposta da IA (ex.: aba fechada
+    // no meio de uma pergunta anterior), descarta essa mensagem pendurada antes de
+    // enviar a nova — a API da Anthropic exige que os papéis alternem user/assistant.
+    const ultimaMensagem = apiMessages[apiMessages.length - 1] as { role?: string } | undefined;
+    const apiMessagesBase = ultimaMensagem?.role === 'user' ? apiMessages.slice(0, -1) : apiMessages;
+    const apiMessagesComUsuario: ApiMessage[] = [...apiMessagesBase, { role: 'user', content: texto }];
+
+    // Persiste a mensagem do usuário IMEDIATAMENTE, antes de esperar a IA responder —
+    // assim um reload da página, perda de conexão, ou outra sessão logada com a mesma
+    // conta (outro computador) já veem essa conversa, mesmo se a IA ainda não respondeu.
+    let conversationId = activeId;
+    try {
+      if (!conversationId) {
+        const createRes = await fetch('/api/busca/distribuicao-tjsp/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: texto.slice(0, 80),
+            messages: [{ role: 'user', text: texto }],
+            apiMessages: apiMessagesComUsuario,
+          }),
+        });
+        if (createRes.ok) {
+          const created = await createRes.json() as { conversation: { id: string } };
+          conversationId = created.conversation.id;
+          setActiveId(conversationId);
+          loadConversations();
+        }
+      } else {
+        await fetch(`/api/busca/distribuicao-tjsp/conversations/${conversationId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            newMessages: [{ role: 'user', text: texto }],
+            apiMessages: apiMessagesComUsuario,
+          }),
+        });
+        loadConversations();
+      }
+    } catch {
+      // Falha ao persistir não deve impedir o chat de funcionar — segue mesmo assim
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
@@ -203,7 +246,7 @@ export default function DistribuicaoTjspIaChat() {
       const res = await fetch('/api/busca/distribuicao-tjsp/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, userMessage: texto }),
+        body: JSON.stringify({ messages: apiMessagesBase, userMessage: texto }),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -223,31 +266,13 @@ export default function DistribuicaoTjspIaChat() {
       setMessages(mensagensFinais);
       setApiMessages(data.messages);
 
-      // Persiste: cria conversa nova na primeira mensagem, ou adiciona nas seguintes
-      if (!activeId) {
-        const createRes = await fetch('/api/busca/distribuicao-tjsp/conversations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: texto.slice(0, 80),
-            messages: mensagensFinais,
-            apiMessages: data.messages,
-          }),
-        });
-        if (createRes.ok) {
-          const created = await createRes.json() as { conversation: { id: string } };
-          setActiveId(created.conversation.id);
-          loadConversations();
-        }
-      } else {
-        await fetch(`/api/busca/distribuicao-tjsp/conversations/${activeId}`, {
+      // Persiste a resposta da IA na mesma conversa já criada acima
+      if (conversationId) {
+        await fetch(`/api/busca/distribuicao-tjsp/conversations/${conversationId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            newMessages: [
-              { role: 'user', text: texto },
-              { role: 'assistant', text: data.message, processos: data.processos },
-            ],
+            newMessages: [{ role: 'assistant', text: data.message, processos: data.processos }],
             apiMessages: data.messages,
           }),
         });
