@@ -134,6 +134,78 @@ function ProcessoCardView({ p }: { p: ProcessoCard }) {
   );
 }
 
+// ─── Comunicação com a API de chat (protocolo de duas fases) ──────────────────
+//
+// comunicaapi.pje.jus.br (DJEN Nacional) bloqueia requisições vindas de IPs de
+// servidor/datacenter — confirmado em produção. Por isso, quando a IA precisa
+// detalhar um processo, o servidor pausa e devolve `status: 'need_djen_fetch'`
+// com a URL/headers prontos; o NAVEGADOR faz o fetch real (mesmo padrão já
+// usado pelo chat do DJEN Nacional) e reenvia o resultado bruto pro servidor
+// continuar o raciocínio.
+
+interface ChatApiResult {
+  message: string;
+  processos: ProcessoCard[];
+  messages: ApiMessage[];
+}
+
+interface PedidoDjen {
+  numeroProcesso: string;
+  url: string;
+  headers: Record<string, string>;
+}
+
+async function buscarDjenNoNavegador(pedidos: PedidoDjen[], signal: AbortSignal): Promise<Record<string, unknown>> {
+  const resultados: Record<string, unknown> = {};
+  await Promise.all(
+    pedidos.map(async (pedido) => {
+      try {
+        const res = await fetch(pedido.url, { headers: pedido.headers, signal, cache: 'no-store' });
+        if (!res.ok) {
+          resultados[pedido.numeroProcesso] = { erro: `HTTP ${res.status}` };
+          return;
+        }
+        resultados[pedido.numeroProcesso] = await res.json();
+      } catch (e) {
+        resultados[pedido.numeroProcesso] = { erro: e instanceof Error ? e.message : 'erro desconhecido' };
+      }
+    }),
+  );
+  return resultados;
+}
+
+async function chamarChatApi(
+  bodyInicial: { messages: ApiMessage[]; userMessage: string },
+  signal: AbortSignal,
+): Promise<ChatApiResult> {
+  let body: Record<string, unknown> = bodyInicial;
+
+  // Teto de rodadas de pausa — protege contra loop indevido entre cliente e servidor.
+  for (let i = 0; i < 10; i++) {
+    const res = await fetch('/api/busca/distribuicao-tjsp/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as Record<string, string>)?.error ?? `Erro ${res.status}`);
+    }
+    const data = await res.json() as
+      | ChatApiResult
+      | { status: 'need_djen_fetch'; pedidos: PedidoDjen[]; pendingState: unknown };
+
+    if ('status' in data && data.status === 'need_djen_fetch') {
+      const djenFetchResults = await buscarDjenNoNavegador(data.pedidos, signal);
+      body = { djenFetchResults, pendingState: data.pendingState };
+      continue;
+    }
+    return data as ChatApiResult;
+  }
+  throw new Error('Muitas tentativas de busca no DJEN — tente novamente.');
+}
+
 export default function DistribuicaoTjspIaChat() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -243,21 +315,10 @@ export default function DistribuicaoTjspIaChat() {
     abortControllerRef.current = controller;
 
     try {
-      const res = await fetch('/api/busca/distribuicao-tjsp/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessagesBase, userMessage: texto }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as Record<string, string>)?.error ?? `Erro ${res.status}`);
-      }
-      const data = await res.json() as {
-        message: string;
-        processos: ProcessoCard[];
-        messages: ApiMessage[];
-      };
+      const data = await chamarChatApi(
+        { messages: apiMessagesBase, userMessage: texto },
+        controller.signal,
+      );
 
       const mensagensFinais: ChatMessage[] = [
         ...novasMensagens,

@@ -10,9 +10,15 @@
  * DataJud ainda não indexou, sem depender do eproc (que exige Cloudflare
  * Turnstile e não pode ser automatizado).
  *
- * `numeroProcesso` é filtro nativo documentado na API (funciona mesmo sem o
- * parâmetro `texto`, ao contrário de outros filtros pós-fetch usados em
- * `src/app/api/djen-nacional/chat/route.ts`).
+ * IMPORTANTE — bloqueio de IP de servidor: assim como `DjenIaChat.tsx`
+ * (DJEN Nacional) já documenta, `comunicaapi.pje.jus.br` bloqueia/filtra
+ * requisições vindas de IPs de datacenter (confirmado em produção na Vercel
+ * em 2026-10-14: funciona perfeitamente de uma máquina local, mas retorna
+ * vazio/bloqueado a partir do servidor). Por isso o fetch real DEVE ser feito
+ * do navegador do usuário — `montarRequestDjen` monta a URL+headers,
+ * `parsearComunicacoesDjen` processa o JSON já obtido (função pura, sem
+ * fetch), e o servidor (`chat/route.ts`) nunca chama `fetch` para este host
+ * diretamente — ele pausa o fluxo e pede ao cliente para buscar.
  */
 
 const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
@@ -42,35 +48,33 @@ interface RawItem {
   destinatarios?: DjenDestinatario[];
 }
 
-/**
- * Busca todas as comunicações já publicadas no DJEN para um número de
- * processo específico. Retorna em ordem cronológica (mais antiga primeiro) —
- * a primeira é tipicamente a "Lista de distribuição", que já traz as partes.
- */
-export async function buscarComunicacoesPorNumeroProcesso(numeroProcesso: string): Promise<DjenComunicacao[]> {
+export interface DjenRawResponse {
+  items?: RawItem[];
+}
+
+/** URL + headers para buscar comunicações de um processo — usado pelo CLIENTE (browser) para o fetch real. */
+export function montarRequestDjen(numeroProcesso: string): { url: string; headers: Record<string, string> } {
   const params = new URLSearchParams({
     numeroProcesso,
     itensPorPagina: '5',
     pagina: '1',
   });
-
-  const response = await fetch(`${DJEN_BASE}?${params.toString()}`, {
-    cache: 'no-store',
+  return {
+    url: `${DJEN_BASE}?${params.toString()}`,
     headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; JurisRadar/1.0)',
       Accept: 'application/json, text/plain, */*',
       Referer: 'https://comunica.pje.jus.br/',
-      Origin: 'https://comunica.pje.jus.br',
     },
-  });
+  };
+}
 
-  if (!response.ok) {
-    throw new Error(`DJEN: resposta inesperada HTTP ${response.status}`);
-  }
-
-  const data = (await response.json()) as { items?: RawItem[] };
-  const items = data.items ?? [];
-
+/**
+ * Processa o JSON bruto (já obtido via fetch do navegador) em comunicações
+ * estruturadas, ordenadas da mais antiga para a mais recente. Função pura —
+ * não faz nenhuma requisição de rede, pode rodar no servidor com segurança.
+ */
+export function parsearComunicacoesDjen(raw: DjenRawResponse, numeroProcessoFallback: string): DjenComunicacao[] {
+  const items = raw.items ?? [];
   return items
     .map((item) => ({
       id: item.id ?? 0,
@@ -78,7 +82,7 @@ export async function buscarComunicacoesPorNumeroProcesso(numeroProcesso: string
       tipoComunicacao: item.tipoComunicacao ?? '',
       nomeOrgao: item.nomeOrgao ?? '',
       nomeClasse: item.nomeClasse ?? '',
-      numeroProcesso: item.numeroprocessocommascara ?? numeroProcesso,
+      numeroProcesso: item.numeroprocessocommascara ?? numeroProcessoFallback,
       destinatarios: item.destinatarios ?? [],
     }))
     .sort((a, b) => a.dataDisponibilizacao.localeCompare(b.dataDisponibilizacao));

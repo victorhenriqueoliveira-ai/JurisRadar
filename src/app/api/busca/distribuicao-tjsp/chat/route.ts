@@ -5,7 +5,7 @@ import { UnauthorizedError } from '@/lib/errors';
 import { buscarProcessosNovos, defaultDateRange } from '@/lib/distribuicao-tjsp/search';
 import { eprocConsultaPublicaLink } from '@/lib/distribuicao-tjsp/eproc-link';
 import { queryTribunal } from '@/lib/datajud/client';
-import { buscarComunicacoesPorNumeroProcesso } from '@/lib/djen/client';
+import { montarRequestDjen, parsearComunicacoesDjen, type DjenRawResponse } from '@/lib/djen/client';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const TJSP_TRIBUNAL = 'api_publica_tjsp';
@@ -111,7 +111,7 @@ const tools: Anthropic.Tool[] = [
   },
 ];
 
-// ─── Tool Execution ───────────────────────────────────────────────────────────
+// ─── Tipos ─────────────────────────────────────────────────────────────────────
 
 interface ProcessoCard {
   numeroProcesso: string;
@@ -119,14 +119,52 @@ interface ProcessoCard {
   vara?: string | null;
   classe?: string | null;
   dataDistribuicao?: string | null;
-  // Preenchido só quando detalhado via DataJud
   partes?: Array<{ polo: string; nome: string }>;
   assuntos?: string[];
   ultimaMovimentacao?: { data: string; descricao: string } | null;
   detalhado: boolean;
-  // Link real da consulta pública do eproc — SEMPRE presente, usado pela IA como única URL permitida
   linkEproc: string;
 }
+
+/** Resultado do fetch do DJEN feito pelo NAVEGADOR (comunicaapi.pje.jus.br bloqueia IPs de servidor). */
+type DjenFetchResults = Record<string, DjenRawResponse | { erro: string }>;
+
+interface TurnoPendente {
+  /** Conteúdo da resposta do assistant deste turno (contém os tool_use blocks). */
+  assistantContent: Anthropic.ContentBlockParam[];
+  /** tool_results já resolvidos neste turno (ex.: buscar_processos_novos, que roda no servidor). */
+  toolResultsProntos: Array<{ toolUseId: string; content: string; processos: ProcessoCard[] }>;
+  /** detalhar_processo aguardando o navegador buscar no DJEN. */
+  pendentesDjen: Array<{ toolUseId: string; numeroProcesso: string }>;
+}
+
+interface PendingState {
+  conversationMessages: Anthropic.MessageParam[];
+  turno: TurnoPendente;
+  turnsUsed: number;
+  processosAcumulados: ProcessoCard[];
+  /** Histórico "limpo" (user/assistant, sem tool_use/tool_result) anterior a esta pergunta — pra persistência. */
+  messagesAnteriores: Anthropic.MessageParam[];
+  /** Texto original da pergunta do usuário que disparou esta rodada. */
+  userMessageOriginal: string;
+}
+
+// ─── Deduplicação de partes ───────────────────────────────────────────────────
+
+function deduplicarPartes(todas: Array<{ nome: string; polo: string }>): Array<{ nome: string; polo: string }> {
+  const vistos = new Set<string>();
+  const resultado: Array<{ nome: string; polo: string }> = [];
+  for (const p of todas) {
+    const chave = `${p.polo}::${p.nome}`;
+    if (!vistos.has(chave) && p.nome && p.nome !== 'SIGILO') {
+      vistos.add(chave);
+      resultado.push(p);
+    }
+  }
+  return resultado;
+}
+
+// ─── Execução de ferramentas ───────────────────────────────────────────────────
 
 async function execBuscarProcessosNovos(input: {
   comarca?: string;
@@ -176,82 +214,23 @@ async function execBuscarProcessosNovos(input: {
   return { summary, processos };
 }
 
-/** Deduplica destinatários pelo par nome+polo (a mesma parte pode aparecer em várias comunicações). */
-function deduplicarPartes(todas: Array<{ nome: string; polo: string }>): Array<{ nome: string; polo: string }> {
-  const vistos = new Set<string>();
-  const resultado: Array<{ nome: string; polo: string }> = [];
-  for (const p of todas) {
-    const chave = `${p.polo}::${p.nome}`;
-    if (!vistos.has(chave) && p.nome && p.nome !== 'SIGILO') {
-      vistos.add(chave);
-      resultado.push(p);
-    }
-  }
-  return resultado;
-}
-
-async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<{ summary: string; processo: ProcessoCard | null }> {
-  const linkEproc = eprocConsultaPublicaLink(input.numeroProcesso);
-
-  // 1ª fonte: DJEN Nacional — busca nativa por numeroProcesso, sem CAPTCHA, cobre
-  // processos recém-distribuídos (o campo `destinatarios` já vem com nome das partes
-  // mesmo no item "Lista de distribuição", cujo texto não tem nomes).
+/** Fallback via DataJud quando o DJEN (buscado pelo navegador) não trouxe nada ou falhou. */
+async function execDetalharViaDataJud(numeroProcesso: string, linkEproc: string): Promise<{ summary: string; processo: ProcessoCard }> {
   try {
-    const comunicacoes = await buscarComunicacoesPorNumeroProcesso(input.numeroProcesso);
-    if (comunicacoes.length > 0) {
-      const maisRecente = comunicacoes[comunicacoes.length - 1];
-      const destinatariosBrutos = comunicacoes.flatMap((c) => c.destinatarios.map((d) => ({ nome: d.nome, polo: d.polo })));
-      const sigiloso = destinatariosBrutos.some((d) => d.nome === 'SIGILO');
-      const partes = deduplicarPartes(destinatariosBrutos);
-
-      const processo: ProcessoCard = {
-        numeroProcesso: maisRecente.numeroProcesso,
-        comarca: maisRecente.nomeOrgao,
-        vara: maisRecente.nomeOrgao,
-        classe: maisRecente.nomeClasse,
-        dataDistribuicao: comunicacoes[0].dataDisponibilizacao,
-        partes: partes.length > 0 ? partes : undefined,
-        detalhado: true,
-        linkEproc,
-      };
-
-      return {
-        summary: JSON.stringify({
-          encontradoNoDJEN: true,
-          numeroProcesso: processo.numeroProcesso,
-          classe: processo.classe,
-          orgao: processo.comarca,
-          partes: processo.partes,
-          processoSigiloso: sigiloso || undefined,
-          instrucao: sigiloso
-            ? 'O nome das partes não está disponível porque o processo está em SEGREDO DE JUSTIÇA — informe isso claramente ao usuário, não é falha do sistema.'
-            : undefined,
-          comunicacoesEncontradas: comunicacoes.map((c) => ({ tipo: c.tipoComunicacao, data: c.dataDisponibilizacao })),
-          linkEproc,
-        }),
-        processo,
-      };
-    }
-  } catch {
-    // DJEN indisponível — cai para DataJud abaixo
-  }
-
-  // 2ª fonte (fallback): DataJud do CNJ — às vezes tem assuntos/movimentações que o DJEN não traz.
-  try {
-    const { hits } = await queryTribunal(TJSP_TRIBUNAL, { numeroProcesso: input.numeroProcesso }, 0, 1);
+    const { hits } = await queryTribunal(TJSP_TRIBUNAL, { numeroProcesso }, 0, 1);
     const hit = hits[0];
     if (!hit) {
       return {
         summary: JSON.stringify({
           encontradoNoDJEN: false,
           encontradoNoDataJud: false,
-          numeroProcesso: input.numeroProcesso,
+          numeroProcesso,
           linkEproc,
           instrucao:
             'Não encontrado no DJEN nem no DataJud (cobertura/sincronização irregular, sem prazo previsível — não invente prazo). ' +
             'Responda ao usuário citando literalmente a URL em "linkEproc" acima como o link pra ver os detalhes agora na consulta pública oficial do TJSP (sistema eproc). Não sugira nenhuma outra URL.',
         }),
-        processo: { numeroProcesso: input.numeroProcesso, detalhado: false, linkEproc },
+        processo: { numeroProcesso, detalhado: false, linkEproc },
       };
     }
 
@@ -289,23 +268,108 @@ async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<
         linkEproc,
         instrucao: 'Cite a URL em "linkEproc" como alternativa pra ver os detalhes agora.',
       }),
-      processo: { numeroProcesso: input.numeroProcesso, detalhado: false, linkEproc },
+      processo: { numeroProcesso, detalhado: false, linkEproc },
     };
   }
 }
 
-async function executeTool(
-  name: string,
-  input: Record<string, unknown>,
-): Promise<{ summary: string; processos: ProcessoCard[] }> {
-  if (name === 'buscar_processos_novos') {
-    return execBuscarProcessosNovos(input);
+/**
+ * Processa o resultado bruto do DJEN (já buscado pelo NAVEGADOR — comunicaapi.pje.jus.br
+ * bloqueia IPs de servidor) para um número de processo. Cai para o DataJud se o DJEN
+ * não trouxe nada ou o fetch do navegador falhou.
+ */
+async function processarResultadoDjen(
+  numeroProcesso: string,
+  resultado: DjenRawResponse | { erro: string },
+): Promise<{ summary: string; processo: ProcessoCard }> {
+  const linkEproc = eprocConsultaPublicaLink(numeroProcesso);
+
+  if ('erro' in resultado) {
+    return execDetalharViaDataJud(numeroProcesso, linkEproc);
   }
-  if (name === 'detalhar_processo') {
-    const { summary, processo } = await execDetalharProcesso(input as { numeroProcesso: string });
-    return { summary, processos: processo ? [processo] : [] };
+
+  const comunicacoes = parsearComunicacoesDjen(resultado, numeroProcesso);
+  if (comunicacoes.length === 0) {
+    return execDetalharViaDataJud(numeroProcesso, linkEproc);
   }
-  return { summary: 'Ferramenta desconhecida.', processos: [] };
+
+  const maisRecente = comunicacoes[comunicacoes.length - 1];
+  const destinatariosBrutos = comunicacoes.flatMap((c) => c.destinatarios.map((d) => ({ nome: d.nome, polo: d.polo })));
+  const sigiloso = destinatariosBrutos.some((d) => d.nome === 'SIGILO');
+  const partes = deduplicarPartes(destinatariosBrutos);
+
+  const processo: ProcessoCard = {
+    numeroProcesso: maisRecente.numeroProcesso,
+    comarca: maisRecente.nomeOrgao,
+    vara: maisRecente.nomeOrgao,
+    classe: maisRecente.nomeClasse,
+    dataDistribuicao: comunicacoes[0].dataDisponibilizacao,
+    partes: partes.length > 0 ? partes : undefined,
+    detalhado: true,
+    linkEproc,
+  };
+
+  return {
+    summary: JSON.stringify({
+      encontradoNoDJEN: true,
+      numeroProcesso: processo.numeroProcesso,
+      classe: processo.classe,
+      orgao: processo.comarca,
+      partes: processo.partes,
+      processoSigiloso: sigiloso || undefined,
+      instrucao: sigiloso
+        ? 'O nome das partes não está disponível porque o processo está em SEGREDO DE JUSTIÇA — informe isso claramente ao usuário, não é falha do sistema.'
+        : undefined,
+      comunicacoesEncontradas: comunicacoes.map((c) => ({ tipo: c.tipoComunicacao, data: c.dataDisponibilizacao })),
+      linkEproc,
+    }),
+    processo,
+  };
+}
+
+// ─── Execução de um turno: separa o que roda no servidor do que precisa do navegador ──
+
+function acumular(destino: ProcessoCard[], vistos: Set<string>, lista: ProcessoCard[]) {
+  for (const p of lista) {
+    if (!vistos.has(p.numeroProcesso)) {
+      vistos.add(p.numeroProcesso);
+      destino.push(p);
+    } else if (p.detalhado) {
+      const idx = destino.findIndex((x) => x.numeroProcesso === p.numeroProcesso);
+      if (idx >= 0) destino[idx] = p;
+    }
+  }
+}
+
+/**
+ * Processa os tool_use blocks de UM turno: executa buscar_processos_novos no
+ * servidor (não depende de IP bloqueado) e separa os detalhar_processo que
+ * precisam do navegador. Retorna `aguardandoDjen` quando há pendências.
+ */
+async function processarTurno(
+  toolUseBlocks: Anthropic.ToolUseBlock[],
+): Promise<{
+  toolResultsProntos: Array<{ toolUseId: string; content: string; processos: ProcessoCard[] }>;
+  pendentesDjen: Array<{ toolUseId: string; numeroProcesso: string }>;
+}> {
+  const toolResultsProntos: Array<{ toolUseId: string; content: string; processos: ProcessoCard[] }> = [];
+  const pendentesDjen: Array<{ toolUseId: string; numeroProcesso: string }> = [];
+
+  await Promise.all(
+    toolUseBlocks.map(async (block) => {
+      if (block.name === 'buscar_processos_novos') {
+        const { summary, processos } = await execBuscarProcessosNovos(block.input as Record<string, unknown>);
+        toolResultsProntos.push({ toolUseId: block.id, content: summary, processos });
+      } else if (block.name === 'detalhar_processo') {
+        const { numeroProcesso } = block.input as { numeroProcesso: string };
+        pendentesDjen.push({ toolUseId: block.id, numeroProcesso });
+      } else {
+        toolResultsProntos.push({ toolUseId: block.id, content: 'Ferramenta desconhecida.', processos: [] });
+      }
+    }),
+  );
+
+  return { toolResultsProntos, pendentesDjen };
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
@@ -323,75 +387,97 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as {
     messages?: Anthropic.MessageParam[];
     userMessage?: string;
+    djenFetchResults?: DjenFetchResults;
+    pendingState?: PendingState;
   };
-  const { messages = [], userMessage } = body;
 
-  if (!userMessage?.trim()) {
-    return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400 });
-  }
-
-  const conversationMessages: Anthropic.MessageParam[] = [
-    ...messages,
-    { role: 'user', content: userMessage },
-  ];
-
+  let conversationMessages: Anthropic.MessageParam[];
+  let turnsUsed = 0;
   const processosAcumulados: ProcessoCard[] = [];
   const vistos = new Set<string>();
-  function acumular(lista: ProcessoCard[]) {
-    for (const p of lista) {
-      const existente = vistos.has(p.numeroProcesso);
-      if (!existente) {
-        vistos.add(p.numeroProcesso);
-        processosAcumulados.push(p);
-      } else if (p.detalhado) {
-        // Substitui a versão sem detalhe pela detalhada
-        const idx = processosAcumulados.findIndex((x) => x.numeroProcesso === p.numeroProcesso);
-        if (idx >= 0) processosAcumulados[idx] = p;
-      }
+  let messagesAnteriores: Anthropic.MessageParam[];
+  let userMessageOriginal: string;
+
+  if (body.djenFetchResults && body.pendingState) {
+    // Fase 2+: o navegador já buscou o DJEN — resolve o turno pendente e continua o loop.
+    const { conversationMessages: msgs, turno, turnsUsed: usados, processosAcumulados: acumuladosAnteriores } = body.pendingState;
+    conversationMessages = msgs;
+    turnsUsed = usados;
+    messagesAnteriores = body.pendingState.messagesAnteriores;
+    userMessageOriginal = body.pendingState.userMessageOriginal;
+    acumular(processosAcumulados, vistos, acumuladosAnteriores);
+    for (const p of turno.toolResultsProntos) acumular(processosAcumulados, vistos, p.processos);
+
+    const resultadosDjen = await Promise.all(
+      turno.pendentesDjen.map(async (pend) => {
+        const raw = body.djenFetchResults![pend.numeroProcesso];
+        const { summary, processo } = await processarResultadoDjen(pend.numeroProcesso, raw ?? { erro: 'Resultado não enviado pelo navegador' });
+        return { toolUseId: pend.toolUseId, content: summary, processos: [processo] };
+      }),
+    );
+    for (const r of resultadosDjen) acumular(processosAcumulados, vistos, r.processos);
+
+    const todosResultados = [...turno.toolResultsProntos, ...resultadosDjen];
+    const toolResults: Anthropic.ToolResultBlockParam[] = todosResultados.map((r) => ({
+      type: 'tool_result',
+      tool_use_id: r.toolUseId,
+      content: r.content,
+    }));
+
+    conversationMessages.push({ role: 'assistant', content: turno.assistantContent });
+    conversationMessages.push({ role: 'user', content: toolResults });
+  } else {
+    // Fase 1: primeira mensagem do usuário nesta rodada.
+    if (!body.userMessage?.trim()) {
+      return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400 });
     }
+    messagesAnteriores = body.messages ?? [];
+    userMessageOriginal = body.userMessage;
+    conversationMessages = [...messagesAnteriores, { role: 'user', content: userMessageOriginal }];
   }
 
   let response = await client.messages.create(
-    {
-      model: MODEL,
-      max_tokens: 1536,
-      system: SYSTEM_PROMPT,
-      tools,
-      messages: conversationMessages,
-    },
+    { model: MODEL, max_tokens: 1536, system: SYSTEM_PROMPT, tools, messages: conversationMessages },
     { signal: request.signal },
   );
 
-  let turns = 0;
-  while (response.stop_reason === 'tool_use' && turns < MAX_TOOL_TURNS) {
-    turns++;
-    const toolUseBlocks = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-    );
+  while (response.stop_reason === 'tool_use' && turnsUsed < MAX_TOOL_TURNS) {
+    turnsUsed++;
+    const toolUseBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+    const { toolResultsProntos, pendentesDjen } = await processarTurno(toolUseBlocks);
+
+    if (pendentesDjen.length > 0) {
+      // comunicaapi.pje.jus.br bloqueia IPs de servidor — pausa e pede ao navegador para buscar.
+      const pendingState: PendingState = {
+        conversationMessages,
+        turno: { assistantContent: response.content, toolResultsProntos, pendentesDjen },
+        turnsUsed,
+        processosAcumulados,
+        messagesAnteriores,
+        userMessageOriginal,
+      };
+      return NextResponse.json({
+        status: 'need_djen_fetch',
+        pedidos: pendentesDjen.map((p) => ({
+          numeroProcesso: p.numeroProcesso,
+          ...montarRequestDjen(p.numeroProcesso),
+        })),
+        pendingState,
+      });
+    }
+
+    for (const p of toolResultsProntos) acumular(processosAcumulados, vistos, p.processos);
+    const toolResults: Anthropic.ToolResultBlockParam[] = toolResultsProntos.map((r) => ({
+      type: 'tool_result',
+      tool_use_id: r.toolUseId,
+      content: r.content,
+    }));
 
     conversationMessages.push({ role: 'assistant', content: response.content });
-
-    // Executa todas as tool calls do turno em paralelo — Claude pode pedir várias
-    // de uma vez (ex.: detalhar_processo para 3 processos diferentes); rodar em
-    // série multiplicava a latência por chamada (cada uma leva ~1-3s de rede).
-    const execucoes = await Promise.all(
-      toolUseBlocks.map((block) => executeTool(block.name, block.input as Record<string, unknown>)),
-    );
-    const toolResults: Anthropic.ToolResultBlockParam[] = toolUseBlocks.map((block, i) => {
-      acumular(execucoes[i].processos);
-      return { type: 'tool_result', tool_use_id: block.id, content: execucoes[i].summary };
-    });
-
     conversationMessages.push({ role: 'user', content: toolResults });
 
     response = await client.messages.create(
-      {
-        model: MODEL,
-        max_tokens: 1536,
-        system: SYSTEM_PROMPT,
-        tools,
-        messages: conversationMessages,
-      },
+      { model: MODEL, max_tokens: 1536, system: SYSTEM_PROMPT, tools, messages: conversationMessages },
       { signal: request.signal },
     );
   }
@@ -399,9 +485,10 @@ export async function POST(request: NextRequest) {
   const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
   const assistantMessage = textBlock?.text ?? 'Não consegui gerar uma resposta.';
 
+  // Histórico "limpo" para persistência/exibição — sem os turnos intermediários de tool_use/tool_result.
   const historyForClient: Anthropic.MessageParam[] = [
-    ...messages,
-    { role: 'user', content: userMessage },
+    ...messagesAnteriores,
+    { role: 'user', content: userMessageOriginal },
     { role: 'assistant', content: assistantMessage },
   ];
 
