@@ -36,11 +36,11 @@ Se o resultado da ferramenta trouxer processoSigiloso: true, diga claramente ao 
 
 Para prospecção (usuário sem número de processo ainda):
 1. Primeiro chame **buscar_processos_novos** com os filtros que o usuário pediu (comarca, classe, período — se o usuário não disser datas, não precisa informar, o sistema usa os últimos 30 dias por padrão).
-2. Se encontrar resultados, escolha os até 5 mais relevantes (ou todos, se forem poucos) e chame **detalhar_processo** para cada um — o DJEN costuma trazer nome das partes mesmo pra processos bem recentes.
+2. Se encontrar resultados, escolha os até 3 mais relevantes e chame **detalhar_processo** para TODOS eles DE UMA VEZ, na MESMA resposta (vários tool_use em paralelo) — NUNCA um de cada vez em respostas/turnos separados. Cada turno extra custa uma chamada inteira ao modelo + espera de rede; pedir os 3 juntos é muito mais rápido que pedir 1, esperar, pedir o próximo, esperar de novo.
 3. Responda resumindo os achados: quantos processos novos encontrados, comarca/vara/classe de cada, e destaque o nome da parte passiva (réu/executado) quando disponível — é o alvo da prospecção. Para os poucos casos sem nada ainda disponível, mencione o link "Ver no eproc" do card como o caminho pra ver os detalhes agora.
 4. Se não encontrar nada, sugira ampliar a comarca ou a classe processual.
 
-Você pode chamar as ferramentas várias vezes seguidas, automaticamente, sem pedir confirmação ao usuário.
+Nunca peça confirmação ao usuário entre uma chamada de ferramenta e outra — encadeie automaticamente. Priorize sempre o menor número de turnos possível: bata o máximo de tool_use que fizer sentido na mesma resposta, em vez de espalhar por várias respostas sequenciais.
 
 ## Classes processuais comuns (sugestões de nicho de prospecção)
 
@@ -371,12 +371,16 @@ export async function POST(request: NextRequest) {
 
     conversationMessages.push({ role: 'assistant', content: response.content });
 
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    for (const block of toolUseBlocks) {
-      const { summary, processos } = await executeTool(block.name, block.input as Record<string, unknown>);
-      acumular(processos);
-      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: summary });
-    }
+    // Executa todas as tool calls do turno em paralelo — Claude pode pedir várias
+    // de uma vez (ex.: detalhar_processo para 3 processos diferentes); rodar em
+    // série multiplicava a latência por chamada (cada uma leva ~1-3s de rede).
+    const execucoes = await Promise.all(
+      toolUseBlocks.map((block) => executeTool(block.name, block.input as Record<string, unknown>)),
+    );
+    const toolResults: Anthropic.ToolResultBlockParam[] = toolUseBlocks.map((block, i) => {
+      acumular(execucoes[i].processos);
+      return { type: 'tool_result', tool_use_id: block.id, content: execucoes[i].summary };
+    });
 
     conversationMessages.push({ role: 'user', content: toolResults });
 
