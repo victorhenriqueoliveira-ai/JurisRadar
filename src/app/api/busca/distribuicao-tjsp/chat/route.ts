@@ -5,6 +5,7 @@ import { UnauthorizedError } from '@/lib/errors';
 import { buscarProcessosNovos, defaultDateRange } from '@/lib/distribuicao-tjsp/search';
 import { eprocConsultaPublicaLink } from '@/lib/distribuicao-tjsp/eproc-link';
 import { queryTribunal } from '@/lib/datajud/client';
+import { buscarComunicacoesPorNumeroProcesso } from '@/lib/djen/client';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const TJSP_TRIBUNAL = 'api_publica_tjsp';
@@ -19,11 +20,15 @@ const SYSTEM_PROMPT = `Você é um assistente de prospecção jurídica. Seu tra
 
 1. **buscar_processos_novos** — consulta a Lista de Distribuição TJSP (eproc, 1ª Instância). Retorna TODOS os processos novos distribuídos num período, filtráveis por comarca e classe processual. **NÃO traz nome das partes** (sigilo da distribuição inicial) — só comarca, vara, classe, número do processo e data.
 
-2. **detalhar_processo** — consulta a API oficial do CNJ (DataJud) para UM número de processo específico. Traz assuntos, órgão julgador e o **histórico de movimentações** (andamento do processo até agora). **Nome das partes só aparece ocasionalmente** — o DataJud público do CNJ, por restrição de privacidade, geralmente NÃO expõe nome de partes em processos cíveis recém-distribuídos. NÃO prometa ao usuário que vai trazer nome das partes — trate como um bônus raro, não a regra. O valor real dessa ferramenta é confirmar se o processo já tem movimentação (decisão, mandado expedido, etc.) ou ainda está só na distribuição.
+2. **detalhar_processo** — consulta o DJEN Nacional (CNJ/PJe) e, se não achar nada, cai para o DataJud como alternativa. O DJEN normalmente TRAZ nome das partes (autor, réu, advogados) mesmo para processos recém-distribuídos — é a fonte mais confiável das duas. Quando o processo é sigiloso, o nome vem como "SIGILO" (não existe forma de contornar isso — é segredo de justiça real). Se nem DJEN nem DataJud tiverem nada ainda (processo distribuído há poucas horas), use o linkEproc.
 
-## Quando detalhar_processo não encontra nada
+## Quando detalhar_processo não encontra nada em nenhuma das duas fontes
 
-Isso é comum e esperado — o DataJud tem cobertura e velocidade de sincronização irregulares, variam de dias a **muitas semanas** dependendo do tribunal/comarca, e não há como saber ou prever o prazo exato. **NUNCA invente um prazo específico** (não diga "24-48h", "alguns dias", etc. — você não tem essa informação). Em vez disso, diga que o DataJud ainda não indexou esse processo e **cite literalmente a URL do campo linkEproc** que vem no resultado da ferramenta — é a consulta pública oficial do TJSP para esse processo exato (sistema eproc), já pronta e correta, mostra nome das partes e andamento completo na hora, sem precisar esperar nada. NUNCA sugira e-SAJ, cpopg ou cjsg — são do sistema SAJ antigo, que não processa esses casos (eles tramitam no eproc) e não vai encontrá-los.
+Isso pode acontecer pra processos distribuídos há poucas horas (nem o DJEN nem o DataJud indexaram ainda) — não há prazo previsível. **NUNCA invente um prazo específico** (não diga "24-48h", "alguns dias", etc.). Em vez disso, diga que ainda não foi indexado e **cite literalmente a URL do campo linkEproc** que vem no resultado da ferramenta — é a consulta pública oficial do TJSP para esse processo exato (sistema eproc), já pronta e correta. NUNCA sugira e-SAJ, cpopg ou cjsg — são do sistema SAJ antigo, que não processa esses casos (eles tramitam no eproc) e não vai encontrá-los.
+
+## Processo sigiloso (segredo de justiça)
+
+Se o resultado da ferramenta trouxer processoSigiloso: true, diga claramente ao usuário que o nome das partes está protegido por segredo de justiça — isso é uma característica real do processo, não uma falha ou limitação do sistema.
 
 ## Fluxo de trabalho
 
@@ -31,8 +36,8 @@ Isso é comum e esperado — o DataJud tem cobertura e velocidade de sincroniza�
 
 Para prospecção (usuário sem número de processo ainda):
 1. Primeiro chame **buscar_processos_novos** com os filtros que o usuário pediu (comarca, classe, período — se o usuário não disser datas, não precisa informar, o sistema usa os últimos 30 dias por padrão).
-2. Se encontrar resultados, escolha os até 5 mais relevantes (ou todos, se forem poucos) e chame **detalhar_processo** para cada um, buscando um resumo do andamento (e nome das partes, se por acaso vier).
-3. Responda resumindo os achados: quantos processos novos encontrados, comarca/vara/classe de cada, e se houver nome de parte disponível no detalhamento, destaque-o — mas não finja que sempre vai ter. Para os sem detalhe, mencione o link "Ver no eproc" do card como o caminho pra ver os detalhes agora.
+2. Se encontrar resultados, escolha os até 5 mais relevantes (ou todos, se forem poucos) e chame **detalhar_processo** para cada um — o DJEN costuma trazer nome das partes mesmo pra processos bem recentes.
+3. Responda resumindo os achados: quantos processos novos encontrados, comarca/vara/classe de cada, e destaque o nome da parte passiva (réu/executado) quando disponível — é o alvo da prospecção. Para os poucos casos sem nada ainda disponível, mencione o link "Ver no eproc" do card como o caminho pra ver os detalhes agora.
 4. Se não encontrar nada, sugira ampliar a comarca ou a classe processual.
 
 Você pode chamar as ferramentas várias vezes seguidas, automaticamente, sem pedir confirmação ao usuário.
@@ -92,7 +97,7 @@ const tools: Anthropic.Tool[] = [
   {
     name: 'detalhar_processo',
     description:
-      'Consulta a API oficial do CNJ (DataJud) para um número de processo específico, trazendo assuntos, órgão julgador e histórico de movimentações (andamento). Nome das partes aparece raramente — não é garantido.',
+      'Consulta o DJEN Nacional (e, como alternativa, o DataJud) para um número de processo específico, trazendo nome das partes, classe e órgão. Costuma funcionar mesmo para processos recém-distribuídos.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -171,20 +176,79 @@ async function execBuscarProcessosNovos(input: {
   return { summary, processos };
 }
 
+/** Deduplica destinatários pelo par nome+polo (a mesma parte pode aparecer em várias comunicações). */
+function deduplicarPartes(todas: Array<{ nome: string; polo: string }>): Array<{ nome: string; polo: string }> {
+  const vistos = new Set<string>();
+  const resultado: Array<{ nome: string; polo: string }> = [];
+  for (const p of todas) {
+    const chave = `${p.polo}::${p.nome}`;
+    if (!vistos.has(chave) && p.nome && p.nome !== 'SIGILO') {
+      vistos.add(chave);
+      resultado.push(p);
+    }
+  }
+  return resultado;
+}
+
 async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<{ summary: string; processo: ProcessoCard | null }> {
   const linkEproc = eprocConsultaPublicaLink(input.numeroProcesso);
 
+  // 1ª fonte: DJEN Nacional — busca nativa por numeroProcesso, sem CAPTCHA, cobre
+  // processos recém-distribuídos (o campo `destinatarios` já vem com nome das partes
+  // mesmo no item "Lista de distribuição", cujo texto não tem nomes).
+  try {
+    const comunicacoes = await buscarComunicacoesPorNumeroProcesso(input.numeroProcesso);
+    if (comunicacoes.length > 0) {
+      const maisRecente = comunicacoes[comunicacoes.length - 1];
+      const destinatariosBrutos = comunicacoes.flatMap((c) => c.destinatarios.map((d) => ({ nome: d.nome, polo: d.polo })));
+      const sigiloso = destinatariosBrutos.some((d) => d.nome === 'SIGILO');
+      const partes = deduplicarPartes(destinatariosBrutos);
+
+      const processo: ProcessoCard = {
+        numeroProcesso: maisRecente.numeroProcesso,
+        comarca: maisRecente.nomeOrgao,
+        vara: maisRecente.nomeOrgao,
+        classe: maisRecente.nomeClasse,
+        dataDistribuicao: comunicacoes[0].dataDisponibilizacao,
+        partes: partes.length > 0 ? partes : undefined,
+        detalhado: true,
+        linkEproc,
+      };
+
+      return {
+        summary: JSON.stringify({
+          encontradoNoDJEN: true,
+          numeroProcesso: processo.numeroProcesso,
+          classe: processo.classe,
+          orgao: processo.comarca,
+          partes: processo.partes,
+          processoSigiloso: sigiloso || undefined,
+          instrucao: sigiloso
+            ? 'O nome das partes não está disponível porque o processo está em SEGREDO DE JUSTIÇA — informe isso claramente ao usuário, não é falha do sistema.'
+            : undefined,
+          comunicacoesEncontradas: comunicacoes.map((c) => ({ tipo: c.tipoComunicacao, data: c.dataDisponibilizacao })),
+          linkEproc,
+        }),
+        processo,
+      };
+    }
+  } catch {
+    // DJEN indisponível — cai para DataJud abaixo
+  }
+
+  // 2ª fonte (fallback): DataJud do CNJ — às vezes tem assuntos/movimentações que o DJEN não traz.
   try {
     const { hits } = await queryTribunal(TJSP_TRIBUNAL, { numeroProcesso: input.numeroProcesso }, 0, 1);
     const hit = hits[0];
     if (!hit) {
       return {
         summary: JSON.stringify({
+          encontradoNoDJEN: false,
           encontradoNoDataJud: false,
           numeroProcesso: input.numeroProcesso,
           linkEproc,
           instrucao:
-            'Não encontrado no DataJud (cobertura/sincronização irregular, sem prazo previsível — não invente prazo). ' +
+            'Não encontrado no DJEN nem no DataJud (cobertura/sincronização irregular, sem prazo previsível — não invente prazo). ' +
             'Responda ao usuário citando literalmente a URL em "linkEproc" acima como o link pra ver os detalhes agora na consulta pública oficial do TJSP (sistema eproc). Não sugira nenhuma outra URL.',
         }),
         processo: { numeroProcesso: input.numeroProcesso, detalhado: false, linkEproc },
@@ -206,6 +270,7 @@ async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<
 
     return {
       summary: JSON.stringify({
+        encontradoNoDJEN: false,
         encontradoNoDataJud: true,
         numeroProcesso: processo.numeroProcesso,
         classe: processo.classe,
@@ -220,7 +285,7 @@ async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<
   } catch (err) {
     return {
       summary: JSON.stringify({
-        erro: `Erro ao consultar DataJud: ${err instanceof Error ? err.message : 'erro desconhecido'}`,
+        erro: `Erro ao consultar DJEN/DataJud: ${err instanceof Error ? err.message : 'erro desconhecido'}`,
         linkEproc,
         instrucao: 'Cite a URL em "linkEproc" como alternativa pra ver os detalhes agora.',
       }),
