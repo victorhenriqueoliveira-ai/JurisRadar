@@ -20,11 +20,15 @@ const SYSTEM_PROMPT = `Você é um assistente de prospecção jurídica. Seu tra
 
 2. **detalhar_processo** — consulta a API oficial do CNJ (DataJud) para UM número de processo específico. Traz assuntos, órgão julgador e o **histórico de movimentações** (andamento do processo até agora). **Nome das partes só aparece ocasionalmente** — o DataJud público do CNJ, por restrição de privacidade, geralmente NÃO expõe nome de partes em processos cíveis recém-distribuídos. NÃO prometa ao usuário que vai trazer nome das partes — trate como um bônus raro, não a regra. O valor real dessa ferramenta é confirmar se o processo já tem movimentação (decisão, mandado expedido, etc.) ou ainda está só na distribuição.
 
+## Quando detalhar_processo não encontra nada
+
+Isso é comum e esperado — o DataJud tem cobertura e velocidade de sincronização irregulares, variam de dias a **muitas semanas** dependendo do tribunal/comarca, e não há como saber ou prever o prazo exato. **NUNCA invente um prazo específico** (não diga "24-48h", "alguns dias", etc. — você não tem essa informação). Em vez disso, diga que o DataJud ainda não indexou esse processo e lembre o usuário que cada resultado já vem com um link **"Ver no eproc"** — a consulta pública oficial do TJSP para esse processo (sistema eproc, onde esses processos tramitam de verdade), que mostra nome das partes e andamento completo na hora, sem precisar esperar nada. NUNCA sugira e-SAJ ou cpopg — são do sistema SAJ antigo, que não processa esses casos (eles tramitam no eproc) e não vai encontrá-los.
+
 ## Fluxo de trabalho
 
 1. Primeiro chame **buscar_processos_novos** com os filtros que o usuário pediu (comarca, classe, período — se o usuário não disser datas, não precisa informar, o sistema usa os últimos 30 dias por padrão).
 2. Se encontrar resultados, escolha os até 5 mais relevantes (ou todos, se forem poucos) e chame **detalhar_processo** para cada um, buscando um resumo do andamento (e nome das partes, se por acaso vier).
-3. Responda resumindo os achados: quantos processos novos encontrados, comarca/vara/classe de cada, e se houver nome de parte disponível no detalhamento, destaque-o — mas não finja que sempre vai ter.
+3. Responda resumindo os achados: quantos processos novos encontrados, comarca/vara/classe de cada, e se houver nome de parte disponível no detalhamento, destaque-o — mas não finja que sempre vai ter. Para os sem detalhe, mencione o link "Ver no eproc" do card como o caminho pra ver os detalhes agora.
 4. Se não encontrar nada, sugira ampliar a comarca ou a classe processual.
 
 Você pode chamar as ferramentas várias vezes seguidas, automaticamente, sem pedir confirmação ao usuário.
@@ -156,7 +160,13 @@ async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<
     const { hits } = await queryTribunal(TJSP_TRIBUNAL, { numeroProcesso: input.numeroProcesso }, 0, 1);
     const hit = hits[0];
     if (!hit) {
-      return { summary: 'Processo não encontrado no DataJud (pode ainda não estar indexado).', processo: null };
+      return {
+        summary:
+          'Processo não encontrado no DataJud — cobertura/sincronização irregular, sem prazo previsível, não invente um prazo. ' +
+          'Lembre o usuário que o card desse processo já tem o link "Ver no eproc" (consulta pública oficial do TJSP, sem login) ' +
+          'com nome das partes e andamento completo na hora. Não sugira e-SAJ/cpopg — é do sistema SAJ antigo, não encontra esses processos.',
+        processo: null,
+      };
     }
 
     const processo: ProcessoCard = {

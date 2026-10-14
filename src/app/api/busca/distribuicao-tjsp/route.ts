@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireOrgContext } from '@/lib/org-context';
 import { UnauthorizedError } from '@/lib/errors';
 import { buscarProcessosNovos, defaultDateRange } from '@/lib/distribuicao-tjsp/search';
+import { eprocConsultaPublicaLink } from '@/lib/distribuicao-tjsp/eproc-link';
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,9 +41,7 @@ export async function GET(request: NextRequest) {
         vara: r.vara,
         classe: r.classe,
         dataDistribuicao: r.dataDistribuicao,
-        linkEsaj: `https://esaj.tjsp.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC&numeroDigitoAnoUnificado=${encodeURIComponent(
-          r.numeroProcesso,
-        )}`,
+        linkEproc: eprocConsultaPublicaLink(r.numeroProcesso),
       })),
       total,
       page,

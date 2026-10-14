@@ -28,7 +28,7 @@ interface ProcessoNovo {
   vara: string | null;
   classe: string;
   dataDistribuicao: string;
-  linkEsaj: string;
+  linkEproc: string;
 }
 
 interface SearchResult {
@@ -147,8 +147,8 @@ function DistribuicaoTjspPageContent() {
           ideal para prospectar clientes novos antes da concorrência.
         </p>
         <p>
-          Não traz nome das partes (sigilo da distribuição inicial). Use o botão <strong>&quot;Ver no e-SAJ&quot;</strong>{' '}
-          em cada resultado pra consultar os detalhes do processo.
+          Não traz nome das partes (sigilo da distribuição inicial). Use o botão <strong>&quot;Ver no eproc&quot;</strong>{' '}
+          em cada resultado pra consultar os detalhes do processo direto no sistema do TJSP.
         </p>
       </div>
 
@@ -297,12 +297,12 @@ function DistribuicaoTjspPageContent() {
                       <td className="px-4 py-2 text-gray-700">{p.classe}</td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <a
-                          href={p.linkEsaj}
+                          href={p.linkEproc}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:text-blue-800 font-medium text-xs"
                         >
-                          Ver no e-SAJ ↗
+                          Ver no eproc ↗
                         </a>
                       </td>
                     </tr>

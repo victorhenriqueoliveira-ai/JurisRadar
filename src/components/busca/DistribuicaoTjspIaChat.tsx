@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { Plus, Menu, X, Send, Scale, MapPin, FileText } from 'lucide-react';
+import { eprocConsultaPublicaLink } from '@/lib/distribuicao-tjsp/eproc-link';
 
 // ─── Markdown leve (negrito, títulos ##, listas -) — sem dependência externa ──
 
@@ -88,8 +89,6 @@ interface ConversationSummary {
 // Formato Anthropic MessageParam — tratado como opaco no cliente, só repassado ao servidor
 type ApiMessage = unknown;
 
-const ESAJ_LINK = (numeroProcesso: string) =>
-  `https://esaj.tjsp.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC&numeroDigitoAnoUnificado=${encodeURIComponent(numeroProcesso)}`;
 
 function ProcessoCardView({ p }: { p: ProcessoCard }) {
   const reu = p.partes?.find((parte) => /passivo|r[eé]u|executado/i.test(parte.polo));
@@ -124,12 +123,12 @@ function ProcessoCardView({ p }: { p: ProcessoCard }) {
         <p className="text-xs text-gray-500">{p.assuntos.slice(0, 2).join(', ')}</p>
       )}
       <a
-        href={ESAJ_LINK(p.numeroProcesso)}
+        href={eprocConsultaPublicaLink(p.numeroProcesso)}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium pt-0.5"
       >
-        <FileText className="w-3 h-3" /> Ver no e-SAJ ↗
+        <FileText className="w-3 h-3" /> Ver no eproc ↗
       </a>
     </div>
   );
