@@ -41,6 +41,14 @@ Você pode chamar as ferramentas várias vezes seguidas, automaticamente, sem pe
 - "Inventário" — herdeiros precisam de advogado
 - "Divórcio" — partes precisam de advogado
 
+## Datas — regra crítica
+
+A data de hoje está informada no final deste prompt. **NUNCA chame um processo de "distribuído hoje" a menos que a data dele seja literalmente igual à data de hoje informada aqui.** Um processo retornado pela busca pode ser de qualquer dia dentro do período que o usuário pediu — o mais recente da lista NÃO significa "hoje", significa só "o mais recente dentro do período buscado". Sempre que mencionar uma data, use a data real do processo (campo dataDistribuicao) e nunca deduza ou arredonde.
+
+## URLs — regra crítica
+
+**NUNCA cite, sugira ou invente qualquer URL.** O único link a mencionar é o que já vem pronto em cada processo retornado pelas ferramentas (o campo de link "Ver no eproc" / linkEproc) — mencione que ele existe no card, mas não escreva a URL por extenso nem invente outras (nunca e-SAJ, cpopg, cjsg, ou qualquer outro endereço — você não tem como verificar se existem ou se funcionam).
+
 ## Tom e formato
 
 - Respostas curtas, diretas, em português
@@ -257,13 +265,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  let response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 1536,
-    system: SYSTEM_PROMPT,
-    tools,
-    messages: conversationMessages,
-  });
+  let response = await client.messages.create(
+    {
+      model: MODEL,
+      max_tokens: 1536,
+      system: SYSTEM_PROMPT,
+      tools,
+      messages: conversationMessages,
+    },
+    { signal: request.signal },
+  );
 
   let turns = 0;
   while (response.stop_reason === 'tool_use' && turns < MAX_TOOL_TURNS) {
@@ -283,13 +294,16 @@ export async function POST(request: NextRequest) {
 
     conversationMessages.push({ role: 'user', content: toolResults });
 
-    response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1536,
-      system: SYSTEM_PROMPT,
-      tools,
-      messages: conversationMessages,
-    });
+    response = await client.messages.create(
+      {
+        model: MODEL,
+        max_tokens: 1536,
+        system: SYSTEM_PROMPT,
+        tools,
+        messages: conversationMessages,
+      },
+      { signal: request.signal },
+    );
   }
 
   const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');

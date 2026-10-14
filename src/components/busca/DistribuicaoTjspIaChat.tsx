@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
-import { Plus, Menu, X, Send, Scale, MapPin, FileText } from 'lucide-react';
+import { Plus, Menu, X, Send, Square, Scale, MapPin, FileText } from 'lucide-react';
 import { eprocConsultaPublicaLink } from '@/lib/distribuicao-tjsp/eproc-link';
 
 // ─── Markdown leve (negrito, títulos ##, listas -) — sem dependência externa ──
@@ -143,6 +143,7 @@ export default function DistribuicaoTjspIaChat() {
   const [isSending, setIsSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false); // drawer mobile
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const loadConversations = useCallback(() => {
     fetch('/api/busca/distribuicao-tjsp/conversations')
@@ -195,11 +196,15 @@ export default function DistribuicaoTjspIaChat() {
     const novasMensagens: ChatMessage[] = [...messages, { role: 'user', text: texto }];
     setMessages(novasMensagens);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const res = await fetch('/api/busca/distribuicao-tjsp/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages, userMessage: texto }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -249,13 +254,22 @@ export default function DistribuicaoTjspIaChat() {
         loadConversations();
       }
     } catch (e) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: `Erro: ${e instanceof Error ? e.message : 'desconhecido'}` },
-      ]);
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setMessages((prev) => [...prev, { role: 'assistant', text: 'Busca interrompida.' }]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', text: `Erro: ${e instanceof Error ? e.message : 'desconhecido'}` },
+        ]);
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsSending(false);
     }
+  }
+
+  function handleParar() {
+    abortControllerRef.current?.abort();
   }
 
   return (
@@ -398,14 +412,26 @@ export default function DistribuicaoTjspIaChat() {
               disabled={isSending}
               className="flex-1 resize-none px-3 py-2.5 border border-gray-300 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 max-h-32"
             />
-            <button
-              type="submit"
-              disabled={isSending || !input.trim()}
-              className="shrink-0 p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              aria-label="Enviar"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+            {isSending ? (
+              <button
+                type="button"
+                onClick={handleParar}
+                className="shrink-0 p-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl transition-colors"
+                aria-label="Parar"
+                title="Parar geração"
+              >
+                <Square className="w-4 h-4" fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="shrink-0 p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                aria-label="Enviar"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            )}
           </form>
         </div>
       </div>
