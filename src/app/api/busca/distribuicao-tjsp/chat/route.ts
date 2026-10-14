@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { requireOrgContext } from '@/lib/org-context';
 import { UnauthorizedError } from '@/lib/errors';
 import { buscarProcessosNovos, defaultDateRange } from '@/lib/distribuicao-tjsp/search';
+import { eprocConsultaPublicaLink } from '@/lib/distribuicao-tjsp/eproc-link';
 import { queryTribunal } from '@/lib/datajud/client';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -22,10 +23,13 @@ const SYSTEM_PROMPT = `Você é um assistente de prospecção jurídica. Seu tra
 
 ## Quando detalhar_processo não encontra nada
 
-Isso é comum e esperado — o DataJud tem cobertura e velocidade de sincronização irregulares, variam de dias a **muitas semanas** dependendo do tribunal/comarca, e não há como saber ou prever o prazo exato. **NUNCA invente um prazo específico** (não diga "24-48h", "alguns dias", etc. — você não tem essa informação). Em vez disso, diga que o DataJud ainda não indexou esse processo e lembre o usuário que cada resultado já vem com um link **"Ver no eproc"** — a consulta pública oficial do TJSP para esse processo (sistema eproc, onde esses processos tramitam de verdade), que mostra nome das partes e andamento completo na hora, sem precisar esperar nada. NUNCA sugira e-SAJ ou cpopg — são do sistema SAJ antigo, que não processa esses casos (eles tramitam no eproc) e não vai encontrá-los.
+Isso é comum e esperado — o DataJud tem cobertura e velocidade de sincronização irregulares, variam de dias a **muitas semanas** dependendo do tribunal/comarca, e não há como saber ou prever o prazo exato. **NUNCA invente um prazo específico** (não diga "24-48h", "alguns dias", etc. — você não tem essa informação). Em vez disso, diga que o DataJud ainda não indexou esse processo e **cite literalmente a URL do campo linkEproc** que vem no resultado da ferramenta — é a consulta pública oficial do TJSP para esse processo exato (sistema eproc), já pronta e correta, mostra nome das partes e andamento completo na hora, sem precisar esperar nada. NUNCA sugira e-SAJ, cpopg ou cjsg — são do sistema SAJ antigo, que não processa esses casos (eles tramitam no eproc) e não vai encontrá-los.
 
 ## Fluxo de trabalho
 
+**Se o usuário já der um número de processo específico (ex.: "traga detalhes do processo 4022559-39.2026.8.26.0011" ou responder apontando pra um processo de uma mensagem anterior), chame detalhar_processo DIRETO com esse número — NUNCA chame buscar_processos_novos nesse caso.** buscar_processos_novos é só para quando o usuário pede uma prospecção por comarca/classe/período (ainda não tem um número em mãos) — chamá-la sem necessidade pode disparar indexação de vários dias de PDF e demorar muito à toa.
+
+Para prospecção (usuário sem número de processo ainda):
 1. Primeiro chame **buscar_processos_novos** com os filtros que o usuário pediu (comarca, classe, período — se o usuário não disser datas, não precisa informar, o sistema usa os últimos 30 dias por padrão).
 2. Se encontrar resultados, escolha os até 5 mais relevantes (ou todos, se forem poucos) e chame **detalhar_processo** para cada um, buscando um resumo do andamento (e nome das partes, se por acaso vier).
 3. Responda resumindo os achados: quantos processos novos encontrados, comarca/vara/classe de cada, e se houver nome de parte disponível no detalhamento, destaque-o — mas não finja que sempre vai ter. Para os sem detalhe, mencione o link "Ver no eproc" do card como o caminho pra ver os detalhes agora.
@@ -47,7 +51,7 @@ A data de hoje está informada no final deste prompt. **NUNCA chame um processo 
 
 ## URLs — regra crítica
 
-**NUNCA cite, sugira ou invente qualquer URL.** O único link a mencionar é o que já vem pronto em cada processo retornado pelas ferramentas (o campo de link "Ver no eproc" / linkEproc) — mencione que ele existe no card, mas não escreva a URL por extenso nem invente outras (nunca e-SAJ, cpopg, cjsg, ou qualquer outro endereço — você não tem como verificar se existem ou se funcionam).
+A ÚNICA URL que você pode citar é o valor literal do campo **linkEproc** que vem no resultado das ferramentas (buscar_processos_novos ou detalhar_processo) — ela já é real e específica para aquele processo, pode (e deve) ser escrita por extenso quando o usuário pedir detalhes ou quando o processo não for encontrado no DataJud. **NUNCA invente, sugira ou escreva qualquer OUTRA URL** — nunca e-SAJ, cpopg, cjsg, ou qualquer endereço que não veio literalmente de um campo linkEproc de uma chamada de ferramenta real. Se não tiver um linkEproc à mão pro processo que o usuário está perguntando, chame detalhar_processo primeiro pra consegui-lo — não responda sem ele.
 
 ## Tom e formato
 
@@ -115,6 +119,8 @@ interface ProcessoCard {
   assuntos?: string[];
   ultimaMovimentacao?: { data: string; descricao: string } | null;
   detalhado: boolean;
+  // Link real da consulta pública do eproc — SEMPRE presente, usado pela IA como única URL permitida
+  linkEproc: string;
 }
 
 async function execBuscarProcessosNovos(input: {
@@ -142,6 +148,7 @@ async function execBuscarProcessosNovos(input: {
     classe: r.classe,
     dataDistribuicao: r.dataDistribuicao,
     detalhado: false,
+    linkEproc: eprocConsultaPublicaLink(r.numeroProcesso),
   }));
 
   const avisoIndexacao = diasNaoIndexados.length > 0
@@ -156,6 +163,7 @@ async function execBuscarProcessosNovos(input: {
       vara: p.vara,
       classe: p.classe,
       dataDistribuicao: p.dataDistribuicao,
+      linkEproc: p.linkEproc,
     })),
     aviso: avisoIndexacao || undefined,
   });
@@ -164,16 +172,22 @@ async function execBuscarProcessosNovos(input: {
 }
 
 async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<{ summary: string; processo: ProcessoCard | null }> {
+  const linkEproc = eprocConsultaPublicaLink(input.numeroProcesso);
+
   try {
     const { hits } = await queryTribunal(TJSP_TRIBUNAL, { numeroProcesso: input.numeroProcesso }, 0, 1);
     const hit = hits[0];
     if (!hit) {
       return {
-        summary:
-          'Processo não encontrado no DataJud — cobertura/sincronização irregular, sem prazo previsível, não invente um prazo. ' +
-          'Lembre o usuário que o card desse processo já tem o link "Ver no eproc" (consulta pública oficial do TJSP, sem login) ' +
-          'com nome das partes e andamento completo na hora. Não sugira e-SAJ/cpopg — é do sistema SAJ antigo, não encontra esses processos.',
-        processo: null,
+        summary: JSON.stringify({
+          encontradoNoDataJud: false,
+          numeroProcesso: input.numeroProcesso,
+          linkEproc,
+          instrucao:
+            'Não encontrado no DataJud (cobertura/sincronização irregular, sem prazo previsível — não invente prazo). ' +
+            'Responda ao usuário citando literalmente a URL em "linkEproc" acima como o link pra ver os detalhes agora na consulta pública oficial do TJSP (sistema eproc). Não sugira nenhuma outra URL.',
+        }),
+        processo: { numeroProcesso: input.numeroProcesso, detalhado: false, linkEproc },
       };
     }
 
@@ -187,23 +201,30 @@ async function execDetalharProcesso(input: { numeroProcesso: string }): Promise<
       assuntos: hit.assuntos,
       ultimaMovimentacao: hit.ultimaMovimentacao ?? null,
       detalhado: true,
+      linkEproc,
     };
 
     return {
       summary: JSON.stringify({
+        encontradoNoDataJud: true,
         numeroProcesso: processo.numeroProcesso,
         classe: processo.classe,
         assuntos: processo.assuntos,
         orgaoJulgador: hit.orgaoJulgador,
         partes: processo.partes,
         ultimaMovimentacao: processo.ultimaMovimentacao,
+        linkEproc,
       }),
       processo,
     };
   } catch (err) {
     return {
-      summary: `Erro ao consultar DataJud: ${err instanceof Error ? err.message : 'erro desconhecido'}`,
-      processo: null,
+      summary: JSON.stringify({
+        erro: `Erro ao consultar DataJud: ${err instanceof Error ? err.message : 'erro desconhecido'}`,
+        linkEproc,
+        instrucao: 'Cite a URL em "linkEproc" como alternativa pra ver os detalhes agora.',
+      }),
+      processo: { numeroProcesso: input.numeroProcesso, detalhado: false, linkEproc },
     };
   }
 }
