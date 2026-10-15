@@ -73,6 +73,58 @@ const initialState: State = {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
+const AUTO_SYNC_STORAGE_KEY = 'jurisradar_crm_autosync_at';
+const AUTO_SYNC_MIN_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4h
+const AUTO_SYNC_LOOKBACK_DAYS = 30;
+const AUTO_SYNC_PAGE_SIZE = 100;
+const AUTO_SYNC_MAX_PAGES = 10;
+
+interface DjenPublicacao {
+  id: number;
+  data_disponibilizacao: string;
+  siglaTribunal: string;
+  tipoComunicacao: string;
+  nomeOrgao: string;
+  numero_processo: string;
+  numeroprocessocommascara: string;
+  nomeClasse?: string;
+  texto?: string;
+}
+
+/**
+ * Busca publicações recentes do DJEN diretamente do navegador do advogado —
+ * a API comunicaapi.pje.jus.br bloqueia IPs de datacenter (Vercel), então
+ * esse fetch precisa rodar no cliente, não no servidor.
+ */
+async function buscarDjenNoNavegador(oabNumero: string, oabEstado: string): Promise<DjenPublicacao[]> {
+  const desde = new Date();
+  desde.setDate(desde.getDate() - AUTO_SYNC_LOOKBACK_DAYS);
+  const dataInicio = desde.toISOString().slice(0, 10);
+
+  const all: DjenPublicacao[] = [];
+  let totalApi = 0;
+
+  for (let pagina = 1; pagina <= AUTO_SYNC_MAX_PAGES; pagina++) {
+    const params = new URLSearchParams({
+      numeroOAB: oabNumero,
+      siglaOAB: oabEstado.toUpperCase(),
+      dataDisponibilizacaoInicio: dataInicio,
+      pagina: String(pagina),
+      qtd: String(AUTO_SYNC_PAGE_SIZE),
+    });
+    const res = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`DJEN retornou ${res.status}`);
+    const data = await res.json() as { count: number; items: DjenPublicacao[] };
+    totalApi = data.count;
+    all.push(...data.items);
+    if (all.length >= totalApi || data.items.length < AUTO_SYNC_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 export default function CrmPage() {
   const [filters, setFilters] = useState<FilterValues>({});
   const [sort, setSort] = useState<SortState>({ field: 'proximoPrazo', direction: 'asc' });
@@ -133,6 +185,62 @@ export default function CrmPage() {
     fetchProcessos(filters, sort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, sort]);
+
+  // ── Auto-sync DJEN no navegador ──────────────────────────────────────────────
+  // Roda no cliente (não no servidor) porque comunicaapi.pje.jus.br bloqueia
+  // IPs de datacenter. Throttle de 4h via localStorage para não repetir a cada
+  // navegação entre abas do app.
+  useEffect(() => {
+    let cancelado = false;
+
+    async function autoSync() {
+      try {
+        const ultimaAutoSync = Number(localStorage.getItem(AUTO_SYNC_STORAGE_KEY) ?? '0');
+        if (Date.now() - ultimaAutoSync < AUTO_SYNC_MIN_INTERVAL_MS) return;
+
+        const meRes = await fetch('/api/users/me');
+        if (!meRes.ok) return;
+        const me = await meRes.json() as { oabNumero?: string | null; oabEstado?: string | null };
+        if (!me.oabNumero || !me.oabEstado) return;
+
+        const items = await buscarDjenNoNavegador(me.oabNumero, me.oabEstado);
+        if (cancelado) return;
+
+        localStorage.setItem(AUTO_SYNC_STORAGE_KEY, String(Date.now()));
+        if (items.length === 0) return;
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const itemsCompactos = items.map(({ texto, ...rest }) => rest);
+        const BATCH = 200;
+        let totalAtualizado = 0;
+
+        for (let i = 0; i < itemsCompactos.length; i += BATCH) {
+          const lote = itemsCompactos.slice(i, i + BATCH);
+          const res = await fetch('/api/processos/import-djen', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: lote }),
+          });
+          if (!res.ok) break;
+          const data = await res.json() as { total?: number };
+          totalAtualizado += data.total ?? 0;
+        }
+
+        if (!cancelado && totalAtualizado > 0) {
+          fetchProcessos(filters, sort);
+        }
+      } catch {
+        // Falha silenciosa — não bloqueia o uso do CRM, o advogado ainda pode
+        // sincronizar manualmente pelo botão em cada processo.
+      }
+    }
+
+    autoSync();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Sheet / row click ─────────────────────────────────────────────────────
 

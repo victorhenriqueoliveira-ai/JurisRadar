@@ -10,10 +10,11 @@ import { requireOrgContext } from '@/lib/org-context';
 import { UnauthorizedError, ForbiddenError, NotFoundError } from '@/lib/errors';
 import { getProcesso } from '@/services/processos';
 import { queryTribunal } from '@/lib/datajud/client';
-import { insertMovimentacoesIdempotente } from '@/lib/processos/upsert';
+import { insertMovimentacoesIdempotente, upsertProcesso } from '@/lib/processos/upsert';
 import { db } from '@/db';
 import { movimentacoes } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import type { ProcessoResult } from '@/lib/datajud/types';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -84,6 +85,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
 
     let movs: { data: string; descricao: string; fonte: 'datajud' }[] = [];
+    let hit: ProcessoResult | undefined;
     try {
       const { hits } = await queryTribunal(
         tribunalIndex,
@@ -92,8 +94,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         1,
       );
 
-      if (hits.length > 0 && hits[0].movimentos) {
-        movs = hits[0].movimentos.map((m) => ({
+      hit = hits[0];
+      if (hit?.movimentos) {
+        movs = hit.movimentos.map((m) => ({
           data: m.data,
           descricao: m.descricao,
           fonte: 'datajud' as const,
@@ -116,6 +119,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
           fonte: 'datajud',
         })),
       );
+    }
+
+    if (hit) {
+      await upsertProcesso({ orgId: ctx.orgId, processo: hit, fonteSync: ['datajud'] });
     }
 
     const atualizadas = await db
