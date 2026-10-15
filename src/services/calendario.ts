@@ -21,6 +21,8 @@ export interface EventoCalendarioItem {
   tribunal?: string | null
   tipo: TipoEvento
   titulo: string
+  /** true = registro editável em eventos_calendario; false = derivado de uma movimentação real (histórico, não pode ser movido) */
+  editavel?: boolean
   data: string // YYYY-MM-DD
 }
 
@@ -126,6 +128,7 @@ export async function getEventosByPeriod(
         ? `${r.tipo}: ${r.descricao.slice(0, 60)}`
         : r.descricao.slice(0, 80),
       data: r.data,
+      editavel: false,
     }))
 
   const eventosExplicitos: EventoCalendarioItem[] = eventoRows.map((r) => ({
@@ -136,6 +139,7 @@ export async function getEventosByPeriod(
     tipo: r.tipo,
     titulo: r.titulo,
     data: r.data,
+    editavel: true,
   }))
 
   return [...eventosExplicitos, ...movEventos].sort((a, b) => a.data.localeCompare(b.data))

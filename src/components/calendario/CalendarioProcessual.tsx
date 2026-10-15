@@ -48,8 +48,12 @@ export interface CalendarioEvento {
   numeroCnj?: string;
   tribunal?: string | null;
   horaInicio?: string | null;
+  horaFim?: string | null;
+  descricao?: string | null;
   pessoal?: boolean;
   fonte?: string;
+  /** eventos de processo: só os explícitos (tabela eventos_calendario) podem ser movidos/editados */
+  editavel?: boolean;
 }
 
 export interface CalendarioProcessualProps {
@@ -84,6 +88,7 @@ function mapEventos(eventos: EventoCalendarioItem[]): CalendarioEvento[] {
       processoId: ev.processoId,
       numeroCnj: ev.numeroCnj,
       tribunal: ev.tribunal,
+      editavel: ev.editavel ?? false,
     };
   });
 }
@@ -100,6 +105,8 @@ function mapEventosAgenda(eventos: EventoAgenda[]): CalendarioEvento[] {
       tipo: ev.tipo,
       data: ev.data,
       horaInicio: ev.horaInicio,
+      horaFim: ev.horaFim,
+      descricao: ev.descricao,
       pessoal: true,
       fonte: ev.fonte ?? 'agenda',
     };
@@ -115,21 +122,27 @@ const TIPOS_EVENTO_PESSOAL = [
 ];
 
 function NovoEventoDialog({
+  eventoExistente,
   dataInicial,
   onSave,
+  onDelete,
   onClose,
 }: {
+  eventoExistente?: CalendarioEvento;
   dataInicial?: string;
   onSave: (ev: EventoAgenda) => void;
+  onDelete?: (id: string) => void;
   onClose: () => void;
 }) {
-  const [titulo, setTitulo] = useState('');
-  const [data, setData] = useState(dataInicial ?? new Date().toISOString().slice(0, 10));
-  const [horaInicio, setHoraInicio] = useState('09:00');
-  const [horaFim, setHoraFim] = useState('10:00');
-  const [tipo, setTipo] = useState('pessoal');
-  const [descricao, setDescricao] = useState('');
+  const editando = Boolean(eventoExistente);
+  const [titulo, setTitulo] = useState(eventoExistente?.title ?? '');
+  const [data, setData] = useState(eventoExistente?.data ?? dataInicial ?? new Date().toISOString().slice(0, 10));
+  const [horaInicio, setHoraInicio] = useState(eventoExistente?.horaInicio ?? '09:00');
+  const [horaFim, setHoraFim] = useState(eventoExistente?.horaFim ?? '10:00');
+  const [tipo, setTipo] = useState(eventoExistente?.tipo ?? 'pessoal');
+  const [descricao, setDescricao] = useState(eventoExistente?.descricao ?? '');
   const [saving, setSaving] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [erro, setErro] = useState('');
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/20 focus:border-[#0f2d5e] bg-white';
@@ -138,6 +151,25 @@ function NovoEventoDialog({
     if (!titulo.trim()) { setErro('Título obrigatório'); return; }
     setSaving(true); setErro('');
     try {
+      if (editando && eventoExistente) {
+        const res = await fetch(`/api/calendario/eventos/${eventoExistente.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fonte: 'agenda',
+            titulo: titulo.trim(),
+            data,
+            horaInicio,
+            horaFim,
+            tipo,
+            descricao: descricao || undefined,
+          }),
+        });
+        if (!res.ok) { const j = await res.json(); setErro(j.error ?? 'Erro ao salvar'); return; }
+        onSave({ id: eventoExistente.id, titulo: titulo.trim(), data, horaInicio, horaFim, tipo, descricao, fonte: 'agenda' });
+        return;
+      }
+
       const res = await fetch('/api/calendario/eventos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,11 +182,22 @@ function NovoEventoDialog({
     finally { setSaving(false); }
   }
 
+  async function handleDelete() {
+    if (!eventoExistente || !onDelete) return;
+    setExcluindo(true); setErro('');
+    try {
+      const res = await fetch(`/api/calendario/eventos/${eventoExistente.id}?fonte=agenda`, { method: 'DELETE' });
+      if (!res.ok) { const j = await res.json(); setErro(j.error ?? 'Erro ao excluir'); return; }
+      onDelete(eventoExistente.id);
+    } catch { setErro('Erro de conexão'); }
+    finally { setExcluindo(false); }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: '#fff', borderRadius: '1rem', padding: '1.5rem', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f2d5e', fontFamily: 'Manrope, sans-serif' }}>Novo evento</h2>
+          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f2d5e', fontFamily: 'Manrope, sans-serif' }}>{editando ? 'Editar evento' : 'Novo evento'}</h2>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#9ca3af' }}>×</button>
         </div>
 
@@ -192,13 +235,25 @@ function NovoEventoDialog({
           {erro && <p style={{ color: '#dc2626', fontSize: '0.8125rem', margin: 0 }}>{erro}</p>}
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose} style={{ padding: '0.5rem 1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem', background: 'transparent', fontSize: '0.875rem', cursor: 'pointer', color: '#374151' }}>
-            Cancelar
-          </button>
-          <button type="button" onClick={handleSave} disabled={saving} style={{ padding: '0.5rem 1.25rem', border: 'none', borderRadius: '0.5rem', background: '#0f2d5e', color: '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: editando ? 'space-between' : 'flex-end' }}>
+          {editando && onDelete && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={excluindo || saving}
+              style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '0.5rem', background: 'transparent', color: '#dc2626', fontSize: '0.875rem', fontWeight: 600, cursor: excluindo ? 'not-allowed' : 'pointer', opacity: excluindo ? 0.7 : 1 }}
+            >
+              {excluindo ? 'Excluindo…' : 'Excluir'}
+            </button>
+          )}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="button" onClick={onClose} style={{ padding: '0.5rem 1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem', background: 'transparent', fontSize: '0.875rem', cursor: 'pointer', color: '#374151' }}>
+              Cancelar
+            </button>
+            <button type="button" onClick={handleSave} disabled={saving || excluindo} style={{ padding: '0.5rem 1.25rem', border: 'none', borderRadius: '0.5rem', background: '#0f2d5e', color: '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -215,6 +270,7 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
   const [eventosAgendaList, setEventosAgendaList] = useState<EventoAgenda[]>([]);
   const [novoEventoDialog, setNovoEventoDialog] = useState(false);
   const [novoEventoData, setNovoEventoData] = useState<string | undefined>();
+  const [eventoEditando, setEventoEditando] = useState<CalendarioEvento | undefined>();
   const [processEventos, setProcessEventos] = useState<EventoCalendarioItem[]>(eventos);
   const [focoDoDia, setFocoDoDia] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -266,39 +322,78 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
       .catch(() => {});
   }, []);
 
-  // Drag & Drop handler
+  // Reverte uma mudança otimista de data, no estado certo (agenda pessoal vs evento de processo)
+  const revertData = useCallback((event: CalendarioEvento) => {
+    if (event.pessoal) {
+      setEventosAgendaList((prev) => prev.map((ev) => (ev.id === event.id ? { ...ev, data: event.data } : ev)));
+    } else {
+      setProcessEventos((prev) => prev.map((ev) => (ev.id === event.id ? { ...ev, data: event.data } : ev)));
+    }
+  }, []);
+
+  // Drag & Drop handler — move tanto eventos de agenda pessoal quanto eventos
+  // de processo explícitos (editavel=true). Movimentações reais (histórico do
+  // processo, editavel=false) não são arrastáveis.
   const handleEventDrop = useCallback(async ({ event, start }: { event: CalendarioEvento; start: Date | string }) => {
-    if (!event.fonte) return;
+    if (!event.pessoal && !event.editavel) return;
     const novaData = new Date(start).toISOString().slice(0, 10);
+    const fonte = event.pessoal ? (event.fonte ?? 'agenda') : 'calendario';
 
     // Optimistic update
+    if (event.pessoal) {
+      setEventosAgendaList((prev) => prev.map((ev) => (ev.id === event.id ? { ...ev, data: novaData } : ev)));
+    } else {
+      setProcessEventos((prev) => prev.map((ev) => (ev.id === event.id ? { ...ev, data: novaData } : ev)));
+    }
+
+    try {
+      const res = await fetch(`/api/calendario/eventos/${event.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fonte, data: novaData, tipo: event.tipo }),
+      });
+
+      if (res.status === 422) {
+        const json = await res.json();
+        showToast(json.error ?? 'Prazo fatal não pode ser movido para data passada.');
+        revertData(event);
+      } else if (!res.ok) {
+        showToast('Erro ao mover evento.');
+        revertData(event);
+      }
+    } catch {
+      showToast('Erro de conexão ao mover evento.');
+      revertData(event);
+    }
+  }, [revertData]);
+
+  // Resize só se aplica a eventos pessoais com horário (eventos de processo são "dia todo")
+  const handleEventResize = useCallback(async ({ event, start, end }: { event: CalendarioEvento; start: Date | string; end: Date | string }) => {
+    if (!event.pessoal) return;
+    const novaData = new Date(start).toISOString().slice(0, 10);
+    const novaHoraInicio = new Date(start).toTimeString().slice(0, 5);
+    const novaHoraFim = new Date(end).toTimeString().slice(0, 5);
+
     setEventosAgendaList((prev) =>
-      prev.map((ev) => ev.id === event.id ? { ...ev, data: novaData } : ev),
+      prev.map((ev) => (ev.id === event.id ? { ...ev, data: novaData, horaInicio: novaHoraInicio, horaFim: novaHoraFim } : ev)),
     );
 
     try {
       const res = await fetch(`/api/calendario/eventos/${event.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fonte: event.fonte, data: novaData, tipo: event.tipo }),
+        body: JSON.stringify({ fonte: event.fonte ?? 'agenda', data: novaData, horaInicio: novaHoraInicio, horaFim: novaHoraFim, tipo: event.tipo }),
       });
-
-      if (res.status === 422) {
-        const json = await res.json();
-        showToast(json.error ?? 'Prazo fatal não pode ser movido para data passada.');
+      if (!res.ok) {
+        showToast('Erro ao redimensionar evento.');
         setEventosAgendaList((prev) =>
-          prev.map((ev) => ev.id === event.id ? { ...ev, data: event.data } : ev),
-        );
-      } else if (!res.ok) {
-        showToast('Erro ao mover evento.');
-        setEventosAgendaList((prev) =>
-          prev.map((ev) => ev.id === event.id ? { ...ev, data: event.data } : ev),
+          prev.map((ev) => (ev.id === event.id ? { ...ev, data: event.data, horaInicio: event.horaInicio, horaFim: event.horaFim } : ev)),
         );
       }
     } catch {
-      showToast('Erro de conexão ao mover evento.');
+      showToast('Erro de conexão ao redimensionar evento.');
       setEventosAgendaList((prev) =>
-        prev.map((ev) => ev.id === event.id ? { ...ev, data: event.data } : ev),
+        prev.map((ev) => (ev.id === event.id ? { ...ev, data: event.data, horaInicio: event.horaInicio, horaFim: event.horaFim } : ev)),
       );
     }
   }, []);
@@ -317,7 +412,7 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
       border: 'none',
       padding: '0.125rem 0.375rem',
       fontSize: '0.75rem',
-      cursor: event.pessoal ? 'default' : 'pointer',
+      cursor: 'pointer',
       backgroundColor: event.pessoal ? '#7c3aed' : estilo.style.backgroundColor,
     };
     if (!event.pessoal) {
@@ -328,7 +423,11 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
   }, []);
 
   const handleSelectEvent = useCallback(async (event: CalendarioEvento) => {
-    if (event.pessoal) return;
+    if (event.pessoal) {
+      setEventoEditando(event);
+      setNovoEventoDialog(true);
+      return;
+    }
     setEventoSelecionado(event);
     setSheetAberta(true);
     setCarregandoProcesso(true);
@@ -349,13 +448,29 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
 
   const handleSelectSlot = useCallback((slotInfo: { start: Date }) => {
     const data = slotInfo.start.toISOString().slice(0, 10);
+    setEventoEditando(undefined);
     setNovoEventoData(data);
     setNovoEventoDialog(true);
   }, []);
 
   function handleEventoSaved(ev: EventoAgenda) {
-    setEventosAgendaList((prev) => [...prev, ev]);
+    setEventosAgendaList((prev) => {
+      const existe = prev.some((e) => e.id === ev.id);
+      return existe ? prev.map((e) => (e.id === ev.id ? ev : e)) : [...prev, ev];
+    });
     setNovoEventoDialog(false);
+    setEventoEditando(undefined);
+  }
+
+  function handleEventoDeletado(id: string) {
+    setEventosAgendaList((prev) => prev.filter((e) => e.id !== id));
+    setNovoEventoDialog(false);
+    setEventoEditando(undefined);
+  }
+
+  function handleCloseDialog() {
+    setNovoEventoDialog(false);
+    setEventoEditando(undefined);
   }
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -409,7 +524,7 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
         </button>
         <button
           type="button"
-          onClick={() => { setNovoEventoData(undefined); setNovoEventoDialog(true); }}
+          onClick={() => { setEventoEditando(undefined); setNovoEventoData(undefined); setNovoEventoDialog(true); }}
           style={{
             display: 'flex', alignItems: 'center', gap: '0.375rem',
             padding: '0.5rem 1rem', borderRadius: '0.5rem',
@@ -448,9 +563,11 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
             eventPropGetter={eventStyleGetter}
             onSelectEvent={handleSelectEvent}
             onSelectSlot={handleSelectSlot}
-            draggableAccessor={(event) => Boolean(event.fonte)}
+            draggableAccessor={(event) => Boolean(event.pessoal) || Boolean(event.editavel)}
+            resizableAccessor={(event) => Boolean(event.pessoal)}
             onEventDrop={handleEventDrop}
-            resizable={false}
+            onEventResize={handleEventResize}
+            resizable
             components={{
               event: (props) => (
                 <EventoCalendario
@@ -466,7 +583,7 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
                 />
               ),
             }}
-            views={[Views.MONTH, Views.WEEK, Views.AGENDA]}
+            views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
             popup
             selectable
           />
@@ -532,9 +649,11 @@ export function CalendarioProcessual({ eventos }: CalendarioProcessualProps) {
 
       {novoEventoDialog && (
         <NovoEventoDialog
+          eventoExistente={eventoEditando}
           dataInicial={novoEventoData}
           onSave={handleEventoSaved}
-          onClose={() => setNovoEventoDialog(false)}
+          onDelete={handleEventoDeletado}
+          onClose={handleCloseDialog}
         />
       )}
     </div>
