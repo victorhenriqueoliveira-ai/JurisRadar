@@ -28,6 +28,8 @@ import {
   criarAssinatura,
   cancelarCobranca,
   listarCobranças,
+  consultarSaldo,
+  criarTransferenciaPix,
 } from '../client';
 
 // ── Constantes de teste ───────────────────────────────────────────────────────
@@ -556,6 +558,206 @@ describe('listarCobranças', () => {
     const cobranças = await listarCobranças({ orgId: 'org-empty' });
 
     expect(cobranças).toHaveLength(0);
+  });
+});
+
+// ── Testes: consultarSaldo ─────────────────────────────────────────────────────
+
+describe('consultarSaldo', () => {
+  it('retorna o saldo numérico da sub-conta', async () => {
+    setupDbWithAccount('org-saldo');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(makeFetchResponse(200, { balance: 5210.96 })),
+    );
+
+    const saldo = await consultarSaldo('org-saldo');
+
+    expect(saldo).toBe(5210.96);
+  });
+
+  it('usa a api_key da sub-conta no header access_token (não a master)', async () => {
+    setupDbWithAccount('org-saldo-key');
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(makeFetchResponse(200, { balance: 100 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await consultarSaldo('org-saldo-key');
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url as string).toContain('/finance/balance');
+    const headers = options.headers as Record<string, string>;
+    expect(headers['access_token']).toBe(TEST_SUB_API_KEY);
+  });
+
+  it('lança erro com name AsaasError e code NOT_FOUND quando orgId não tem sub-conta', async () => {
+    setupDbWithoutAccount();
+
+    let thrownError: unknown;
+    try {
+      await consultarSaldo('org-inexistente');
+    } catch (err) {
+      thrownError = err;
+    }
+
+    expect(thrownError).toBeDefined();
+    expect((thrownError as Error).name).toBe('AsaasError');
+    expect((thrownError as { code: string }).code).toBe('NOT_FOUND');
+  });
+
+  it('lança AsaasError quando a API Asaas retorna erro HTTP', async () => {
+    setupDbWithAccount('org-saldo-erro');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        makeFetchResponse(500, { errors: [{ code: 'internal_error', description: 'Erro interno' }] }),
+      ),
+    );
+
+    let thrownError: unknown;
+    try {
+      await consultarSaldo('org-saldo-erro');
+    } catch (err) {
+      thrownError = err;
+    }
+
+    expect(thrownError).toBeDefined();
+    expect((thrownError as Error).name).toBe('AsaasError');
+  });
+});
+
+// ── Testes: criarTransferenciaPix ──────────────────────────────────────────────
+
+describe('criarTransferenciaPix', () => {
+  it('retorna { asaasTransferId, status, valor, taxaTransferencia, valorLiquido } em caso de sucesso', async () => {
+    setupDbWithAccount('org-transfer');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        makeFetchResponse(200, {
+          id: 'transfer-abc',
+          status: 'PENDING',
+          value: 500,
+          netValue: 497.5,
+          transferFee: 2.5,
+        }),
+      ),
+    );
+
+    const resultado = await criarTransferenciaPix({
+      orgId: 'org-transfer',
+      valor: 500,
+      pixAddressKey: 'contato@escritorio.adv.br',
+      pixAddressKeyType: 'EMAIL',
+    });
+
+    expect(resultado.asaasTransferId).toBe('transfer-abc');
+    expect(resultado.status).toBe('PENDING');
+    expect(resultado.valor).toBe(500);
+    expect(resultado.taxaTransferencia).toBe(2.5);
+    expect(resultado.valorLiquido).toBe(497.5);
+  });
+
+  it('envia payload com value, pixAddressKey, pixAddressKeyType e operationType=PIX', async () => {
+    setupDbWithAccount('org-transfer-payload');
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(makeFetchResponse(200, { id: 'transfer-x', status: 'PENDING', value: 100 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await criarTransferenciaPix({
+      orgId: 'org-transfer-payload',
+      valor: 100,
+      pixAddressKey: '12345678900',
+      pixAddressKeyType: 'CPF',
+      externalReference: 'saque-uuid-1',
+      descricao: 'Repasse de honorários',
+    });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url as string).toContain('/transfers');
+    expect(options.method).toBe('POST');
+    const body = JSON.parse(options.body as string);
+    expect(body.value).toBe(100);
+    expect(body.pixAddressKey).toBe('12345678900');
+    expect(body.pixAddressKeyType).toBe('CPF');
+    expect(body.operationType).toBe('PIX');
+    expect(body.externalReference).toBe('saque-uuid-1');
+    expect(body.description).toBe('Repasse de honorários');
+  });
+
+  it('usa a api_key da sub-conta no header access_token (não a master)', async () => {
+    setupDbWithAccount('org-transfer-key');
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(makeFetchResponse(200, { id: 'transfer-key', status: 'PENDING', value: 10 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await criarTransferenciaPix({
+      orgId: 'org-transfer-key',
+      valor: 10,
+      pixAddressKey: 'chave',
+      pixAddressKeyType: 'EVP',
+    });
+
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers['access_token']).not.toBe(TEST_MASTER_API_KEY);
+    expect(headers['access_token']).toBe(TEST_SUB_API_KEY);
+  });
+
+  it('lança erro com name AsaasError e code NOT_FOUND quando orgId não tem sub-conta', async () => {
+    setupDbWithoutAccount();
+
+    let thrownError: unknown;
+    try {
+      await criarTransferenciaPix({
+        orgId: 'org-inexistente',
+        valor: 50,
+        pixAddressKey: 'chave',
+        pixAddressKeyType: 'EMAIL',
+      });
+    } catch (err) {
+      thrownError = err;
+    }
+
+    expect(thrownError).toBeDefined();
+    expect((thrownError as Error).name).toBe('AsaasError');
+    expect((thrownError as { code: string }).code).toBe('NOT_FOUND');
+  });
+
+  it('lança AsaasError quando a API Asaas retorna erro HTTP (ex: saldo insuficiente)', async () => {
+    setupDbWithAccount('org-transfer-erro');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        makeFetchResponse(400, {
+          errors: [{ code: 'insufficient_balance', description: 'Saldo insuficiente' }],
+        }),
+      ),
+    );
+
+    let thrownError: unknown;
+    try {
+      await criarTransferenciaPix({
+        orgId: 'org-transfer-erro',
+        valor: 999999,
+        pixAddressKey: 'chave',
+        pixAddressKeyType: 'EMAIL',
+      });
+    } catch (err) {
+      thrownError = err;
+    }
+
+    expect(thrownError).toBeDefined();
+    expect((thrownError as Error).name).toBe('AsaasError');
   });
 });
 

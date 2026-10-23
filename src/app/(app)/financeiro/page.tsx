@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Plus, X, ArrowDownToLine } from 'lucide-react';
 import { DashboardFinanceiro } from '@/components/financeiro/DashboardFinanceiro';
 import { HonorarioTable } from '@/components/financeiro/HonorarioTable';
@@ -168,21 +168,79 @@ function NovaCobrancaModal({ onClose, onSaved }: { onClose: () => void; onSaved:
   );
 }
 
-const EXTRATO_MOCK = [
-  { id: '1', descricao: 'Recebimento — Processo 1234/2026', valor: 5000, tipo: 'entrada' as const, data: '2026-08-28', status: 'Concluído' },
-  { id: '2', descricao: 'Saque realizado', valor: -2000, tipo: 'saida' as const, data: '2026-08-20', status: 'Concluído' },
-  { id: '3', descricao: 'Recebimento — Honorários consultoria', valor: 1800, tipo: 'entrada' as const, data: '2026-08-15', status: 'Concluído' },
-  { id: '4', descricao: 'Saque realizado', valor: -1000, tipo: 'saida' as const, data: '2026-08-05', status: 'Concluído' },
+interface SaqueRow {
+  id: string;
+  valor: string;
+  taxaTransferencia: string | null;
+  valorLiquido: string | null;
+  pixAddressKey: string;
+  pixAddressKeyType: string;
+  status: string;
+  failReason: string | null;
+  createdAt: string;
+}
+
+const STATUS_SAQUE_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+  pending: { label: 'Pendente', bg: '#fef9c3', color: '#92400e' },
+  bank_processing: { label: 'Processando', bg: '#fef9c3', color: '#92400e' },
+  done: { label: 'Concluído', bg: '#dcfce7', color: '#166534' },
+  failed: { label: 'Falhou', bg: '#fee2e2', color: '#991b1b' },
+  cancelled: { label: 'Cancelado', bg: '#f3f4f6', color: '#4b5563' },
+};
+
+const TIPOS_CHAVE_PIX: { value: string; label: string }[] = [
+  { value: 'CPF', label: 'CPF' },
+  { value: 'CNPJ', label: 'CNPJ' },
+  { value: 'EMAIL', label: 'E-mail' },
+  { value: 'PHONE', label: 'Telefone' },
+  { value: 'EVP', label: 'Chave aleatória' },
 ];
 
-function SaqueModal({ onClose }: { onClose: () => void }) {
+function formatBRL(valor: number) {
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function SaqueModal({ saldoDisponivel, onClose, onSaved }: { saldoDisponivel: number; onClose: () => void; onSaved: () => void }) {
   const [valor, setValor] = useState('');
-  const [conta, setConta] = useState('');
+  const [pixAddressKey, setPixAddressKey] = useState('');
+  const [pixAddressKeyType, setPixAddressKeyType] = useState('EMAIL');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setDone(true);
+    setError('');
+
+    const valorNumerico = Number(valor.replace(/\./g, '').replace(',', '.'));
+    if (!valorNumerico || valorNumerico <= 0) {
+      setError('Informe um valor válido.');
+      return;
+    }
+    if (!pixAddressKey.trim()) {
+      setError('Informe a chave Pix de destino.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/financeiro/saques', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valor: valorNumerico, pixAddressKey: pixAddressKey.trim(), pixAddressKeyType }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? 'Não foi possível solicitar o saque.');
+        return;
+      }
+      setDone(true);
+      onSaved();
+    } catch {
+      setError('Erro de conexão. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -199,13 +257,21 @@ function SaqueModal({ onClose }: { onClose: () => void }) {
             <div className="text-center py-4">
               <div className="text-4xl mb-3">✓</div>
               <p className="font-bold text-[#16a34a] text-lg">Saque solicitado!</p>
-              <p className="text-sm text-[#6b7280] mt-1">O valor será processado em até 1 dia útil.</p>
+              <p className="text-sm text-[#6b7280] mt-1">
+                Acompanhe o status no extrato. A transferência Pix é processada pela Asaas e pode levar até 1 dia útil.
+              </p>
               <button type="button" onClick={onClose} className="mt-5 px-6 py-2.5 bg-[#0f2d5e] text-white text-sm font-semibold rounded-xl">
                 Fechar
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              <p className="text-xs text-[#6b7280]">
+                Saldo disponível: <span className="font-semibold text-[#0f2d5e]">{formatBRL(saldoDisponivel)}</span>
+              </p>
+              {error && (
+                <p className="text-sm text-[#dc2626] bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Valor a sacar (R$)</label>
                 <input
@@ -220,13 +286,25 @@ function SaqueModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Conta destino</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de chave Pix</label>
+                <select
+                  value={pixAddressKeyType}
+                  onChange={(e) => setPixAddressKeyType(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30"
+                >
+                  {TIPOS_CHAVE_PIX.map((tipo) => (
+                    <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Chave Pix de destino</label>
                 <input
                   type="text"
                   required
-                  value={conta}
-                  onChange={(e) => setConta(e.target.value)}
-                  placeholder="Banco, Ag, CC"
+                  value={pixAddressKey}
+                  onChange={(e) => setPixAddressKey(e.target.value)}
+                  placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30"
                 />
               </div>
@@ -234,8 +312,8 @@ function SaqueModal({ onClose }: { onClose: () => void }) {
                 <button type="button" onClick={onClose} className="flex-1 py-2 px-4 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                   Cancelar
                 </button>
-                <button type="submit" className="flex-1 py-2 px-4 text-sm font-medium text-white bg-[#0f2d5e] rounded-lg hover:bg-[#1a3f7a] transition-colors">
-                  Confirmar saque
+                <button type="submit" disabled={loading} className="flex-1 py-2 px-4 text-sm font-medium text-white bg-[#0f2d5e] rounded-lg hover:bg-[#1a3f7a] transition-colors disabled:opacity-60">
+                  {loading ? 'Enviando...' : 'Confirmar saque'}
                 </button>
               </div>
             </form>
@@ -248,21 +326,72 @@ function SaqueModal({ onClose }: { onClose: () => void }) {
 
 function SaldoRepasses() {
   const [showSaque, setShowSaque] = useState(false);
+  const [saldo, setSaldo] = useState<number | null>(null);
+  const [saldoError, setSaldoError] = useState('');
+  const [saques, setSaques] = useState<SaqueRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [saldoRes, saquesRes] = await Promise.all([
+        fetch('/api/financeiro/saldo'),
+        fetch('/api/financeiro/saques'),
+      ]);
+
+      if (saldoRes.ok) {
+        const saldoJson = await saldoRes.json();
+        setSaldo(saldoJson.saldo);
+        setSaldoError('');
+      } else {
+        const saldoJson = await saldoRes.json();
+        setSaldo(null);
+        setSaldoError(saldoJson.error ?? 'Não foi possível consultar o saldo.');
+      }
+
+      if (saquesRes.ok) {
+        const saquesJson = await saquesRes.json();
+        setSaques(saquesJson.data ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  const totalSacado = saques
+    .filter((s) => s.status === 'done')
+    .reduce((acc, s) => acc + Number(s.valorLiquido ?? s.valor), 0);
+  const emProcessamento = saques
+    .filter((s) => s.status === 'pending' || s.status === 'bank_processing')
+    .reduce((acc, s) => acc + Number(s.valor), 0);
 
   return (
     <>
-      {showSaque && <SaqueModal onClose={() => setShowSaque(false)} />}
+      {showSaque && saldo != null && (
+        <SaqueModal saldoDisponivel={saldo} onClose={() => setShowSaque(false)} onSaved={carregar} />
+      )}
       <div className="space-y-6">
+        {saldoError && (
+          <p className="text-sm text-[#991b1b] bg-red-50 border border-red-100 rounded-xl px-4 py-3">{saldoError}</p>
+        )}
+
         {/* 3 colunas de KPI */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Col 1: navy dark — saldo disponível */}
           <div className="rounded-2xl bg-[#0f2d5e] p-5 text-white flex flex-col gap-3">
             <p className="text-xs font-medium opacity-70">Saldo disponível para saque</p>
-            <p className="text-3xl font-extrabold tabular-nums">R$ 24.180,00</p>
+            <p className="text-3xl font-extrabold tabular-nums">
+              {loading ? '—' : saldo != null ? formatBRL(saldo) : 'Indisponível'}
+            </p>
             <button
               type="button"
               onClick={() => setShowSaque(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white text-[#0f2d5e] text-sm font-bold rounded-xl hover:bg-gray-100 transition-colors w-fit"
+              disabled={saldo == null}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-[#0f2d5e] text-sm font-bold rounded-xl hover:bg-gray-100 transition-colors w-fit disabled:opacity-50"
             >
               <ArrowDownToLine className="w-4 h-4" />
               Sacar agora
@@ -272,58 +401,67 @@ function SaldoRepasses() {
           {/* Col 2: a liberar */}
           <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div>
-              <p className="text-xs text-[#9ca3af] mb-1">A liberar (em processamento)</p>
-              <p className="text-3xl font-extrabold tabular-nums text-[#d97706]">R$ 6.900,00</p>
+              <p className="text-xs text-[#9ca3af] mb-1">Em processamento</p>
+              <p className="text-3xl font-extrabold tabular-nums text-[#d97706]">{loading ? '—' : formatBRL(emProcessamento)}</p>
             </div>
-            <p className="text-xs text-[#9ca3af] mt-3">Cai em até 2 dias úteis</p>
+            <p className="text-xs text-[#9ca3af] mt-3">Transferências Pix em andamento na Asaas</p>
           </div>
 
           {/* Col 3: total sacado */}
           <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div>
               <p className="text-xs text-[#9ca3af] mb-1">Total já sacado</p>
-              <p className="text-3xl font-extrabold tabular-nums text-[#0f2d5e]">R$ 118.400,00</p>
+              <p className="text-3xl font-extrabold tabular-nums text-[#0f2d5e]">{loading ? '—' : formatBRL(totalSacado)}</p>
             </div>
-            <p className="text-xs text-[#9ca3af] mt-3">Desde o início</p>
+            <p className="text-xs text-[#9ca3af] mt-3">Soma dos saques concluídos</p>
           </div>
         </div>
 
-        {/* Extrato — 4 colunas: Data, Descrição, Valor, Status */}
+        {/* Extrato — histórico real de saques */}
         <div className="bg-white border border-[#e5e7eb] rounded-2xl overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-[#e5e7eb]">
-            <h3 className="text-sm font-bold text-[#0f2d5e]">Extrato</h3>
+            <h3 className="text-sm font-bold text-[#0f2d5e]">Extrato de saques</h3>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#e5e7eb] bg-gray-50">
-                <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Data</th>
-                <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Descrição</th>
-                <th className="text-right px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Valor</th>
-                <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {EXTRATO_MOCK.map((item) => (
-                <tr key={item.id} className="border-b border-[#f1f5f9]">
-                  <td className="px-5 py-3.5 text-[#9ca3af] shrink-0 whitespace-nowrap">
-                    {item.data.split('-').reverse().join('/')}
-                  </td>
-                  <td className="px-5 py-3.5 text-[#374151]">{item.descricao}</td>
-                  <td className={`px-5 py-3.5 text-right font-semibold tabular-nums whitespace-nowrap ${
-                    item.tipo === 'entrada' ? 'text-[#16a34a]' : 'text-[#dc2626]'
-                  }`}>
-                    {item.tipo === 'entrada' ? '+' : ''}
-                    {item.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-green-700">
-                      {item.status}
-                    </span>
-                  </td>
+          {loading ? (
+            <p className="px-5 py-6 text-sm text-[#9ca3af]">Carregando...</p>
+          ) : saques.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-[#9ca3af]">Nenhum saque solicitado ainda.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#e5e7eb] bg-gray-50">
+                  <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Data</th>
+                  <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Chave Pix</th>
+                  <th className="text-right px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Valor</th>
+                  <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#9ca3af]">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {saques.map((item) => {
+                  const config = STATUS_SAQUE_CONFIG[item.status] ?? { label: item.status, bg: '#f3f4f6', color: '#4b5563' };
+                  return (
+                    <tr key={item.id} className="border-b border-[#f1f5f9]">
+                      <td className="px-5 py-3.5 text-[#9ca3af] shrink-0 whitespace-nowrap">
+                        {new Date(item.createdAt).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-5 py-3.5 text-[#374151]">{item.pixAddressKey}</td>
+                      <td className="px-5 py-3.5 text-right font-semibold tabular-nums whitespace-nowrap text-[#dc2626]">
+                        -{formatBRL(Number(item.valor))}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          style={{ backgroundColor: config.bg, color: config.color }}
+                        >
+                          {config.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </>

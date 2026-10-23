@@ -34,6 +34,7 @@ vi.mock('@/db', () => ({
 vi.mock('@/db/schema', () => ({
   cobrancas: { id: 'id', honorarioId: 'honorario_id', status: 'status' },
   honorarios: { id: 'id', statusPagamento: 'status_pagamento' },
+  saques: { id: 'id', asaasTransferId: 'asaas_transfer_id', status: 'status' },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -353,5 +354,100 @@ describe('POST /api/asaas/webhook — recálculo honorarios.statusPagamento', ()
       2,
       expect.objectContaining({ statusPagamento: 'pendente' }),
     )
+  })
+})
+
+// ── Eventos de transferência (saque) ──────────────────────────────────────────
+
+function mockSaqueEncontradoPorTransferId(saqueId: string, statusAtual: string) {
+  mockDbSelect.mockReturnValueOnce({
+    from: () => ({
+      where: () => ({
+        limit: () => Promise.resolve([{ id: saqueId, status: statusAtual }]),
+      }),
+    }),
+  })
+}
+
+function mockSaqueNaoEncontrado() {
+  mockDbSelect.mockReturnValueOnce({
+    from: () => ({
+      where: () => ({
+        limit: () => Promise.resolve([]),
+      }),
+    }),
+  })
+}
+
+describe('POST /api/asaas/webhook — eventos de transferência (saque)', () => {
+  it('TRANSFER_DONE atualiza saques.status para "done" (localizado por asaas_transfer_id)', async () => {
+    mockSaqueEncontradoPorTransferId('saque-001', 'bank_processing')
+    const req = criarRequest(
+      {
+        event: 'TRANSFER_DONE',
+        transfer: { id: 'transf_001', status: 'DONE' },
+      },
+      TOKEN_VALIDO,
+    )
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(mockSetFn).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'done' }),
+    )
+  })
+
+  it('TRANSFER_FAILED atualiza saques.status para "failed" e grava failReason', async () => {
+    mockSaqueEncontradoPorTransferId('saque-002', 'pending')
+    const req = criarRequest(
+      {
+        event: 'TRANSFER_FAILED',
+        transfer: { id: 'transf_002', status: 'FAILED', failReason: 'Chave Pix inválida' },
+      },
+      TOKEN_VALIDO,
+    )
+    await POST(req)
+    expect(mockSetFn).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', failReason: 'Chave Pix inválida' }),
+    )
+  })
+
+  it('evento TRANSFER_* sem saque correspondente retorna 200 sem erro', async () => {
+    mockSaqueNaoEncontrado()
+    const req = criarRequest(
+      {
+        event: 'TRANSFER_DONE',
+        transfer: { id: 'transf_desconhecido', status: 'DONE' },
+      },
+      TOKEN_VALIDO,
+    )
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
+
+  it('é idempotente — mesmo status já aplicado não atualiza de novo', async () => {
+    mockSaqueEncontradoPorTransferId('saque-003', 'done')
+    const req = criarRequest(
+      {
+        event: 'TRANSFER_DONE',
+        transfer: { id: 'transf_003', status: 'DONE' },
+      },
+      TOKEN_VALIDO,
+    )
+    await POST(req)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
+
+  it('evento de transferência não interfere no fluxo de cobrança (payment)', async () => {
+    mockCobrancaEncontrada('cobranca-xyz', 'honorario-xyz', 'pending', [{ status: 'received' }])
+    const req = criarRequest(
+      {
+        event: 'PAYMENT_RECEIVED',
+        payment: { id: 'pay_xyz', externalReference: 'cobranca-xyz' },
+      },
+      TOKEN_VALIDO,
+    )
+    const res = await POST(req)
+    expect(res.status).toBe(200)
   })
 })

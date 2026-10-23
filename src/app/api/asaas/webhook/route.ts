@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { cobrancas, honorarios } from '@/db/schema'
+import { cobrancas, honorarios, saques } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -15,12 +15,27 @@ type EventoAsaas =
 
 type StatusCobranca = 'received' | 'overdue' | 'refunded' | 'cancelled'
 
+type EventoTransferencia =
+  | 'TRANSFER_DONE'
+  | 'TRANSFER_FAILED'
+  | 'TRANSFER_CANCELLED'
+  | 'TRANSFER_PENDING'
+  | 'TRANSFER_IN_BANK_PROCESSING'
+
+type StatusSaque = 'done' | 'failed' | 'cancelled' | 'pending' | 'bank_processing'
+
 interface AsaasWebhookPayload {
   event: string
   payment?: {
     id: string
     externalReference?: string
     status?: string
+  }
+  transfer?: {
+    id: string
+    externalReference?: string
+    status?: string
+    failReason?: string
   }
 }
 
@@ -34,6 +49,52 @@ const EVENTO_PARA_STATUS: Record<EventoAsaas, StatusCobranca> = {
 }
 
 const EVENTOS_SUPORTADOS = new Set<string>(Object.keys(EVENTO_PARA_STATUS))
+
+const EVENTO_TRANSFERENCIA_PARA_STATUS: Record<EventoTransferencia, StatusSaque> = {
+  TRANSFER_DONE: 'done',
+  TRANSFER_FAILED: 'failed',
+  TRANSFER_CANCELLED: 'cancelled',
+  TRANSFER_PENDING: 'pending',
+  TRANSFER_IN_BANK_PROCESSING: 'bank_processing',
+}
+
+const EVENTOS_TRANSFERENCIA_SUPORTADOS = new Set<string>(Object.keys(EVENTO_TRANSFERENCIA_PARA_STATUS))
+
+/**
+ * Atualiza o status de um saque a partir de um evento TRANSFER_* do webhook.
+ * Localiza o saque por asaas_transfer_id (preferencial) ou externalReference
+ * (= saques.id, usado na criação quando o id ainda não existia no Asaas).
+ */
+async function processarEventoTransferencia(
+  event: string,
+  transfer: NonNullable<AsaasWebhookPayload['transfer']>,
+): Promise<void> {
+  if (!EVENTOS_TRANSFERENCIA_SUPORTADOS.has(event)) return
+
+  const saqueExistente = transfer.id
+    ? await db.select({ id: saques.id, status: saques.status }).from(saques).where(eq(saques.asaasTransferId, transfer.id)).limit(1)
+    : []
+
+  const alvo = saqueExistente[0]
+    ?? (transfer.externalReference
+      ? (await db.select({ id: saques.id, status: saques.status }).from(saques).where(eq(saques.id, transfer.externalReference)).limit(1))[0]
+      : undefined)
+
+  if (!alvo) return // evento sem saque correspondente — descartado silenciosamente
+
+  const novoStatus = EVENTO_TRANSFERENCIA_PARA_STATUS[event as EventoTransferencia]
+  if (alvo.status === novoStatus) return // idempotência
+
+  await db
+    .update(saques)
+    .set({
+      status: novoStatus,
+      asaasTransferId: transfer.id ?? undefined,
+      failReason: transfer.failReason ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(saques.id, alvo.id))
+}
 
 // ── Recálculo de honorarios.statusPagamento ──────────────────────────────────
 
@@ -82,9 +143,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Payload inválido' }, { status: 400 })
   }
 
-  const { event, payment } = payload
+  const { event, payment, transfer } = payload
 
-  // 3. Ignorar eventos não suportados — retornar 200 sem processar
+  // 3. Eventos de transferência (saque) — tratados à parte dos de cobrança
+  if (EVENTOS_TRANSFERENCIA_SUPORTADOS.has(event)) {
+    if (transfer) {
+      await processarEventoTransferencia(event, transfer)
+    }
+    return NextResponse.json({ received: true })
+  }
+
+  // 4. Ignorar eventos não suportados — retornar 200 sem processar
   if (!EVENTOS_SUPORTADOS.has(event)) {
     return NextResponse.json({ received: true, skipped: true })
   }

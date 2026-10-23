@@ -62,6 +62,16 @@ export interface ListarCobrancasInput {
   limit?: number;
 }
 
+export interface CriarTransferenciaPixInput {
+  orgId: string;
+  /** Valor em reais (ex: 1500.00) */
+  valor: number;
+  pixAddressKey: string;
+  pixAddressKeyType: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP';
+  externalReference?: string;
+  descricao?: string;
+}
+
 // ── Tipos de saída ────────────────────────────────────────────────────────────
 
 export interface AsaasSubConta {
@@ -91,6 +101,15 @@ export interface AsaasAssinatura {
   proximaCobranca?: string;
 }
 
+export interface AsaasTransferencia {
+  asaasTransferId: string;
+  /** PENDING | BANK_PROCESSING | DONE | CANCELLED | FAILED */
+  status: string;
+  valor: number;
+  taxaTransferencia?: number;
+  valorLiquido?: number;
+}
+
 // ── Interface principal ───────────────────────────────────────────────────────
 
 export interface AsaasClient {
@@ -99,6 +118,8 @@ export interface AsaasClient {
   criarAssinatura(input: CriarAssinaturaInput): Promise<AsaasAssinatura>;
   cancelarCobranca(asaasPaymentId: string, orgId: string): Promise<void>;
   listarCobranças(filtros: ListarCobrancasInput): Promise<AsaasCobranca[]>;
+  consultarSaldo(orgId: string): Promise<number>;
+  criarTransferenciaPix(input: CriarTransferenciaPixInput): Promise<AsaasTransferencia>;
 }
 
 // ── Tipos internos da API Asaas ───────────────────────────────────────────────
@@ -148,4 +169,18 @@ export interface AsaasApiListResponse<T> {
   limit: number;
   offset: number;
   data: T[];
+}
+
+/** Resposta bruta da API Asaas ao consultar o saldo da sub-conta */
+export interface AsaasApiSaldoResponse {
+  balance: number;
+}
+
+/** Resposta bruta da API Asaas ao criar uma transferência */
+export interface AsaasApiTransferenciaResponse {
+  id: string;
+  status: string;
+  value: number;
+  netValue?: number;
+  transferFee?: number;
 }

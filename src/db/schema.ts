@@ -467,90 +467,6 @@ export const djeSearches = pgTable(
   }),
 );
 
-// ── Tabelas Lista de Distribuição TJSP (processos novos/eproc) ────────────────
-
-/** Controla status de indexação por dia da Lista de Distribuição (eproc, 1ª Instância) */
-export const distribuicaoTjspEdicoes = pgTable(
-  'distribuicao_tjsp_edicoes',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    dataDistribuicao: date('data_distribuicao').notNull(),
-    codigoArquivo: text('codigo_arquivo'),
-    status: text('status')
-      .$type<'pending' | 'downloading' | 'parsing' | 'completed' | 'failed'>()
-      .notNull()
-      .default('pending'),
-    processCount: integer('process_count'),
-    errorMessage: text('error_message'),
-    startedAt: timestamp('started_at'),
-    completedAt: timestamp('completed_at'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (t) => ({
-    uniqueData: unique().on(t.dataDistribuicao),
-  }),
-);
-
-/** Processos novos extraídos da Lista de Distribuição TJSP (sem nome de partes — ver `link`) */
-export const distribuicaoTjspProcessos = pgTable(
-  'distribuicao_tjsp_processos',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    edicaoId: uuid('edicao_id')
-      .notNull()
-      .references(() => distribuicaoTjspEdicoes.id),
-    numeroProcesso: text('numero_processo').notNull(),
-    comarca: text('comarca'),
-    vara: text('vara'),
-    classe: text('classe').notNull(),
-    dataDistribuicao: date('data_distribuicao').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (t) => ({
-    dataIdx: index('distrib_tjsp_data_idx').on(t.dataDistribuicao),
-    comarcaIdx: index('distrib_tjsp_comarca_idx').on(t.comarca),
-    classeIdx: index('distrib_tjsp_classe_idx').on(t.classe),
-    uniqueProcesso: unique().on(t.numeroProcesso),
-  }),
-);
-
-/** Conversas do assistente de IA da busca "Processos Novos" por usuário/org */
-export const distribuicaoTjspConversations = pgTable(
-  'distribuicao_tjsp_conversations',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    title: text('title').notNull(),
-    // Histórico no formato Anthropic MessageParam[] para multi-turn
-    apiMessages: jsonb('api_messages').notNull().default([]),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  },
-  (t) => ({
-    orgUserIdx: index('idx_distrib_tjsp_conversations_org_user').on(t.orgId, t.userId, t.updatedAt),
-  }),
-);
-
-/** Mensagens individuais de cada conversa da IA de "Processos Novos" */
-export const distribuicaoTjspMessages = pgTable(
-  'distribuicao_tjsp_messages',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    conversationId: uuid('conversation_id')
-      .notNull()
-      .references(() => distribuicaoTjspConversations.id, { onDelete: 'cascade' }),
-    role: text('role').$type<'user' | 'assistant'>().notNull(),
-    text: text('text').notNull(),
-    // Processos retornados/enriquecidos nesta mensagem, para renderizar cards no chat
-    processos: jsonb('processos'),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  },
-  (t) => ({
-    conversationIdx: index('idx_distrib_tjsp_messages_conversation').on(t.conversationId, t.createdAt),
-  }),
-);
-
 // ── Tabelas CRM Jurídico ──────────────────────────────────────────────────────
 
 /**
@@ -645,6 +561,32 @@ export const cobrancas = pgTable(
     orgStatusIdx: index('idx_cobrancas_org_status').on(t.orgId, t.status),
     honorarioIdx: index('idx_cobrancas_honorario').on(t.honorarioId),
     asaasEventIdx: index('idx_cobrancas_asaas_event').on(t.asaasPaymentId),
+  }),
+);
+
+/** Solicitações de saque (transferência do saldo Asaas para conta/chave Pix do escritório) */
+export const saques = pgTable(
+  'saques',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    solicitadoPorId: uuid('solicitado_por_id').references(() => users.id),
+    asaasTransferId: text('asaas_transfer_id').unique(),
+    valor: numeric('valor', { precision: 12, scale: 2 }).notNull(),
+    taxaTransferencia: numeric('taxa_transferencia', { precision: 12, scale: 2 }),
+    valorLiquido: numeric('valor_liquido', { precision: 12, scale: 2 }),
+    pixAddressKey: text('pix_address_key').notNull(),
+    pixAddressKeyType: text('pix_address_key_type').notNull(),
+    status: text('status').notNull().default('pending'),
+    failReason: text('fail_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgCreatedIdx: index('idx_saques_org_created').on(t.orgId, t.createdAt),
+    asaasTransferIdx: index('idx_saques_asaas_transfer').on(t.asaasTransferId),
   }),
 );
 

@@ -12,10 +12,13 @@
  */
 
 import { db } from '@/db'
-import { honorarios, pagamentos, processos } from '@/db/schema'
-import { eq, and, sql, gte, lte } from 'drizzle-orm'
+import { honorarios, pagamentos, processos, saques } from '@/db/schema'
+import { eq, and, sql, gte, lte, desc } from 'drizzle-orm'
 import type { OrgContext } from '@/types/domain'
 import { ForbiddenError, NotFoundError, ValidationError } from '@/lib/errors'
+import { requireRole } from '@/lib/org-context'
+import { consultarSaldo, criarTransferenciaPix } from '@/lib/asaas/client'
+import { AsaasError } from '@/lib/asaas/errors'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -379,6 +382,103 @@ export async function removePagamento(
   if (honorarioRows.length > 0) {
     await recalcularStatus(honorarioRows[0])
   }
+}
+
+// ── Saldo & Repasses ─────────────────────────────────────────────────────────
+
+export interface SaqueInput {
+  valor: number
+  pixAddressKey: string
+  pixAddressKeyType: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP'
+}
+
+/**
+ * Retorna o saldo real disponível na sub-conta Asaas do escritório.
+ * @throws {AsaasError} com code "NOT_FOUND" se o escritório não tiver sub-conta Asaas ativa
+ */
+export async function consultarSaldoOrg(ctx: OrgContext): Promise<number> {
+  return consultarSaldo(ctx.orgId)
+}
+
+/**
+ * Solicita um saque (transferência Pix) do saldo da sub-conta Asaas.
+ * Requer papel mínimo: sócio. Valida que o valor não excede o saldo disponível
+ * no momento da solicitação (checagem best-effort — o Asaas também valida).
+ */
+export async function solicitarSaque(ctx: OrgContext, input: SaqueInput) {
+  requireRole(ctx, 'socio')
+
+  if (!input.valor || input.valor <= 0) {
+    throw new ValidationError('Valor do saque deve ser maior que zero')
+  }
+  if (!input.pixAddressKey?.trim()) {
+    throw new ValidationError('Chave Pix de destino é obrigatória')
+  }
+
+  const saldoAtual = await consultarSaldo(ctx.orgId)
+  if (input.valor > saldoAtual) {
+    throw new ValidationError(
+      `Valor solicitado (R$ ${input.valor.toFixed(2)}) excede o saldo disponível (R$ ${saldoAtual.toFixed(2)})`,
+    )
+  }
+
+  const [saqueRow] = await db
+    .insert(saques)
+    .values({
+      orgId: ctx.orgId,
+      solicitadoPorId: ctx.userId,
+      valor: String(input.valor),
+      pixAddressKey: input.pixAddressKey.trim(),
+      pixAddressKeyType: input.pixAddressKeyType,
+      status: 'pending',
+    })
+    .returning()
+
+  try {
+    const transferencia = await criarTransferenciaPix({
+      orgId: ctx.orgId,
+      valor: input.valor,
+      pixAddressKey: input.pixAddressKey.trim(),
+      pixAddressKeyType: input.pixAddressKeyType,
+      externalReference: saqueRow.id,
+      descricao: 'Saque JurisRadar',
+    })
+
+    const [atualizado] = await db
+      .update(saques)
+      .set({
+        asaasTransferId: transferencia.asaasTransferId,
+        status: transferencia.status.toLowerCase(),
+        taxaTransferencia: transferencia.taxaTransferencia != null ? String(transferencia.taxaTransferencia) : null,
+        valorLiquido: transferencia.valorLiquido != null ? String(transferencia.valorLiquido) : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(saques.id, saqueRow.id))
+      .returning()
+
+    return atualizado
+  } catch (err) {
+    // A chamada ao Asaas falhou — marca o registro local como failed em vez
+    // de deixar um saque "pending" órfão sem transferência real nenhuma.
+    const failReason = err instanceof AsaasError ? err.message : 'Erro ao solicitar transferência'
+    await db
+      .update(saques)
+      .set({ status: 'failed', failReason, updatedAt: new Date() })
+      .where(eq(saques.id, saqueRow.id))
+    throw err
+  }
+}
+
+/**
+ * Lista o histórico de saques do escritório, mais recentes primeiro.
+ */
+export async function listarSaques(ctx: OrgContext, limit = 20) {
+  return db
+    .select()
+    .from(saques)
+    .where(eq(saques.orgId, ctx.orgId))
+    .orderBy(desc(saques.createdAt))
+    .limit(Math.min(limit, 100))
 }
 
 // ── Helpers internos ───────────────────────────────────────────────────────────

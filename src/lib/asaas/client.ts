@@ -24,14 +24,18 @@ import type {
   AsaasApiCobrancaResponse,
   AsaasApiErrorResponse,
   AsaasApiListResponse,
+  AsaasApiSaldoResponse,
   AsaasApiSubContaResponse,
+  AsaasApiTransferenciaResponse,
   AsaasAssinatura,
   AsaasClient,
   AsaasCobranca,
   AsaasSubConta,
+  AsaasTransferencia,
   CriarAssinaturaInput,
   CriarCobrancaInput,
   CriarSubContaInput,
+  CriarTransferenciaPixInput,
   ListarCobrancasInput,
 } from './types';
 
@@ -345,6 +349,61 @@ async function listarCobranças(filtros: ListarCobrancasInput): Promise<AsaasCob
   return (apiResponse.data ?? []).map(mapCobranca);
 }
 
+/**
+ * Consulta o saldo disponível na sub-conta Asaas do escritório.
+ */
+async function consultarSaldo(orgId: string): Promise<number> {
+  const apiKey = await resolverApiKey(orgId);
+
+  const apiResponse = await fetchComRetry<AsaasApiSaldoResponse>(
+    `${ASAAS_BASE_URL}/finance/balance`,
+    {
+      method: 'GET',
+      headers: buildHeaders(apiKey),
+    },
+  );
+
+  return apiResponse.balance;
+}
+
+/**
+ * Cria uma transferência (saque) do saldo da sub-conta para uma chave Pix.
+ *
+ * Só suporta destino por chave Pix (não conta bancária/TED) — cobre o caso de
+ * uso real (o escritório sacando seu próprio saldo) com o formulário mais
+ * simples possível. A criação não significa conclusão: acompanhar via
+ * webhook (eventos TRANSFER_*, tratados em /api/asaas/webhook).
+ */
+async function criarTransferenciaPix(input: CriarTransferenciaPixInput): Promise<AsaasTransferencia> {
+  const apiKey = await resolverApiKey(input.orgId);
+
+  const payload = {
+    value: input.valor,
+    pixAddressKey: input.pixAddressKey,
+    pixAddressKeyType: input.pixAddressKeyType,
+    operationType: 'PIX',
+    ...(input.externalReference ? { externalReference: input.externalReference } : {}),
+    ...(input.descricao ? { description: input.descricao } : {}),
+  };
+
+  const apiResponse = await fetchComRetry<AsaasApiTransferenciaResponse>(
+    `${ASAAS_BASE_URL}/transfers`,
+    {
+      method: 'POST',
+      headers: buildHeaders(apiKey),
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return {
+    asaasTransferId: apiResponse.id,
+    status: apiResponse.status,
+    valor: apiResponse.value,
+    taxaTransferencia: apiResponse.transferFee,
+    valorLiquido: apiResponse.netValue,
+  };
+}
+
 // ── Mapeamento de resposta ────────────────────────────────────────────────────
 
 function mapCobranca(raw: AsaasApiCobrancaResponse): AsaasCobranca {
@@ -386,8 +445,18 @@ export const asaasClient = {
   criarAssinatura,
   cancelarCobranca,
   listarCobranças,
+  consultarSaldo,
+  criarTransferenciaPix,
 } satisfies AsaasClient;
 
 // Exportações nomeadas para facilitar mocking em testes
-export { criarSubConta, criarCobranca, criarAssinatura, cancelarCobranca, listarCobranças };
+export {
+  criarSubConta,
+  criarCobranca,
+  criarAssinatura,
+  cancelarCobranca,
+  listarCobranças,
+  consultarSaldo,
+  criarTransferenciaPix,
+};
 export { resolverApiKey };
