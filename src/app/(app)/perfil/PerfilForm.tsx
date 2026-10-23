@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Copy, Check, Eye, EyeOff } from 'lucide-react';
+import { BackupContatoToggle } from '@/components/perfil/BackupContatoToggle';
 
 type PerfilTab = 'dados' | 'seguranca' | 'notificacoes' | 'indicacoes';
 
@@ -72,6 +73,27 @@ function DadosPessoais({ initial }: { initial: PerfilData }) {
         {saving ? 'Salvando…' : 'Salvar dados'}
       </button>
     </form>
+  );
+}
+
+function ContatoBackupSection() {
+  const [isBackupAtual, setIsBackupAtual] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/perfil/backup')
+      .then((r) => (r.ok ? r.json() : { isBackup: false }))
+      .then((data) => setIsBackupAtual(data.isBackup ?? false))
+      .catch(() => setIsBackupAtual(false));
+  }, []);
+
+  if (isBackupAtual === null) {
+    return <div className="pt-4 border-t border-gray-100 h-10 animate-pulse bg-gray-50 rounded-lg" />;
+  }
+
+  return (
+    <div className="pt-4 mt-4 border-t border-gray-100">
+      <BackupContatoToggle isBackupAtual={isBackupAtual} />
+    </div>
   );
 }
 
@@ -285,7 +307,12 @@ export default function PerfilForm({ initialData }: { initialData: PerfilData })
 
         {/* Conteúdo */}
         <div className="flex-1 min-w-0 bg-white border border-[#e2e8f0] rounded-[14px] p-6 shadow-sm max-w-lg">
-          {activeTab === 'dados'        && <DadosPessoais initial={initialData} />}
+          {activeTab === 'dados'        && (
+            <>
+              <DadosPessoais initial={initialData} />
+              <ContatoBackupSection />
+            </>
+          )}
           {activeTab === 'seguranca'    && <Seguranca />}
           {activeTab === 'notificacoes' && <Notificacoes />}
           {activeTab === 'indicacoes'   && <Indicacoes />}

@@ -2,6 +2,12 @@
  * Testes unitários para PATCH /api/perfil/backup.
  *
  * Mockam @/db, @/auth para isolar o route handler.
+ *
+ * Nota: a rota NÃO usa db.transaction() — o driver neon-http (HTTP, usado em
+ * produção) não suporta transações ("No transactions support in neon-http
+ * driver", confirmado ao vivo durante a Fase 2 da auditoria crm-audit). As
+ * duas atualizações (resetar outros membros, setar o atual) rodam em
+ * sequência, sem wrap transacional.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -9,14 +15,13 @@ import { NextRequest } from 'next/server';
 
 // ── Mocks estáticos ───────────────────────────────────────────────────────────
 
-const mockTxUpdate = vi.fn();
-const mockTransaction = vi.fn();
 const mockDbUpdate = vi.fn();
+const mockDbSelect = vi.fn();
 
 vi.mock('@/db', () => ({
   db: {
     update: () => mockDbUpdate(),
-    transaction: (fn: (tx: unknown) => Promise<unknown>) => mockTransaction(fn),
+    select: (...args: unknown[]) => mockDbSelect(...args),
   },
 }));
 
@@ -37,7 +42,7 @@ vi.mock('@/db/schema', () => ({
 // ── Imports após vi.mock ──────────────────────────────────────────────────────
 
 import { auth } from '@/auth';
-import { PATCH } from '@/app/api/perfil/backup/route';
+import { GET, PATCH } from '@/app/api/perfil/backup/route';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -54,29 +59,60 @@ function makeRequest(body: unknown): NextRequest {
 }
 
 function mockUpdateChain() {
+  const where = vi.fn().mockResolvedValue(undefined);
   mockDbUpdate.mockReturnValue({
-    set: () => ({
-      where: vi.fn().mockResolvedValue(undefined),
+    set: () => ({ where }),
+  });
+  return where;
+}
+
+function mockSelectChain(rows: unknown[]) {
+  mockDbSelect.mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue(rows),
+      }),
     }),
   });
 }
 
-function mockTransactionChain() {
-  mockTransaction.mockImplementation(async (fn: (tx: {
-    update: () => { set: () => { where: () => Promise<void> } }
-  }) => Promise<void>) => {
-    const fakeTx = {
-      update: () => ({
-        set: () => ({
-          where: mockTxUpdate.mockResolvedValue(undefined),
-        }),
-      }),
-    };
-    return fn(fakeTx);
-  });
-}
-
 // ── Testes ────────────────────────────────────────────────────────────────────
+
+describe('GET /api/perfil/backup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('retorna 401 quando não há sessão', async () => {
+    vi.mocked(auth).mockResolvedValueOnce(null);
+
+    const res = await GET();
+
+    expect(res.status).toBe(401);
+  });
+
+  it('retorna isBackup = true quando o membro é o backup atual', async () => {
+    vi.mocked(auth).mockResolvedValueOnce(SESSION_COM_ORG as never);
+    mockSelectChain([{ isBackupContato: true }]);
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.isBackup).toBe(true);
+  });
+
+  it('retorna isBackup = false quando não há registro de membro', async () => {
+    vi.mocked(auth).mockResolvedValueOnce(SESSION_COM_ORG as never);
+    mockSelectChain([]);
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.isBackup).toBe(false);
+  });
+});
 
 describe('PATCH /api/perfil/backup', () => {
   beforeEach(() => {
@@ -110,40 +146,30 @@ describe('PATCH /api/perfil/backup', () => {
     expect(res.status).toBe(400);
   });
 
-  it('com isBackup = true, usa transação e retorna 200', async () => {
+  it('com isBackup = true, atualiza em duas chamadas sequenciais (sem transação) e retorna 200', async () => {
     vi.mocked(auth).mockResolvedValueOnce(SESSION_COM_ORG as never);
-    mockTransactionChain();
+    const where = mockUpdateChain();
 
     const res = await PATCH(makeRequest({ isBackup: true }));
 
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(mockTransaction).toHaveBeenCalled();
+    // Uma chamada para resetar os outros membros, outra para setar o atual
+    expect(mockDbUpdate).toHaveBeenCalledTimes(2);
+    expect(where).toHaveBeenCalledTimes(2);
   });
 
-  it('com isBackup = false, atualiza diretamente sem transação', async () => {
+  it('com isBackup = false, atualiza diretamente numa única chamada', async () => {
     vi.mocked(auth).mockResolvedValueOnce(SESSION_COM_ORG as never);
-    mockUpdateChain();
+    const where = mockUpdateChain();
 
     const res = await PATCH(makeRequest({ isBackup: false }));
 
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(mockTransaction).not.toHaveBeenCalled();
-    expect(mockDbUpdate).toHaveBeenCalled();
-  });
-
-  it('com isBackup = true, garante que atualiza org_members.is_backup_contato = true', async () => {
-    vi.mocked(auth).mockResolvedValueOnce(SESSION_COM_ORG as never);
-    mockTransactionChain();
-
-    await PATCH(makeRequest({ isBackup: true }));
-
-    // A transação deve ter sido chamada (que por sua vez faz os updates)
-    expect(mockTransaction).toHaveBeenCalled();
-    // O mock da transação executa o fn com um tx fake que tem txUpdate mockado
-    expect(mockTxUpdate).toHaveBeenCalled();
+    expect(mockDbUpdate).toHaveBeenCalledTimes(1);
+    expect(where).toHaveBeenCalledTimes(1);
   });
 });

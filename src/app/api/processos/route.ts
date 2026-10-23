@@ -22,6 +22,10 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl
 
+    const orderParam = searchParams.get('order')
+    const order: 'asc' | 'desc' | undefined =
+      orderParam === 'asc' || orderParam === 'desc' ? orderParam : undefined
+
     const filters = {
       status: searchParams.get('status') ?? undefined,
       area: searchParams.get('area') ?? undefined,
@@ -31,6 +35,8 @@ export async function GET(request: NextRequest) {
       q: searchParams.get('q') ?? undefined,
       cursor: searchParams.get('cursor') ?? undefined,
       limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : undefined,
+      sort: searchParams.get('sort') ?? undefined,
+      order,
     }
 
     const result = await listProcessos(ctx, filters)

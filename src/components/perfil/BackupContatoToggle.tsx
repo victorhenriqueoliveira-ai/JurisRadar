@@ -67,8 +67,8 @@ export function BackupContatoToggle({ isBackupAtual }: BackupContatoToggleProps)
         <div>
           <span className="text-sm font-medium">Sou o contato de backup do escritório</span>
           <p id="backup-descricao" className="text-xs text-muted-foreground mt-0.5">
-            Você será notificado via WhatsApp/SMS quando o responsável principal não confirmar
-            ciência de uma intimação crítica dentro do prazo.
+            Você será notificado por e-mail quando o responsável principal não confirmar
+            ciência de uma intimação crítica dentro de 2 horas.
           </p>
         </div>
       </label>

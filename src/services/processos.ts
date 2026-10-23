@@ -11,8 +11,9 @@ import {
   movimentacoes,
   honorarios,
   notasProcesso,
+  users,
 } from '@/db/schema'
-import { eq, and, isNull, desc, gt, ilike, or, sql } from 'drizzle-orm'
+import { eq, and, isNull, desc, asc, gt, ilike, or, sql, SQL } from 'drizzle-orm'
 import type { OrgContext } from '@/types/domain'
 import { ForbiddenError, NotFoundError, ValidationError } from '@/lib/errors'
 import { requireRole } from '@/lib/org-context'
@@ -28,6 +29,8 @@ export interface ProcessoFilters {
   q?: string
   cursor?: string
   limit?: number
+  sort?: string
+  order?: 'asc' | 'desc'
 }
 
 export type ProcessoComMovimentacoes = typeof processos.$inferSelect & {
@@ -36,7 +39,70 @@ export type ProcessoComMovimentacoes = typeof processos.$inferSelect & {
   notas: (typeof notasProcesso.$inferSelect)[]
 }
 
+// ── Próximo prazo ──────────────────────────────────────────────────────────────
+
+/**
+ * Subquery: data do próximo compromisso futuro de cada processo — menor data
+ * entre eventos de calendário explícitos (eventos_calendario) e movimentações
+ * processuais do tipo prazo/audiência (mesma fonte usada no Calendário, em
+ * services/calendario.ts, para manter as duas telas consistentes).
+ */
+const PROXIMO_PRAZO_SQ = sql`(
+  select processo_id, min(data) as proximo_prazo
+  from (
+    select processo_id, data
+    from eventos_calendario
+    where data >= current_date
+    union all
+    select processo_id, (data at time zone 'UTC')::date as data
+    from movimentacoes
+    where tipo in ('audiencia', 'prazo', 'prazo_fatal', 'sessao', 'julgamento')
+      and (data at time zone 'UTC')::date >= current_date
+  ) eventos
+  group by processo_id
+)`
+
+const UF_SORT_COLUMNS: Record<string, SQL | ReturnType<typeof sql<string>>> = {
+  numeroCnj: sql`${processos.numeroCnj}`,
+  tribunal: sql`${processos.tribunal}`,
+  areaDireito: sql`${processos.areaDireito}`,
+  status: sql`${processos.status}`,
+  ultimaMovimentacao: sql`${processos.ultimaMovimentacao}`,
+  proximoPrazo: sql`pp.proximo_prazo`,
+  responsavelNome: sql`${users.name}`,
+  createdAt: sql`${processos.createdAt}`,
+}
+
 // ── Funções de service ─────────────────────────────────────────────────────────
+
+function buildConditions(ctx: OrgContext, filters: ProcessoFilters) {
+  const conditions = [
+    eq(processos.orgId, ctx.orgId),
+    isNull(processos.arquivadoAt),
+  ]
+
+  if (filters.status) conditions.push(eq(processos.status, filters.status))
+  if (filters.area) conditions.push(eq(processos.areaDireito, filters.area))
+  if (filters.tribunal) conditions.push(eq(processos.tribunal, filters.tribunal))
+  if (filters.responsavel_id) conditions.push(eq(processos.responsavelId, filters.responsavel_id))
+
+  if (filters.q) {
+    conditions.push(
+      or(
+        ilike(processos.numeroCnj, `%${filters.q}%`),
+        ilike(processos.ultimaMovimentacao, `%${filters.q}%`),
+      )!,
+    )
+  }
+
+  if (filters.urgencia) {
+    // "Urgente" = próximo prazo existe e cai dentro de 5 dias — mesmo limiar
+    // usado no destaque visual da tabela (isUrgent, ProcessoTable.tsx).
+    conditions.push(sql`pp.proximo_prazo is not null and pp.proximo_prazo <= current_date + 5`)
+  }
+
+  return conditions
+}
 
 /**
  * Lista processos de uma organização com filtros opcionais e paginação por cursor.
@@ -48,45 +114,34 @@ export async function listProcessos(
 ) {
   const limit = Math.min(filters.limit ?? 20, 100)
 
-  const conditions = [
-    eq(processos.orgId, ctx.orgId),
-    isNull(processos.arquivadoAt),
-  ]
+  const conditions = buildConditions(ctx, filters)
+  if (filters.cursor) conditions.push(gt(processos.id, filters.cursor))
 
-  if (filters.status) {
-    conditions.push(eq(processos.status, filters.status))
-  }
-
-  if (filters.area) {
-    conditions.push(eq(processos.areaDireito, filters.area))
-  }
-
-  if (filters.tribunal) {
-    conditions.push(eq(processos.tribunal, filters.tribunal))
-  }
-
-  if (filters.responsavel_id) {
-    conditions.push(eq(processos.responsavelId, filters.responsavel_id))
-  }
-
-  if (filters.q) {
-    conditions.push(
-      or(
-        ilike(processos.numeroCnj, `%${filters.q}%`),
-        ilike(processos.ultimaMovimentacao, `%${filters.q}%`),
-      )!,
-    )
-  }
-
-  if (filters.cursor) {
-    conditions.push(gt(processos.id, filters.cursor))
-  }
+  const sortColumn = (filters.sort && UF_SORT_COLUMNS[filters.sort]) || processos.createdAt
+  const sortDirection = filters.order === 'asc' ? asc : desc
 
   const rows = await db
-    .select()
+    .select({
+      id: processos.id,
+      orgId: processos.orgId,
+      numeroCnj: processos.numeroCnj,
+      tribunal: processos.tribunal,
+      areaDireito: processos.areaDireito,
+      status: processos.status,
+      responsavelId: processos.responsavelId,
+      ultimaMovimentacao: processos.ultimaMovimentacao,
+      ultimaSyncAt: processos.ultimaSyncAt,
+      fonteSync: processos.fonteSync,
+      arquivadoAt: processos.arquivadoAt,
+      createdAt: processos.createdAt,
+      proximoPrazo: sql<string | null>`pp.proximo_prazo`,
+      responsavelNome: users.name,
+    })
     .from(processos)
+    .leftJoin(sql`${PROXIMO_PRAZO_SQ} pp`, sql`pp.processo_id = ${processos.id}`)
+    .leftJoin(users, eq(users.id, processos.responsavelId))
     .where(and(...conditions))
-    .orderBy(desc(processos.createdAt))
+    .orderBy(sortDirection(sortColumn), desc(processos.createdAt))
     .limit(limit + 1)
 
   const hasMore = rows.length > limit
@@ -94,27 +149,12 @@ export async function listProcessos(
   const nextCursor = hasMore ? data[data.length - 1].id : null
 
   // Total count (sem cursor para refletir o total real com os filtros aplicados)
-  const countConditions = [
-    eq(processos.orgId, ctx.orgId),
-    isNull(processos.arquivadoAt),
-  ]
-
-  if (filters.status) countConditions.push(eq(processos.status, filters.status))
-  if (filters.area) countConditions.push(eq(processos.areaDireito, filters.area))
-  if (filters.tribunal) countConditions.push(eq(processos.tribunal, filters.tribunal))
-  if (filters.responsavel_id) countConditions.push(eq(processos.responsavelId, filters.responsavel_id))
-  if (filters.q) {
-    countConditions.push(
-      or(
-        ilike(processos.numeroCnj, `%${filters.q}%`),
-        ilike(processos.ultimaMovimentacao, `%${filters.q}%`),
-      )!,
-    )
-  }
+  const countConditions = buildConditions(ctx, filters)
 
   const totalResult = await db
-    .select({ count: sql<number>`cast(count(*) as int)` })
+    .select({ count: sql<number>`cast(count(distinct ${processos.id}) as int)` })
     .from(processos)
+    .leftJoin(sql`${PROXIMO_PRAZO_SQ} pp`, sql`pp.processo_id = ${processos.id}`)
     .where(and(...countConditions))
 
   return {

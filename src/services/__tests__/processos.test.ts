@@ -87,6 +87,7 @@ vi.mock('@/db/schema', () => ({
     createdAt: 'created_at',
     $inferSelect: {},
   },
+  users: { id: 'id', name: 'name' },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -94,6 +95,7 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions) => ({ type: 'and', conditions })),
   isNull: vi.fn((field) => ({ type: 'isNull', field })),
   desc: vi.fn((field) => ({ type: 'desc', field })),
+  asc: vi.fn((field) => ({ type: 'asc', field })),
   gt: vi.fn((field, val) => ({ type: 'gt', field, val })),
   ilike: vi.fn((field, val) => ({ type: 'ilike', field, val })),
   or: vi.fn((...args) => ({ type: 'or', args })),
@@ -134,12 +136,14 @@ describe('listProcessos', () => {
 
     const selectChain = {
       from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue(mockProcessos),
     }
     const countChain = {
       from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue([{ count: 2 }]),
     }
 
@@ -156,6 +160,87 @@ describe('listProcessos', () => {
     expect(result.data.every((p) => p.status === 'ativo')).toBe(true)
   })
 
+  it('junta a subquery de próximo prazo e a tabela de usuários (responsável)', async () => {
+    const { db } = await import('@/db')
+
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    }
+    const countChain = {
+      from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockResolvedValue([{ count: 0 }]),
+    }
+    vi.mocked(db.select)
+      .mockReturnValueOnce(selectChain as unknown as ReturnType<typeof db.select>)
+      .mockReturnValueOnce(countChain as unknown as ReturnType<typeof db.select>)
+
+    const { listProcessos } = await import('@/services/processos')
+    await listProcessos(makeCtx(), {})
+
+    // Duas junções (subquery de próximo prazo + usuários) na query de dados e na de contagem
+    expect(selectChain.leftJoin).toHaveBeenCalledTimes(2)
+    expect(countChain.leftJoin).toHaveBeenCalledTimes(1)
+  })
+
+  it('aplica order/sort quando fornecidos', async () => {
+    const { db } = await import('@/db')
+
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    }
+    const countChain = {
+      from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockResolvedValue([{ count: 0 }]),
+    }
+    vi.mocked(db.select)
+      .mockReturnValueOnce(selectChain as unknown as ReturnType<typeof db.select>)
+      .mockReturnValueOnce(countChain as unknown as ReturnType<typeof db.select>)
+
+    const { listProcessos } = await import('@/services/processos')
+    await listProcessos(makeCtx(), { sort: 'proximoPrazo', order: 'asc' })
+
+    expect(selectChain.orderBy).toHaveBeenCalled()
+  })
+
+  it('filtro urgencia adiciona condição sobre o próximo prazo', async () => {
+    const { db } = await import('@/db')
+    const { and } = await import('drizzle-orm')
+
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    }
+    const countChain = {
+      from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockResolvedValue([{ count: 0 }]),
+    }
+    vi.mocked(db.select)
+      .mockReturnValueOnce(selectChain as unknown as ReturnType<typeof db.select>)
+      .mockReturnValueOnce(countChain as unknown as ReturnType<typeof db.select>)
+
+    const { listProcessos } = await import('@/services/processos')
+    await listProcessos(makeCtx(), { urgencia: '1' })
+
+    // and() é chamado com as condições — confirma que a condição extra de urgência
+    // foi incluída na lista passada para and() (uma a mais que sem o filtro)
+    const callArgs = vi.mocked(and).mock.calls[0]
+    expect(callArgs.length).toBeGreaterThan(2) // orgId + arquivadoAt + urgencia
+  })
+
   it('retorna lista com nextCursor quando há mais itens que o limit', async () => {
     const { db } = await import('@/db')
 
@@ -168,12 +253,14 @@ describe('listProcessos', () => {
 
     const selectChain = {
       from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue(mockProcessos),
     }
     const countChain = {
       from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue([{ count: 25 }]),
     }
     vi.mocked(db.select)

@@ -1,11 +1,16 @@
 /**
+ * GET /api/perfil/backup
+ *
+ * Retorna se o usuário autenticado é hoje o contato de backup do escritório.
+ * Resposta: 200 { isBackup: boolean } | 401
+ *
  * PATCH /api/perfil/backup
  *
  * Define se o usuário autenticado é o contato de backup do escritório.
  *
  * Regra de negócio: apenas 1 membro por escritório pode ser backup.
  * Quando isBackup = true, reseta todos os outros membros da organização
- * antes de setar o membro atual como backup (operação em transação).
+ * antes de setar o membro atual como backup.
  *
  * Body: { isBackup: boolean }
  * Resposta: 200 { success: true } | 400 | 401 | 500
@@ -22,6 +27,26 @@ import { UnauthorizedError } from '@/lib/errors';
 const bodySchema = z.object({
   isBackup: z.boolean(),
 });
+
+export async function GET() {
+  let ctx;
+  try {
+    ctx = await requireOrgContext();
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ error: err.message }, { status: 401 });
+    }
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 });
+  }
+
+  const [membro] = await db
+    .select({ isBackupContato: orgMembers.isBackupContato })
+    .from(orgMembers)
+    .where(and(eq(orgMembers.orgId, ctx.orgId), eq(orgMembers.userId, ctx.userId)))
+    .limit(1);
+
+  return NextResponse.json({ isBackup: membro?.isBackupContato ?? false });
+}
 
 export async function PATCH(req: NextRequest) {
   // 1. Autenticação
@@ -58,30 +83,29 @@ export async function PATCH(req: NextRequest) {
 
   try {
     if (isBackup) {
-      // Transação: resetar outros membros e setar o atual como backup
-      await db.transaction(async (tx) => {
-        // Remover backup de todos os outros membros da organização
-        await tx
-          .update(orgMembers)
-          .set({ isBackupContato: false })
-          .where(
-            and(
-              eq(orgMembers.orgId, ctx.orgId),
-              ne(orgMembers.userId, ctx.userId),
-            ),
-          );
+      // O driver HTTP do Neon (neon-http) não suporta transações — as duas
+      // atualizações rodam em sequência, sem wrap transacional. Mesma
+      // limitação/tradeoff já aceito em outros pontos do app (ex:
+      // registro de usuário em src/app/api/auth/register/route.ts).
+      await db
+        .update(orgMembers)
+        .set({ isBackupContato: false })
+        .where(
+          and(
+            eq(orgMembers.orgId, ctx.orgId),
+            ne(orgMembers.userId, ctx.userId),
+          ),
+        );
 
-        // Setar o membro atual como backup
-        await tx
-          .update(orgMembers)
-          .set({ isBackupContato: true })
-          .where(
-            and(
-              eq(orgMembers.orgId, ctx.orgId),
-              eq(orgMembers.userId, ctx.userId),
-            ),
-          );
-      });
+      await db
+        .update(orgMembers)
+        .set({ isBackupContato: true })
+        .where(
+          and(
+            eq(orgMembers.orgId, ctx.orgId),
+            eq(orgMembers.userId, ctx.userId),
+          ),
+        );
     } else {
       // Simplesmente remover o backup do membro atual
       await db

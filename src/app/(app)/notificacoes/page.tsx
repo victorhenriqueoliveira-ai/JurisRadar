@@ -127,7 +127,7 @@ export default function NotificacoesPage() {
       }
     }
     if (n.processoId) {
-      router.push(`/app/crm?processo=${n.processoId}`);
+      router.push(`/crm?processo=${n.processoId}`);
     }
   }
 
