@@ -32,6 +32,7 @@ function RegisterForm() {
     oabNumero: '',
     escritorioNome: '',
   });
+  const [aceiteTermos, setAceiteTermos] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -48,13 +49,19 @@ function RegisterForm() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setErro(null);
+
+    if (!aceiteTermos) {
+      setErro('É necessário aceitar os Termos de Uso e a Política de Privacidade.');
+      return;
+    }
+
     setCarregando(true);
 
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, aceiteTermos }),
       });
 
       const data = await res.json();
@@ -206,9 +213,30 @@ function RegisterForm() {
               </div>
             </div>
 
+            <label className="flex items-start gap-2.5 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={aceiteTermos}
+                onChange={(e) => setAceiteTermos(e.target.checked)}
+                disabled={carregando}
+                className="mt-0.5 w-3.5 h-3.5 rounded border-gray-300 text-[#0f2d5e] focus:ring-[#0f2d5e]/30 disabled:opacity-50"
+              />
+              <span>
+                Li e aceito os{' '}
+                <Link href="/termos-de-uso" target="_blank" className="text-[#0f2d5e] font-semibold hover:underline">
+                  Termos de Uso
+                </Link>{' '}
+                e a{' '}
+                <Link href="/politica-privacidade" target="_blank" className="text-[#0f2d5e] font-semibold hover:underline">
+                  Política de Privacidade
+                </Link>
+                .
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={carregando}
+              disabled={carregando || !aceiteTermos}
               className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-[#0f2d5e] hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {carregando ? 'Criando conta...' : 'Criar conta grátis'}

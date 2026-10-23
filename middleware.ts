@@ -16,6 +16,8 @@ export default auth((req: NextRequest & { auth: { user?: { id?: string; orgId?: 
     pathname === '/reset-password' ||
     pathname.startsWith('/convite') ||
     pathname === '/billing' ||
+    pathname === '/termos-de-uso' ||
+    pathname === '/politica-privacidade' ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/inngest') ||
     pathname === '/api/billing/webhook';

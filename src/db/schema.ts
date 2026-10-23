@@ -76,6 +76,9 @@ export const users = pgTable('users', {
   // Token de redefinição de senha
   passwordResetToken: text('password_reset_token'),
   passwordResetExpiresAt: timestamp('password_reset_expires_at'),
+  // Registro de aceite dos Termos de Uso / Política de Privacidade (LGPD)
+  termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
+  termsVersion: text('terms_version'),
 });
 
 // ── Tabelas SaaS multi-tenant ─────────────────────────────────────────────────
@@ -469,6 +472,90 @@ export const djeSearches = pgTable(
   }),
 );
 
+// ── Tabelas Lista de Distribuição TJSP (processos novos/eproc) ────────────────
+
+/** Controla status de indexação por dia da Lista de Distribuição (eproc, 1ª Instância) */
+export const distribuicaoTjspEdicoes = pgTable(
+  'distribuicao_tjsp_edicoes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dataDistribuicao: date('data_distribuicao').notNull(),
+    codigoArquivo: text('codigo_arquivo'),
+    status: text('status')
+      .$type<'pending' | 'downloading' | 'parsing' | 'completed' | 'failed'>()
+      .notNull()
+      .default('pending'),
+    processCount: integer('process_count'),
+    errorMessage: text('error_message'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqueData: unique().on(t.dataDistribuicao),
+  }),
+);
+
+/** Processos novos extraídos da Lista de Distribuição TJSP (sem nome de partes — ver `link`) */
+export const distribuicaoTjspProcessos = pgTable(
+  'distribuicao_tjsp_processos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    edicaoId: uuid('edicao_id')
+      .notNull()
+      .references(() => distribuicaoTjspEdicoes.id),
+    numeroProcesso: text('numero_processo').notNull(),
+    comarca: text('comarca'),
+    vara: text('vara'),
+    classe: text('classe').notNull(),
+    dataDistribuicao: date('data_distribuicao').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    dataIdx: index('distrib_tjsp_data_idx').on(t.dataDistribuicao),
+    comarcaIdx: index('distrib_tjsp_comarca_idx').on(t.comarca),
+    classeIdx: index('distrib_tjsp_classe_idx').on(t.classe),
+    uniqueProcesso: unique().on(t.numeroProcesso),
+  }),
+);
+
+/** Conversas do assistente de IA da busca "Processos Novos" por usuário/org */
+export const distribuicaoTjspConversations = pgTable(
+  'distribuicao_tjsp_conversations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    // Histórico no formato Anthropic MessageParam[] para multi-turn
+    apiMessages: jsonb('api_messages').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgUserIdx: index('idx_distrib_tjsp_conversations_org_user').on(t.orgId, t.userId, t.updatedAt),
+  }),
+);
+
+/** Mensagens individuais de cada conversa da IA de "Processos Novos" */
+export const distribuicaoTjspMessages = pgTable(
+  'distribuicao_tjsp_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => distribuicaoTjspConversations.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'user' | 'assistant'>().notNull(),
+    text: text('text').notNull(),
+    // Processos retornados/enriquecidos nesta mensagem, para renderizar cards no chat
+    processos: jsonb('processos'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    conversationIdx: index('idx_distrib_tjsp_messages_conversation').on(t.conversationId, t.createdAt),
+  }),
+);
+
 // ── Tabelas CRM Jurídico ──────────────────────────────────────────────────────
 
 /**
@@ -589,6 +676,19 @@ export const saques = pgTable(
   (t) => ({
     orgCreatedIdx: index('idx_saques_org_created').on(t.orgId, t.createdAt),
     asaasTransferIdx: index('idx_saques_asaas_transfer').on(t.asaasTransferId),
+  }),
+);
+
+/** Tentativas de cadastro, usadas para rate limiting de POST /api/auth/register por IP */
+export const registroTentativas = pgTable(
+  'registro_tentativas',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ip: text('ip').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    ipCreatedIdx: index('idx_registro_tentativas_ip_created').on(t.ip, t.createdAt),
   }),
 );
 

@@ -3,6 +3,10 @@ import { hash } from 'bcryptjs';
 import { db } from '@/db';
 import { users, organizations, orgMembers, subscriptions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { checarRateLimitCadastro, extrairIp } from '@/lib/rate-limit';
+
+/** Data de publicação da versão atual dos Termos de Uso / Política de Privacidade */
+const TERMS_VERSION = '2026-10-23';
 
 function slugify(text: string): string {
   return text
@@ -31,8 +35,17 @@ async function uniqueSlug(base: string): Promise<string> {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = extrairIp(req.headers);
+    const bloqueado = await checarRateLimitCadastro(ip);
+    if (bloqueado) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas de cadastro. Tente novamente mais tarde.' },
+        { status: 429 },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
-    const { email, password, name, cpf, oabNumero, oabEstado, escritorioNome } = body as {
+    const { email, password, name, cpf, oabNumero, oabEstado, escritorioNome, aceiteTermos } = body as {
       email?: string;
       password?: string;
       name?: string;
@@ -40,6 +53,7 @@ export async function POST(req: NextRequest) {
       oabNumero?: string;
       oabEstado?: string;
       escritorioNome?: string;
+      aceiteTermos?: boolean;
     };
 
     if (!email?.trim() || !password || !name?.trim()) {
@@ -52,6 +66,13 @@ export async function POST(req: NextRequest) {
     if (password.length < 8) {
       return NextResponse.json(
         { error: 'A senha deve ter pelo menos 8 caracteres.' },
+        { status: 400 },
+      );
+    }
+
+    if (aceiteTermos !== true) {
+      return NextResponse.json(
+        { error: 'É necessário aceitar os Termos de Uso e a Política de Privacidade.' },
         { status: 400 },
       );
     }
@@ -85,6 +106,8 @@ export async function POST(req: NextRequest) {
         oabNumero: oabNumero?.trim() || null,
         oabEstado: oabEstado?.trim().toUpperCase() || null,
         systemRole: 'user',
+        termsAcceptedAt: new Date(),
+        termsVersion: TERMS_VERSION,
       })
       .returning({ id: users.id });
 
