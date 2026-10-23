@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Testes unitários para CalendarioProcessual (Task 22).
  *
@@ -6,10 +7,12 @@
  * - onEventDrop válido chama PUT com nova data
  * - FocoDoDia: progresso com 1/3 concluído = 33%
  * - FocoDoDia: estado vazio exibe mensagem adequada
+ * - FocoDoDia: conclusão de item persiste via PUT /api/calendario/eventos/[id] (Fase 3)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import React from 'react';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -74,7 +77,7 @@ describe('FocoDoDia', () => {
 
     render(<FocoDoDia />);
     await waitFor(() => {
-      expect(screen.getByText('Audiência')).toBeInTheDocument();
+      expect(screen.getAllByText('Audiência').length).toBeGreaterThan(0);
     });
 
     const checkboxes = screen.getAllByRole('button', { name: /marcar como concluído/i });
@@ -98,12 +101,75 @@ describe('FocoDoDia', () => {
     });
 
     render(<FocoDoDia />);
-    await waitFor(() => { expect(screen.getByText('Tarefa')).toBeInTheDocument(); });
+    await waitFor(() => { expect(screen.getAllByText('Tarefa').length).toBeGreaterThan(0); });
 
     fireEvent.click(screen.getByRole('button', { name: /marcar como concluído/i }));
 
     await waitFor(() => {
       expect(screen.getByText('100%')).toBeInTheDocument();
+    });
+  });
+
+  it('inicializa com os itens já marcados como concluídos conforme o campo concluido', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [{ id: 'ev-1', titulo: 'Audiência', tipo: 'audiencia', fonte: 'calendario', concluido: true }],
+        date: '2026-09-04',
+      }),
+    });
+
+    render(<FocoDoDia />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100%')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /marcar como pendente/i })).toBeInTheDocument();
+  });
+
+  it('ao marcar um item como concluído, chama PUT /api/calendario/eventos/[id] com fonte e concluido', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [{ id: 'ev-1', titulo: 'Audiência', tipo: 'audiencia', fonte: 'calendario' }],
+        date: '2026-09-04',
+      }),
+    });
+
+    render(<FocoDoDia />);
+    await waitFor(() => { expect(screen.getAllByText('Audiência').length).toBeGreaterThan(0); });
+
+    fireEvent.click(screen.getByRole('button', { name: /marcar como concluído/i }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/calendario/eventos/ev-1', expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ fonte: 'calendario', concluido: true }),
+      }));
+    });
+  });
+
+  it('reverte a marcação visual se o PUT de conclusão falhar', async () => {
+    mockFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (options?.method === 'PUT') {
+        return Promise.resolve({ ok: false, json: async () => ({ error: 'Erro' }) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'ev-1', titulo: 'Audiência', tipo: 'audiencia', fonte: 'calendario' }],
+          date: '2026-09-04',
+        }),
+      });
+    });
+
+    render(<FocoDoDia />);
+    await waitFor(() => { expect(screen.getAllByText('Audiência').length).toBeGreaterThan(0); });
+
+    fireEvent.click(screen.getByRole('button', { name: /marcar como concluído/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /marcar como concluído/i })).toBeInTheDocument();
     });
   });
 });

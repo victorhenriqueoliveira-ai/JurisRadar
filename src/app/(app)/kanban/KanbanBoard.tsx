@@ -128,6 +128,40 @@ export default function KanbanBoard({ initialData }: { initialData: Record<ColId
     }))
   );
   const [addingTo, setAddingTo] = useState<ColId | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<ColId | null>(null);
+
+  function moverCardEntreColunas(cols: Column[], cardId: string, destCol: ColId): Column[] {
+    const next = cols.map((col) => ({ ...col, cards: [...col.cards] }));
+    for (const col of next) {
+      const idx = col.cards.findIndex((c) => c.id === cardId);
+      if (idx !== -1) {
+        const [card] = col.cards.splice(idx, 1);
+        next.find((c) => c.id === destCol)?.cards.push(card);
+        break;
+      }
+    }
+    return next;
+  }
+
+  async function moveCard(cardId: string, destCol: ColId) {
+    const origem = columns.find((col) => col.cards.some((c) => c.id === cardId));
+    if (!origem || origem.id === destCol) return;
+    const origemId = origem.id;
+
+    setColumns((prev) => moverCardEntreColunas(prev, cardId, destCol));
+
+    try {
+      const res = await fetch(`/api/kanban/${cardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coluna: destCol }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setColumns((prev) => moverCardEntreColunas(prev, cardId, origemId));
+    }
+  }
 
   async function addCard(colId: ColId, data: { titulo: string; tag: string; prioridade: string; prazo: string }) {
     const res = await fetch('/api/kanban', {
@@ -157,7 +191,19 @@ export default function KanbanBoard({ initialData }: { initialData: Record<ColId
 
       <div className="flex gap-4 overflow-x-auto pb-4 flex-1 items-start">
         {columns.map((col) => (
-          <div key={col.id} className="flex flex-col gap-3 min-w-[260px] w-[260px] rounded-xl p-3 shrink-0" style={{ background: '#f1f5f9' }}>
+          <div
+            key={col.id}
+            data-testid={`kanban-col-${col.id}`}
+            onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.id); }}
+            onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverCol(null);
+              if (draggingId) moveCard(draggingId, col.id);
+            }}
+            className="flex flex-col gap-3 min-w-[260px] w-[260px] rounded-xl p-3 shrink-0 transition-colors"
+            style={{ background: dragOverCol === col.id ? '#e2e8f0' : '#f1f5f9' }}
+          >
             <div className="flex items-center gap-2 px-1">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: col.dot }} />
               <span className="text-sm font-bold text-[#1e293b]">{col.label}</span>
@@ -166,7 +212,18 @@ export default function KanbanBoard({ initialData }: { initialData: Record<ColId
 
             <div className="flex flex-col gap-2">
               {col.cards.map((card) => (
-                <div key={card.id} className="bg-white rounded-xl p-3 shadow-sm" style={{ borderLeft: `3px solid ${card.priColor}` }}>
+                <div
+                  key={card.id}
+                  data-testid={`kanban-card-${card.id}`}
+                  draggable
+                  onDragStart={(e) => { setDraggingId(card.id); e.dataTransfer.effectAllowed = 'move'; }}
+                  onDragEnd={() => setDraggingId(null)}
+                  className="bg-white rounded-xl p-3 shadow-sm cursor-grab active:cursor-grabbing"
+                  style={{
+                    borderLeft: `3px solid ${card.priColor}`,
+                    opacity: draggingId === card.id ? 0.4 : 1,
+                  }}
+                >
                   <p className="text-[13px] font-semibold text-[#1e293b] leading-snug mb-2">{card.titulo}</p>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: '#f3e8ff', color: '#7c3aed' }}>{card.tag}</span>

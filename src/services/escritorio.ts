@@ -39,6 +39,23 @@ export async function getEquipe(ctx: OrgContext) {
 }
 
 /**
+ * Retorna os dados cadastrais da organização (nome, CNPJ, área de atuação).
+ */
+export async function getOrganizacao(ctx: OrgContext) {
+  const rows = await db
+    .select({
+      name: organizations.name,
+      cnpj: organizations.cnpj,
+      areaAtuacao: organizations.areaAtuacao,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, ctx.orgId))
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
+/**
  * Retorna o plano atual da organização.
  */
 export async function getPlanoAtual(ctx: OrgContext) {

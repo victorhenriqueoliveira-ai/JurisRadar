@@ -8,6 +8,7 @@ interface EventoDia {
   tipo: string;
   hora_inicio?: string | null;
   fonte: string;
+  concluido?: boolean;
 }
 
 const TIPO_LABEL: Record<string, string> = {
@@ -28,7 +29,11 @@ export function FocoDoDia() {
   useEffect(() => {
     fetch('/api/calendario/foco-do-dia')
       .then((r) => r.json())
-      .then((d) => setEventos(d.data ?? []))
+      .then((d) => {
+        const lista: EventoDia[] = d.data ?? [];
+        setEventos(lista);
+        setConcluidos(new Set(lista.filter((ev) => ev.concluido).map((ev) => ev.id)));
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -36,13 +41,33 @@ export function FocoDoDia() {
   const progresso =
     eventos.length === 0 ? 0 : Math.round((concluidos.size / eventos.length) * 100);
 
-  function toggle(id: string) {
+  async function toggle(id: string) {
+    const evento = eventos.find((ev) => ev.id === id);
+    if (!evento) return;
+
+    const jaConcluido = concluidos.has(id);
     setConcluidos((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
+      if (jaConcluido) next.delete(id);
       else next.add(id);
       return next;
     });
+
+    try {
+      const res = await fetch(`/api/calendario/eventos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fonte: evento.fonte, concluido: !jaConcluido }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setConcluidos((prev) => {
+        const next = new Set(prev);
+        if (jaConcluido) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    }
   }
 
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });

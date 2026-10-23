@@ -107,7 +107,9 @@ function NovaTarefaModal({ onClose, onSave }: {
 export default function TarefasList({ initialData }: { initialData: Tarefa[] }) {
   const [tarefas, setTarefas] = useState<Tarefa[]>(initialData);
   const [showModal, setShowModal] = useState(false);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [checked, setChecked] = useState<Set<string>>(
+    () => new Set(initialData.filter((t) => t.status === 'concluida').map((t) => t.id)),
+  );
 
   async function addTarefa(data: { titulo: string; prioridade: string; prazo: string }) {
     try {
@@ -130,13 +132,32 @@ export default function TarefasList({ initialData }: { initialData: Tarefa[] }) 
     }
   }
 
-  function toggleCheck(id: string) {
+  async function toggleCheck(id: string) {
+    const jaConcluida = checked.has(id);
+    const novoStatus = jaConcluida ? 'pendente' : 'concluida';
+
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
+      if (jaConcluida) next.delete(id);
       else next.add(id);
       return next;
     });
+
+    try {
+      const res = await fetch(`/api/tarefas/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: novoStatus }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setChecked((prev) => {
+        const next = new Set(prev);
+        if (jaConcluida) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    }
   }
 
   return (

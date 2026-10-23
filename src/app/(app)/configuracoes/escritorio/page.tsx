@@ -1,15 +1,19 @@
 import { Suspense } from 'react';
 import { requireOrgContext } from '@/lib/org-context';
-import { getEquipe, getPlanoAtual } from '@/services/escritorio';
+import { getEquipe, getPlanoAtual, getOrganizacao } from '@/services/escritorio';
 import EscritorioClient from './EscritorioClient';
 
 async function EscritorioContent() {
   try {
     const ctx = await requireOrgContext();
-    const [equipe, plano] = await Promise.all([getEquipe(ctx), getPlanoAtual(ctx)]);
-    return <EscritorioClient equipe={equipe} plano={plano} />;
+    const [equipe, plano, organizacao] = await Promise.all([
+      getEquipe(ctx),
+      getPlanoAtual(ctx),
+      getOrganizacao(ctx),
+    ]);
+    return <EscritorioClient equipe={equipe} plano={plano} organizacao={organizacao} />;
   } catch {
-    return <EscritorioClient equipe={[]} plano={null} />;
+    return <EscritorioClient equipe={[]} plano={null} organizacao={null} />;
   }
 }
 

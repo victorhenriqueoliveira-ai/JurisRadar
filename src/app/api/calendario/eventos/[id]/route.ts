@@ -15,8 +15,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const ctx = await requireOrgContext();
     const { id } = await params;
-    const body = (await request.json()) as Record<string, string>;
-    const { fonte, tipo, data, titulo, descricao, horaInicio, horaFim, responsavelId } = body;
+    const body = (await request.json()) as Record<string, unknown>;
+    const { fonte, tipo, data, titulo, descricao, horaInicio, horaFim, responsavelId, concluido } = body as {
+      fonte?: string;
+      tipo?: string;
+      data?: string;
+      titulo?: string;
+      descricao?: string;
+      horaInicio?: string;
+      horaFim?: string;
+      responsavelId?: string;
+      concluido?: boolean;
+    };
 
     if (!fonte || !['calendario', 'agenda'].includes(fonte)) {
       return NextResponse.json(
@@ -42,6 +52,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           ...(horaInicio !== undefined && { horaInicio }),
           ...(horaFim !== undefined && { horaFim }),
           ...(responsavelId !== undefined && { responsavelId }),
+          ...(concluido !== undefined && { concluido }),
         })
         .where(and(eq(eventosCalendario.id, id), eq(eventosCalendario.orgId, ctx.orgId)))
         .returning({ id: eventosCalendario.id });
@@ -62,6 +73,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(horaInicio !== undefined && { horaInicio }),
         ...(horaFim !== undefined && { horaFim }),
         ...(responsavelId !== undefined && { responsavelId }),
+        ...(concluido !== undefined && { concluido }),
       })
       .where(and(eq(eventosAgenda.id, id), eq(eventosAgenda.orgId, ctx.orgId)))
       .returning({ id: eventosAgenda.id });

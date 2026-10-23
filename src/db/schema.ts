@@ -300,6 +300,7 @@ export const eventosCalendario = pgTable(
     horaFim: text('hora_fim'),
     responsavelId: uuid('responsavel_id').references(() => users.id),
     origem: text('origem').notNull().default('manual'),
+    concluido: boolean('concluido').notNull().default(false),
   },
   (t) => ({
     orgIdDataIdx: index('eventos_calendario_org_id_data_idx').on(t.orgId, t.data),
@@ -323,6 +324,7 @@ export const eventosAgenda = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     // v2: campo adicionado pela task_16
     responsavelId: uuid('responsavel_id').references(() => users.id),
+    concluido: boolean('concluido').notNull().default(false),
   },
   (t) => ({
     orgIdDataIdx: index('eventos_agenda_org_id_data_idx').on(t.orgId, t.data),
