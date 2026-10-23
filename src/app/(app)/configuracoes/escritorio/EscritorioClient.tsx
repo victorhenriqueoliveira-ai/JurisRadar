@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Plus, X } from 'lucide-react';
 
 type Papel = 'socio' | 'associado' | 'estagiario';
@@ -87,21 +88,46 @@ export default function EscritorioClient({ equipe: initialEquipe, plano }: {
   );
 
   async function convidar(email: string, role: Papel) {
-    const res = await fetch('/api/escritorio/equipe', {
+    const res = await fetch('/api/organizacoes/me/membros', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email, papel: role }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Erro ao convidar' }));
       alert(err.error ?? 'Erro ao convidar');
+      return;
     }
+    const data = await res.json();
+    setEquipe((prev) => [
+      ...prev,
+      { id: data.id, userId: data.userId, name: data.nome, email: data.email, role: data.papel, isSelf: false },
+    ]);
+    setPapeis((prev) => ({ ...prev, [data.id]: data.papel }));
   }
 
   async function remover(id: string) {
-    const res = await fetch(`/api/escritorio/equipe/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/organizacoes/me/membros/${id}`, { method: 'DELETE' });
     if (res.ok) {
       setEquipe((prev) => prev.filter((m) => m.id !== id));
+    } else {
+      const err = await res.json().catch(() => ({ error: 'Erro ao remover' }));
+      alert(err.error ?? 'Erro ao remover');
+    }
+  }
+
+  async function alterarPapel(id: string, novoPapel: Papel) {
+    const anterior = papeis[id];
+    setPapeis((prev) => ({ ...prev, [id]: novoPapel }));
+    const res = await fetch(`/api/organizacoes/me/membros/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ papel: novoPapel }),
+    });
+    if (!res.ok) {
+      setPapeis((prev) => ({ ...prev, [id]: anterior }));
+      const err = await res.json().catch(() => ({ error: 'Erro ao alterar papel' }));
+      alert(err.error ?? 'Erro ao alterar papel');
     }
   }
 
@@ -152,7 +178,7 @@ export default function EscritorioClient({ equipe: initialEquipe, plano }: {
                   <td className="px-5 py-3.5">
                     <select
                       value={papeis[m.id] ?? m.role}
-                      onChange={(e) => setPapeis((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                      onChange={(e) => alterarPapel(m.id, e.target.value as Papel)}
                       disabled={m.isSelf}
                       className="px-2 py-1 border border-gray-200 rounded-lg text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -193,9 +219,9 @@ export default function EscritorioClient({ equipe: initialEquipe, plano }: {
                 <p className="text-sm text-amber-600 font-medium">Trial até {formatDate(plano.trialEndsAt)}</p>
               )}
               <div className="pt-2">
-                <button type="button" className="w-full py-2.5 px-4 bg-[#0f2d5e] text-white text-sm font-semibold rounded-xl hover:bg-[#1a3f7a] transition-colors">
+                <Link href="/configuracoes?aba=assinatura" className="block text-center w-full py-2.5 px-4 bg-[#0f2d5e] text-white text-sm font-semibold rounded-xl hover:bg-[#1a3f7a] transition-colors">
                   Gerenciar plano
-                </button>
+                </Link>
               </div>
             </div>
           ) : (
@@ -203,9 +229,9 @@ export default function EscritorioClient({ equipe: initialEquipe, plano }: {
               <p className="text-xl font-extrabold text-[#0f2d5e]">Profissional</p>
               <p className="text-sm text-[#6b7280]">Até 150 processos monitorados</p>
               <div className="pt-2">
-                <button type="button" className="w-full py-2.5 px-4 bg-[#0f2d5e] text-white text-sm font-semibold rounded-xl hover:bg-[#1a3f7a] transition-colors">
+                <Link href="/configuracoes?aba=assinatura" className="block text-center w-full py-2.5 px-4 bg-[#0f2d5e] text-white text-sm font-semibold rounded-xl hover:bg-[#1a3f7a] transition-colors">
                   Gerenciar plano
-                </button>
+                </Link>
               </div>
             </div>
           )}

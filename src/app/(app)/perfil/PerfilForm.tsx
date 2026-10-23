@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Copy, Check, Eye, EyeOff } from 'lucide-react';
 
 type PerfilTab = 'dados' | 'seguranca' | 'notificacoes' | 'indicacoes';
@@ -89,11 +89,25 @@ function Seguranca() {
     setError('');
     if (nova.length < 8) { setError('A nova senha deve ter pelo menos 8 caracteres.'); return; }
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 700));
-    setSaving(false);
-    setSaved(true);
-    setAtual(''); setNova('');
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senhaAtual: atual, novaSenha: nova }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Erro ao alterar a senha.');
+        return;
+      }
+      setSaved(true);
+      setAtual(''); setNova('');
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError('Erro de conexão. Tente novamente.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -137,19 +151,80 @@ function ToggleSwitch({ checked, onChange, label, description }: {
   );
 }
 
+const NOTIF_CONFIG = [
+  { key: 'emailIntimacoes' as const, desativadoKey: 'intimacao', label: 'Nova intimação recebida', description: 'Receba um e-mail imediatamente quando houver nova intimação.' },
+  { key: 'emailPrazos' as const, desativadoKey: 'prazo_vencendo', label: 'Prazo crítico (T-5, T-2, T-1 dias)', description: 'Alertas automáticos antes do vencimento.' },
+  { key: 'emailResumo' as const, desativadoKey: 'resumo_diario', label: 'Resumo diário', description: 'Um e-mail por dia com as movimentações do dia.' },
+];
+
 function Notificacoes() {
-  const [prefs, setPrefs] = useState({ email: true, whatsapp: false, prazos: true, novidades: false });
-  const NOTIF = [
-    { key: 'email' as const, label: 'E-mail', description: 'Receba alertas e relatórios no seu e-mail' },
-    { key: 'whatsapp' as const, label: 'WhatsApp', description: 'Alertas instantâneos pelo WhatsApp' },
-    { key: 'prazos' as const, label: 'Prazos críticos', description: 'Avise quando um prazo fatal estiver próximo' },
-    { key: 'novidades' as const, label: 'Novidades do produto', description: 'Fique por dentro de novas funcionalidades' },
-  ];
+  const [prefs, setPrefs] = useState({ emailIntimacoes: true, emailPrazos: true, emailResumo: false });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/users/me')
+      .then((r) => r.json())
+      .then((data) => {
+        const desativados: string[] = data.notificationPrefs?.emailDesativado ?? [];
+        setPrefs({
+          emailIntimacoes: !desativados.includes('intimacao'),
+          emailPrazos: !desativados.includes('prazo_vencendo'),
+          emailResumo: !desativados.includes('resumo_diario'),
+        });
+      })
+      .catch(() => setError('Erro ao carregar preferências.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function toggle(key: keyof typeof prefs) {
+    const novoValor = !prefs[key];
+    const prevPrefs = prefs;
+    setPrefs((p) => ({ ...p, [key]: novoValor }));
+    setError('');
+    setSaving(true);
+    try {
+      const desativados = NOTIF_CONFIG.filter((n) => {
+        if (n.key === key) return !novoValor;
+        return !prevPrefs[n.key];
+      }).map((n) => n.desativadoKey);
+
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationPrefs: { emailDesativado: desativados } }),
+      });
+      if (!res.ok) {
+        setPrefs(prevPrefs);
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Erro ao salvar. Tente novamente.');
+      }
+    } catch {
+      setPrefs(prevPrefs);
+      setError('Erro de conexão. Tente novamente.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="animate-pulse space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 bg-gray-100 rounded-xl" />)}</div>;
+  }
+
   return (
     <div>
-      {NOTIF.map((n) => (
-        <ToggleSwitch key={n.key} checked={prefs[n.key]} onChange={() => setPrefs((p) => ({ ...p, [n.key]: !p[n.key] }))} label={n.label} description={n.description} />
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {NOTIF_CONFIG.map((n) => (
+        <ToggleSwitch
+          key={n.key}
+          checked={prefs[n.key]}
+          onChange={() => toggle(n.key)}
+          label={n.label}
+          description={n.description}
+        />
       ))}
+      {saving && <p className="text-xs text-gray-400 mt-2">Salvando…</p>}
     </div>
   );
 }

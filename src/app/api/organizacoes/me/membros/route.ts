@@ -109,11 +109,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await db.insert(orgMembers).values({
-      orgId: ctx.orgId,
-      userId: targetUserId,
-      role: papel as InviteRole,
-    });
+    const [novoMembro] = await db
+      .insert(orgMembers)
+      .values({
+        orgId: ctx.orgId,
+        userId: targetUserId,
+        role: papel as InviteRole,
+      })
+      .returning({ id: orgMembers.id });
 
     // Get org name and inviter name for email
     const [org] = await db
@@ -156,6 +159,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ok: true,
+        id: novoMembro.id,
         userId: targetUserId,
         nome: targetUserName,
         email: emailNorm,

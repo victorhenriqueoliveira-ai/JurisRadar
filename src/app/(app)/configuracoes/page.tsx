@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { User, Building2, Bell, CreditCard, ChevronRight, Check, Loader2, Eye, EyeOff } from 'lucide-react';
 
 function maskCpf(value: string) {
@@ -382,18 +383,8 @@ function AssinaturaTab() {
     }
   }
 
-  async function handlePortal() {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/billing/portal', { method: 'POST' });
-      if (!res.ok) throw new Error();
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-    } catch {
-      alert('Erro ao abrir o portal. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
+  function handlePortal() {
+    window.location.href = '/configuracoes/billing';
   }
 
   return (
@@ -439,7 +430,7 @@ function AssinaturaTab() {
 
       <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-xl">
         <p className="text-sm font-bold text-[#374151] mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>Portal de assinatura</p>
-        <p className="text-xs text-[#9ca3af] mb-4">Gerencie sua assinatura, atualize o cartão ou cancele pelo portal do Stripe.</p>
+        <p className="text-xs text-[#9ca3af] mb-4">Veja o status da sua assinatura e os dados de cobrança.</p>
         <button
           type="button"
           disabled={loading}
@@ -461,8 +452,12 @@ const ABAS: { id: Aba; label: string; icon: React.ComponentType<{ className?: st
   { id: 'assinatura', label: 'Assinatura', icon: CreditCard },
 ];
 
-export default function ConfiguracoesPage() {
-  const [aba, setAba] = useState<Aba>('perfil');
+function ConfiguracoesContent() {
+  const searchParams = useSearchParams();
+  const abaInicial = (['perfil', 'notificacoes', 'assinatura'] as const).includes(searchParams.get('aba') as Aba)
+    ? (searchParams.get('aba') as Aba)
+    : 'perfil';
+  const [aba, setAba] = useState<Aba>(abaInicial);
 
   return (
     <div className="p-2 max-w-4xl mx-auto">
@@ -502,5 +497,13 @@ export default function ConfiguracoesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ConfiguracoesPage() {
+  return (
+    <Suspense fallback={<div className="p-6 animate-pulse h-64 bg-gray-100 rounded-2xl" />}>
+      <ConfiguracoesContent />
+    </Suspense>
   );
 }

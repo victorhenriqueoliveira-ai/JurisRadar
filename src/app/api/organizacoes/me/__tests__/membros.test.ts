@@ -225,7 +225,11 @@ describe('POST /api/organizacoes/me/membros', () => {
     }));
     vi.mocked(db.select).mockImplementation(selectMock);
 
-    const insertChain = { values: vi.fn().mockResolvedValue(undefined) };
+    const insertChain = {
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: 'new-member-1' }]),
+      }),
+    };
     vi.mocked(db.insert).mockReturnValue(insertChain as unknown as ReturnType<typeof db.insert>);
 
     // Rota chama db.update(users).set({inviteToken, ...}).where(...) antes de enviar o e-mail
@@ -240,8 +244,9 @@ describe('POST /api/organizacoes/me/membros', () => {
     const req = makeRequest('POST', BASE_URL, { email: 'novo@test.com', papel: 'associado' });
     const res = await POST(req);
     expect(res.status).toBe(201);
-    const body = await res.json() as { ok: boolean };
+    const body = await res.json() as { ok: boolean; id: string };
     expect(body.ok).toBe(true);
+    expect(body.id).toBe('new-member-1');
   });
 });
 
