@@ -35,6 +35,24 @@
   --primary-foreground: var(--jr-primary-foreground);
   --accent: var(--jr-accent);
   --accent-foreground: var(--jr-accent-foreground);
+
+  /* Tokens shadcn/ui adicionais — valores já usados de forma hardcoded
+     em dezenas de componentes do app (ex: #e5e7eb, #6b7280, #f3f4f6);
+     codificados aqui para que bg-muted, bg-secondary, bg-destructive etc.
+     (classes Tailwind já usadas em ~23 arquivos) passem a funcionar. */
+  --secondary: #f3f4f6;
+  --secondary-foreground: #374151;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --destructive: var(--jr-danger);
+  --destructive-foreground: var(--jr-danger-foreground);
+  --border: var(--jr-glass-border);
+  --input: var(--jr-glass-border);
+  --ring: var(--jr-primary);
+  --card: var(--jr-glass-bg);
+  --card-foreground: var(--foreground);
+  --popover: var(--jr-glass-bg);
+  --popover-foreground: var(--foreground);
 }
 
 /* Dark mode via atributo data-theme */
