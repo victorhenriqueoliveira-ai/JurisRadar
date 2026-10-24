@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 
 type Prioridade = 'urgente' | 'alta' | 'media' | 'baixa';
@@ -23,16 +23,25 @@ const PRIORIDADE_CONFIG: Record<string, { label: string; dotColor: string; bg: s
 
 function NovaTarefaModal({ onClose, onSave }: {
   onClose: () => void;
-  onSave: (t: { titulo: string; prioridade: string; prazo: string }) => void;
+  onSave: (t: { titulo: string; prioridade: string; prazo: string; processoRef: string }) => void;
 }) {
   const [titulo, setTitulo] = useState('');
   const [prioridade, setPrioridade] = useState<Prioridade>('media');
   const [prazo, setPrazo] = useState('');
+  const [processoRef, setProcessoRef] = useState('');
+  const [processos, setProcessos] = useState<{ id: string; numeroCnj: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/processos?limit=100')
+      .then((r) => r.json())
+      .then((d) => setProcessos(d.data ?? []))
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) return;
-    onSave({ titulo: titulo.trim(), prioridade, prazo });
+    onSave({ titulo: titulo.trim(), prioridade, prazo, processoRef: processoRef.trim() });
     onClose();
   }
 
@@ -58,6 +67,24 @@ function NovaTarefaModal({ onClose, onSave }: {
               placeholder="Descreva a tarefa…"
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Processo <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              list="tarefa-processos-list"
+              value={processoRef}
+              onChange={(e) => setProcessoRef(e.target.value)}
+              placeholder="Número CNJ do processo…"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2d5e]/30"
+            />
+            <datalist id="tarefa-processos-list">
+              {processos.map((p) => (
+                <option key={p.id} value={p.numeroCnj} />
+              ))}
+            </datalist>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
@@ -111,7 +138,7 @@ export default function TarefasList({ initialData }: { initialData: Tarefa[] }) 
     () => new Set(initialData.filter((t) => t.status === 'concluida').map((t) => t.id)),
   );
 
-  async function addTarefa(data: { titulo: string; prioridade: string; prazo: string }) {
+  async function addTarefa(data: { titulo: string; prioridade: string; prazo: string; processoRef: string }) {
     try {
       const res = await fetch('/api/tarefas', {
         method: 'POST',
@@ -120,6 +147,7 @@ export default function TarefasList({ initialData }: { initialData: Tarefa[] }) 
           titulo: data.titulo,
           prioridade: data.prioridade,
           prazo: data.prazo || undefined,
+          processoRef: data.processoRef || undefined,
           status: 'pendente',
         }),
       });

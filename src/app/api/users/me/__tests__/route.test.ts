@@ -35,6 +35,7 @@ vi.mock('@/db/schema', () => ({
     oabNumero: 'oab_numero',
     oabEstado: 'oab_estado',
     notificationPrefs: 'notification_prefs',
+    whatsappNumero: 'whatsapp_numero',
     systemRole: 'system_role',
     passwordHash: 'password_hash',
   },
@@ -106,6 +107,14 @@ describe('GET /api/users/me', () => {
     const body = await res.json();
     expect(body.email).toBe('a@b.com');
     expect(body.notificationPrefs.emailDesativado).toEqual(['resumo_diario']);
+  });
+
+  it('inclui whatsappNumero na resposta quando preenchido', async () => {
+    vi.mocked(auth).mockResolvedValue(SESSION as never);
+    selectReturning([{ id: 'user-1', email: 'a@b.com', whatsappNumero: '+5511999999999' }]);
+    const res = await GET();
+    const body = await res.json();
+    expect(body.whatsappNumero).toBe('+5511999999999');
   });
 });
 

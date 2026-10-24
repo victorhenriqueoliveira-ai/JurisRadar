@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { User, Building2, Bell, CreditCard, ChevronRight, Check, Loader2, Eye, EyeOff } from 'lucide-react';
 import { BackupContatoToggle } from '@/components/perfil/BackupContatoToggle';
+import { WhatsAppForm } from '@/components/perfil/WhatsAppForm';
 
 function maskCpf(value: string) {
   return value
@@ -295,6 +296,7 @@ function NotificacoesTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [whatsappAtual, setWhatsappAtual] = useState<string | null>(null);
 
   const [prefs, setPrefs] = useState({
     emailIntimacoes: true,
@@ -313,6 +315,7 @@ function NotificacoesTab() {
           emailPrazos: !desativados.includes('prazo_vencendo'),
           emailResumo: !desativados.includes('resumo_diario'),
         });
+        setWhatsappAtual(data.whatsappNumero ?? null);
       })
       .catch(() => setErro('Erro ao carregar preferências.'))
       .finally(() => setLoading(false));
@@ -384,6 +387,12 @@ function NotificacoesTab() {
       </div>
 
       <SaveButton onClick={save} saved={saved} loading={saving} />
+
+      <div className="pt-4 border-t border-[#f3f4f6]">
+        <p className="text-sm font-bold text-[#374151] mb-0.5" style={{ fontFamily: 'Manrope, sans-serif' }}>WhatsApp</p>
+        <p className="text-xs text-[#9ca3af] mb-3">Cadastre seu número para contato.</p>
+        <WhatsAppForm whatsappAtual={whatsappAtual} />
+      </div>
     </div>
   );
 }

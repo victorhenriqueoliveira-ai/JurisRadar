@@ -4,10 +4,16 @@
  *
  * Cobre a regressão corrigida na Fase 3: marcar uma tarefa como concluída
  * precisa persistir via PATCH /api/tarefas/[id], não só atualizar estado local.
+ *
+ * Cobre também o achado da auditoria (Parte 4, Alto): o formulário de nova
+ * tarefa não tinha campo para vincular a um processo, apesar do backend já
+ * suportar `processoRef` — agora o modal oferece um campo com autocomplete
+ * dos processos do escritório.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import React from 'react';
 import TarefasList from '../TarefasList';
 
@@ -87,6 +93,81 @@ describe('TarefasList', () => {
         method: 'PATCH',
         body: JSON.stringify({ status: 'pendente' }),
       }));
+    });
+  });
+
+  describe('vínculo com processo no formulário de nova tarefa', () => {
+    beforeEach(() => {
+      mockFetch.mockImplementation((url: string) => {
+        if (url.startsWith('/api/processos')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ data: [{ id: 'p1', numeroCnj: '0001234-56.2026.8.26.0100' }] }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ id: 'nova-tarefa', titulo: 'x', processoRef: null, prioridade: 'media', prazo: null, status: 'pendente' }) });
+      });
+    });
+
+    it('busca os processos do escritório ao abrir o modal, para preencher o autocomplete', async () => {
+      render(<TarefasList initialData={[]} />);
+      fireEvent.click(screen.getByRole('button', { name: /nova tarefa/i }));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/processos?limit=100');
+      });
+
+      expect(screen.getByPlaceholderText(/cnj do processo/i)).toBeInTheDocument();
+    });
+
+    it('envia processoRef preenchido ao criar a tarefa', async () => {
+      render(<TarefasList initialData={[]} />);
+      fireEvent.click(screen.getByRole('button', { name: /nova tarefa/i }));
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/cnj do processo/i)).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByPlaceholderText(/descreva a tarefa/i), { target: { value: 'Protocolar recurso' } });
+      fireEvent.change(screen.getByPlaceholderText(/cnj do processo/i), { target: { value: '0001234-56.2026.8.26.0100' } });
+      fireEvent.click(screen.getByRole('button', { name: /^criar$/i }));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/tarefas', expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            titulo: 'Protocolar recurso',
+            prioridade: 'media',
+            prazo: undefined,
+            processoRef: '0001234-56.2026.8.26.0100',
+            status: 'pendente',
+          }),
+        }));
+      });
+    });
+
+    it('não envia processoRef quando o campo é deixado em branco', async () => {
+      render(<TarefasList initialData={[]} />);
+      fireEvent.click(screen.getByRole('button', { name: /nova tarefa/i }));
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/cnj do processo/i)).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByPlaceholderText(/descreva a tarefa/i), { target: { value: 'Tarefa sem processo' } });
+      fireEvent.click(screen.getByRole('button', { name: /^criar$/i }));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/tarefas', expect.objectContaining({
+          body: JSON.stringify({
+            titulo: 'Tarefa sem processo',
+            prioridade: 'media',
+            prazo: undefined,
+            processoRef: undefined,
+            status: 'pendente',
+          }),
+        }));
+      });
     });
   });
 });

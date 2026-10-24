@@ -20,6 +20,7 @@ export async function GET() {
       oabNumero: users.oabNumero,
       oabEstado: users.oabEstado,
       notificationPrefs: users.notificationPrefs,
+      whatsappNumero: users.whatsappNumero,
       systemRole: users.systemRole,
     })
     .from(users)

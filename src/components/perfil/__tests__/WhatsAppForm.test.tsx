@@ -23,10 +23,10 @@ describe('WhatsAppForm', () => {
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
   });
 
-  it('renderiza campo WhatsApp e aviso sobre intimações', () => {
+  it('renderiza campo WhatsApp e aviso sobre o uso atual (apenas e-mail dispara alertas)', () => {
     render(<WhatsAppForm />);
     expect(screen.getByLabelText(/whatsapp/i)).toBeInTheDocument();
-    expect(screen.getByText(/necessário para receber alertas de intimações críticas/i)).toBeInTheDocument();
+    expect(screen.getByText(/alertas de intimações críticas são enviados apenas por e-mail/i)).toBeInTheDocument();
   });
 
   it('número +5511999999999 válido permite submeter o formulário', async () => {

@@ -81,11 +81,12 @@ export function WhatsAppForm({ whatsappAtual }: WhatsAppFormProps) {
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="space-y-4">
-        {/* Aviso sobre importância do WhatsApp */}
+        {/* Aviso sobre o uso atual do WhatsApp */}
         <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
           <p className="text-sm text-amber-800">
-            <strong>Atenção:</strong> O número de WhatsApp é necessário para receber alertas de
-            intimações críticas.
+            <strong>Atenção:</strong> hoje os alertas de intimações críticas são enviados apenas
+            por e-mail. O número de WhatsApp é guardado para contato, mas ainda não dispara
+            notificações automáticas.
           </p>
         </div>
 
