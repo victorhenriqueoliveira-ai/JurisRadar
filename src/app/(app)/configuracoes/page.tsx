@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { User, Building2, Bell, CreditCard, ChevronRight, Check, Loader2, Eye, EyeOff } from 'lucide-react';
+import { BackupContatoToggle } from '@/components/perfil/BackupContatoToggle';
 
 function maskCpf(value: string) {
   return value
@@ -260,6 +261,29 @@ function PerfilTab() {
       </div>
 
       <SaveButton onClick={save} saved={saved} loading={saving} />
+
+      <ContatoBackupSection />
+    </div>
+  );
+}
+
+function ContatoBackupSection() {
+  const [isBackupAtual, setIsBackupAtual] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/perfil/backup')
+      .then((r) => (r.ok ? r.json() : { isBackup: false }))
+      .then((data) => setIsBackupAtual(data.isBackup ?? false))
+      .catch(() => setIsBackupAtual(false));
+  }, []);
+
+  if (isBackupAtual === null) {
+    return <div className="pt-4 border-t border-[#f3f4f6] h-10 animate-pulse bg-gray-50 rounded-lg" />;
+  }
+
+  return (
+    <div className="pt-4 border-t border-[#f3f4f6]">
+      <BackupContatoToggle isBackupAtual={isBackupAtual} />
     </div>
   );
 }

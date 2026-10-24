@@ -124,6 +124,10 @@ export const subscriptions = pgTable('subscriptions', {
     .notNull()
     .unique()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  // Legado da migração Stripe → Asaas (billing hoje é 100% Asaas, ver
+  // src/app/api/billing/*). Colunas mantidas por serem NOT NULL/únicas e já
+  // populadas em produção; `stripeCustomerId` recebe um placeholder
+  // `pending_<orgId>` no cadastro só para satisfazer a constraint.
   stripeCustomerId: text('stripe_customer_id').notNull(),
   stripeSubscriptionId: text('stripe_subscription_id').unique(),
   status: text('status').notNull(),

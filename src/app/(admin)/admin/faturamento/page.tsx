@@ -152,7 +152,7 @@ export default function FaturamentoPage() {
       </div>
 
       <p className="mt-4 text-xs text-[#9ca3af]">
-        * Valores estimados com base nas assinaturas ativas no banco. Para dados precisos, consulte o Stripe Dashboard diretamente.
+        * Valores estimados com base nas assinaturas ativas no banco. Para dados precisos, consulte o painel da Asaas diretamente.
       </p>
     </div>
   );

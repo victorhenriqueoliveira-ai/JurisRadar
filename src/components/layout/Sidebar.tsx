@@ -135,7 +135,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Escritório',
     items: [
       { href: '/configuracoes/escritorio', label: 'Equipe & Plano', icon: Building2 },
-      { href: '/perfil', label: 'Meu perfil', icon: UserCircle },
+      { href: '/configuracoes?aba=perfil', label: 'Meu perfil', icon: UserCircle },
     ],
   },
 ];
@@ -144,12 +144,14 @@ function NavItemComponent({
   item,
   pathname,
   mode,
+  aba,
   showLabels,
   onNavigate,
 }: {
   item: NavItem;
   pathname: string;
   mode: string | null;
+  aba: string | null;
   showLabels: boolean;
   onNavigate?: () => void;
 }) {
@@ -172,7 +174,11 @@ function NavItemComponent({
   }
 
   if (!hasChildren) {
-    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+    const [itemPath, itemQuery] = item.href.split('?');
+    const itemAba = itemQuery ? new URLSearchParams(itemQuery).get('aba') : null;
+    const isActive = itemAba
+      ? pathname === itemPath && (aba ?? 'perfil') === itemAba
+      : pathname === item.href || pathname.startsWith(item.href + '/');
     return (
       <Link
         href={item.href}
@@ -245,6 +251,7 @@ export function SidebarContent({ onNavigate, showLabels = false }: { onNavigate?
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode');
+  const aba = searchParams.get('aba');
 
   return (
     <nav className="flex flex-col gap-0.5 px-3.5 py-3 flex-1 overflow-y-auto">
@@ -262,6 +269,7 @@ export function SidebarContent({ onNavigate, showLabels = false }: { onNavigate?
               item={item}
               pathname={pathname}
               mode={mode}
+              aba={aba}
               showLabels={showLabels}
               onNavigate={onNavigate}
             />

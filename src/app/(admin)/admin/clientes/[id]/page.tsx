@@ -19,8 +19,8 @@ interface ClienteDetail {
     plan: string;
     trialEndsAt: string | null;
     currentPeriodEnd: string | null;
-    stripeCustomerId: string;
-    stripeSubscriptionId: string | null;
+    asaasCustomerId: string | null;
+    asaasSubscriptionId: string | null;
   } | null;
   membros: {
     id: string;
@@ -225,7 +225,7 @@ export default function ClienteDetailPage() {
             <div className="flex justify-between"><dt className="text-[#9ca3af]">Plano</dt><dd className="font-medium capitalize">{sub?.plan ?? '—'}</dd></div>
             <div className="flex justify-between"><dt className="text-[#9ca3af]">Trial até</dt><dd className="font-medium">{fmt(sub?.trialEndsAt)}</dd></div>
             <div className="flex justify-between"><dt className="text-[#9ca3af]">Período atual</dt><dd className="font-medium">{fmt(sub?.currentPeriodEnd)}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#9ca3af]">Stripe Customer</dt><dd className="font-mono text-xs truncate max-w-[160px]">{sub?.stripeCustomerId ?? '—'}</dd></div>
+            <div className="flex justify-between"><dt className="text-[#9ca3af]">Asaas Customer</dt><dd className="font-mono text-xs truncate max-w-[160px]">{sub?.asaasCustomerId ?? '—'}</dd></div>
           </dl>
         </div>
 

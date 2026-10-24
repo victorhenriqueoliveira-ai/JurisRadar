@@ -113,6 +113,13 @@
       "when": 1757116800000,
       "tag": "0015_comunicacoes_nullable_cliente",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1757200000000,
+      "tag": "0016_workspace_tables",
+      "breakpoints": true
     }
   ]
 }

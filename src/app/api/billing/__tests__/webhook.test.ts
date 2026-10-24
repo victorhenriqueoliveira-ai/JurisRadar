@@ -1,204 +1,131 @@
 /**
- * Testes unitários para POST /api/billing/webhook
+ * Testes de integração para POST /api/billing/webhook
  *
- * Todos os mocks são criados com vi.mock — sem chamadas reais ao Stripe ou banco.
+ * A rota processa eventos da Asaas (migração do Stripe concluída na Fase 5),
+ * não mais eventos do Stripe — autenticação via header `asaas-access-token`,
+ * payload com `payment`/`subscription`, idempotência via `asaas_event_id`.
+ *
+ * Cobre:
+ * - 401 quando o token do header está ausente ou incorreto
+ * - skip (received: true) quando falta orgId ou eventId no payload
+ * - idempotência: evento já processado não é reprocessado
+ * - mapeamento de evento → status (PAYMENT_RECEIVED/CONFIRMED → active,
+ *   PAYMENT_OVERDUE → past_due, SUBSCRIPTION_DELETED → canceled)
+ * - eventos não mapeados são apenas confirmados (received: true)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type Stripe from 'stripe'
+import { NextRequest } from 'next/server'
 
-// ── Mocks ─────────────────────────────────────────────────────────────────────
-
-// Chainable mock for db.select().from().where().limit()
 const mockSelectLimit = vi.fn()
 const mockSelectWhere = vi.fn(() => ({ limit: mockSelectLimit }))
 const mockSelectFrom = vi.fn(() => ({ where: mockSelectWhere }))
-
-// Chainable mock for db.update().set().where()
-const mockUpdateWhere = vi.fn()
-const mockUpdateSet = vi.fn(() => ({ where: mockUpdateWhere }))
-
-// Chainable mock for db.insert().values()
-const mockInsertValues = vi.fn()
+const mockUpdateSet = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }))
+const mockUpdate = vi.fn(() => ({ set: mockUpdateSet }))
 
 vi.mock('@/db', () => ({
   db: {
     select: () => ({ from: mockSelectFrom }),
-    update: () => ({ set: mockUpdateSet }),
-    insert: () => ({ values: mockInsertValues }),
+    update: () => mockUpdate(),
   },
 }))
 
 vi.mock('@/db/schema', () => ({
-  subscriptions: {
-    id: 'id',
-    stripeEventId: 'stripe_event_id',
-    orgId: 'org_id',
-    stripeSubscriptionId: 'stripe_subscription_id',
-  },
+  subscriptions: { id: 'id', orgId: 'org_id', status: 'status', asaasEventId: 'asaas_event_id' },
 }))
 
 vi.mock('drizzle-orm', () => ({
-  eq: (a: unknown, b: unknown) => ({ field: a, value: b }),
+  eq: vi.fn(() => 'eq_clause'),
 }))
 
-// Mock do Stripe SDK
-const mockConstructEvent = vi.fn()
+import { POST } from '../webhook/route'
 
-vi.mock('@/lib/stripe', () => ({
-  stripe: {
-    webhooks: {
-      constructEvent: mockConstructEvent,
-    },
-  },
-}))
+const WEBHOOK_TOKEN = 'test-webhook-token'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function makeRequest(body: string, sig: string | null = 'valid-sig') {
-  const headers = new Headers()
-  if (sig !== null) headers.set('stripe-signature', sig)
-  return new Request('http://localhost/api/billing/webhook', {
+function makeRequest(body: unknown, token: string | null = WEBHOOK_TOKEN): NextRequest {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token !== null) headers['asaas-access-token'] = token
+  return new NextRequest('http://localhost/api/billing/webhook', {
     method: 'POST',
     headers,
-    body,
+    body: JSON.stringify(body),
   })
 }
-
-function makeEvent(type: string, data: object, id = 'evt_test_001'): Stripe.Event {
-  return {
-    id,
-    type,
-    data: { object: data },
-    object: 'event',
-    api_version: '2024-12-18.acacia',
-    created: Math.floor(Date.now() / 1000),
-    livemode: false,
-    pending_webhooks: 0,
-    request: null,
-  } as unknown as Stripe.Event
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('POST /api/billing/webhook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    // Default: not idempotent (event not previously processed)
-    mockSelectLimit.mockResolvedValue([])
-    mockUpdateWhere.mockResolvedValue(undefined)
-    mockInsertValues.mockResolvedValue(undefined)
-
-    // Re-wire the select chain after clearAllMocks
-    mockSelectFrom.mockReturnValue({ where: mockSelectWhere })
-    mockSelectWhere.mockReturnValue({ limit: mockSelectLimit })
-    mockUpdateSet.mockReturnValue({ where: mockUpdateWhere })
+    process.env.ASAAS_WEBHOOK_TOKEN = WEBHOOK_TOKEN
+    mockSelectLimit.mockResolvedValue([]) // por padrão: evento não processado ainda
   })
 
-  it('retorna 400 se o header stripe-signature estiver ausente', async () => {
-    const { POST } = await import('../webhook/route')
-    const req = makeRequest('{}', null)
-    const res = await POST(req as never)
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/missing stripe-signature/i)
-    expect(mockConstructEvent).not.toHaveBeenCalled()
+  it('retorna 401 quando o header asaas-access-token está ausente', async () => {
+    const response = await POST(makeRequest({ event: 'PAYMENT_RECEIVED' }, null))
+    expect(response.status).toBe(401)
   })
 
-  it('retorna 400 se a assinatura HMAC for inválida', async () => {
-    mockConstructEvent.mockImplementation(() => {
-      throw new Error('Invalid signature')
-    })
-    const { POST } = await import('../webhook/route')
-    const req = makeRequest('{}', 'invalid-sig')
-    const res = await POST(req as never)
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/invalid signature/i)
+  it('retorna 401 quando o token não confere', async () => {
+    const response = await POST(makeRequest({ event: 'PAYMENT_RECEIVED' }, 'token-errado'))
+    expect(response.status).toBe(401)
   })
 
-  it('retorna 200 sem processar se o evento já foi processado (idempotência)', async () => {
-    const event = makeEvent('invoice.payment_succeeded', { subscription: 'sub_123' })
-    mockConstructEvent.mockReturnValue(event)
+  it('retorna received:true sem processar quando falta orgId/eventId', async () => {
+    const response = await POST(makeRequest({ event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', status: 'RECEIVED', value: 100 } }))
+    const body = await response.json()
 
-    // Simulate event already in DB
-    mockSelectLimit.mockResolvedValue([{ id: 'existing-row' }])
+    expect(response.status).toBe(200)
+    expect(body.received).toBe(true)
+    expect(body.skipped).toBeDefined()
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
 
-    const { POST } = await import('../webhook/route')
-    const req = makeRequest(JSON.stringify(event), 'valid-sig')
-    const res = await POST(req as never)
-    expect(res.status).toBe(200)
-    const body = await res.json()
+  it('é idempotente: não reprocessa um evento já registrado', async () => {
+    mockSelectLimit.mockResolvedValue([{ id: 'sub-1' }])
+
+    const response = await POST(makeRequest({
+      event: 'PAYMENT_RECEIVED',
+      payment: { id: 'pay_1', externalReference: 'org-1', status: 'RECEIVED', value: 100 },
+    }))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
     expect(body.idempotent).toBe(true)
-    // Should NOT call update or insert
-    expect(mockUpdateSet).not.toHaveBeenCalled()
-    expect(mockInsertValues).not.toHaveBeenCalled()
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 
-  it('customer.subscription.deleted atualiza status para canceled', async () => {
-    const event = makeEvent('customer.subscription.deleted', { id: 'sub_abc' })
-    mockConstructEvent.mockReturnValue(event)
+  it.each([
+    ['PAYMENT_RECEIVED', 'active'],
+    ['PAYMENT_CONFIRMED', 'active'],
+    ['PAYMENT_OVERDUE', 'past_due'],
+  ])('mapeia evento de pagamento %s para status %s', async (event, status) => {
+    const response = await POST(makeRequest({
+      event,
+      payment: { id: 'pay_1', externalReference: 'org-1', status: 'RECEIVED', value: 100 },
+    }))
 
-    const { POST } = await import('../webhook/route')
-    const req = makeRequest(JSON.stringify(event), 'valid-sig')
-    const res = await POST(req as never)
-
-    expect(res.status).toBe(200)
-    expect(mockUpdateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'canceled', stripeEventId: 'evt_test_001' })
-    )
+    expect(response.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalled()
+    expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ status, asaasEventId: 'pay_1' }))
   })
 
-  it('invoice.payment_failed atualiza status para past_due', async () => {
-    const event = makeEvent('invoice.payment_failed', { subscription: 'sub_xyz' })
-    mockConstructEvent.mockReturnValue(event)
+  it('mapeia SUBSCRIPTION_DELETED para status canceled usando payload de subscription', async () => {
+    const response = await POST(makeRequest({
+      event: 'SUBSCRIPTION_DELETED',
+      subscription: { id: 'sub_asaas_1', externalReference: 'org-1', status: 'INACTIVE' },
+    }))
 
-    const { POST } = await import('../webhook/route')
-    const req = makeRequest(JSON.stringify(event), 'valid-sig')
-    const res = await POST(req as never)
-
-    expect(res.status).toBe(200)
-    expect(mockUpdateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'past_due', stripeEventId: 'evt_test_001' })
-    )
+    expect(response.status).toBe(200)
+    expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'canceled', asaasEventId: 'sub_asaas_1' }))
   })
 
-  it('invoice.payment_succeeded atualiza status para active', async () => {
-    const event = makeEvent('invoice.payment_succeeded', { subscription: 'sub_ok' })
-    mockConstructEvent.mockReturnValue(event)
+  it('confirma recebimento sem atualizar nada para eventos não mapeados', async () => {
+    const response = await POST(makeRequest({
+      event: 'PAYMENT_CREATED',
+      payment: { id: 'pay_2', externalReference: 'org-1', status: 'PENDING', value: 100 },
+    }))
+    const body = await response.json()
 
-    const { POST } = await import('../webhook/route')
-    const req = makeRequest(JSON.stringify(event), 'valid-sig')
-    const res = await POST(req as never)
-
-    expect(res.status).toBe(200)
-    expect(mockUpdateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'active', stripeEventId: 'evt_test_001' })
-    )
-  })
-
-  it('checkout.session.completed cria subscription com status trialing', async () => {
-    const event = makeEvent('checkout.session.completed', {
-      customer: 'cus_new',
-      subscription: 'sub_new',
-      metadata: { orgId: 'org-uuid' },
-    })
-    mockConstructEvent.mockReturnValue(event)
-
-    // Second select (existing org check) also returns []
-    mockSelectLimit.mockResolvedValue([])
-
-    const { POST } = await import('../webhook/route')
-    const req = makeRequest(JSON.stringify(event), 'valid-sig')
-    const res = await POST(req as never)
-
-    expect(res.status).toBe(200)
-    expect(mockInsertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'trialing',
-        stripeCustomerId: 'cus_new',
-        stripeEventId: 'evt_test_001',
-      })
-    )
+    expect(response.status).toBe(200)
+    expect(body.received).toBe(true)
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })
